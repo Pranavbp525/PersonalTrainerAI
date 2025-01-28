@@ -413,7 +413,7 @@ The project will be considered successful and accepted when it meets all the fun
 | Bug Fixing & Improvements    | 2025-04-15  | 2025-04-21  | 7 days  | User Acceptance Testing      |
 | Documentation                 | 2025-04-22  | 2025-04-28  | 7 days  | All Development Tasks         |
 
-**Note:** This is a preliminary timeline and may be adjusted based on progress, unforeseen challenges, and resource availability, however since the project scoping is due on september 27th, I have made sure to start after that.
+**Note:** This is a preliminary timeline and may be adjusted based on progress, unforeseen challenges, and resource availability.
 
 **13. Additional Information**
 
