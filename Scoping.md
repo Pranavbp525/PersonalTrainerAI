@@ -1,4 +1,4 @@
-**Project Scoping Submission - Personal Fitness AI Agent**
+**Project Scoping Submission - Personal Trainer AI Agent**
 
 **Team Members:**
 
@@ -12,7 +12,7 @@
 
 **1. Introduction**
 
-This project aims to develop a Personal Fitness AI Agent that acts as a virtual personal trainer, leveraging Retrieval-Augmented Generation (RAG), memory, and tool use to provide tailored workout plans and track user progress. The AI Agent will interact with users through a chatbot interface, create personalized workout routines, integrate with the Hevy workout logging app via its API, and adapt routines based on user feedback and progress data. This project seeks to innovate beyond existing fitness apps that rely on static rule-based methods by offering a dynamic, AI-driven, and highly personalized training experience.
+This project aims to develop a Personal Trainer AI Agent that acts as a virtual personal trainer, leveraging Retrieval-Augmented Generation (RAG), memory, and tool use to provide tailored workout plans and track user progress. The AI Agent will interact with users through a chatbot interface, create personalized workout routines, integrate with the Hevy workout logging app via its API, and adapt routines based on user feedback and progress data. This project seeks to innovate beyond existing fitness apps that rely on static rule-based methods by offering a dynamic, AI-driven, and highly personalized training experience.
 
 **2. Dataset Information**
 
