@@ -396,22 +396,22 @@ The project will be considered successful and accepted when it meets all the fun
 | Task                          | Start Date  | End Date    | Duration | Dependencies                   |
 | :---------------------------- | :---------- | :---------- | :------- | :----------------------------- |
 | **Phase 1: Setup & Data**     |             |             |          |                                |
-| Create GitHub Repository      | 2023-09-28  | 2023-09-29  | 2 days   |                                |
-| Initial Data Scraping         | 2023-09-29  | 2023-10-06  | 7 days   |                                |
-| Data Preprocessing           | 2023-10-06  | 2023-10-13  | 7 days   | Initial Data Scraping          |
+| Create GitHub Repository      | 2025-01-28  | 2025-01-31  | 4 days   |                                |
+| Initial Data Scraping         | 2025-02-01  | 2025-02-07  | 7 days   |                                |
+| Data Preprocessing           | 2025-02-08  | 2025-02-15  | 8 days   | Initial Data Scraping          |
 | **Phase 2: Development**      |             |             |          |                                |
-| RAG Model Implementation      | 2023-10-13  | 2023-10-27  | 14 days  | Data Preprocessing             |
-| Chatbot Interface             | 2023-10-20  | 2023-11-03  | 14 days  |                                |
-| Hevy API Integration           | 2023-10-27  | 2023-11-10  | 14 days  | RAG Model Implementation      |
-| Routine Adaptation Logic     | 2023-11-10  | 2023-11-24  | 14 days  | Hevy API Integration, RAG Model |
-| Progress Reporting            | 2023-11-17  | 2023-12-01  | 14 days  | Hevy API Integration           |
+| RAG Model Implementation      | 2025-02-16  | 2025-02-22  | 7 days  | Data Preprocessing             |
+| Chatbot Interface             | 2025-02-23  | 2025-02-28  | 6 days  |                                |
+| Hevy API Integration           | 2025-03-01  | 2025-03-10  | 10 days  | RAG Model Implementation      |
+| Routine Adaptation Logic     | 2025-03-11  | 2025-03-20  | 10 days  | Hevy API Integration, RAG Model |
+| Progress Reporting            | 2025-03-21  | 2023-03-24  | 4 days  | Hevy API Integration           |
 | **Phase 3: Testing & Deployment** |             |             |          |                                |
-| Unit & Integration Testing     | 2023-12-01  | 2023-12-15  | 14 days  | All Development Tasks         |
-| Deployment to Cloud          | 2023-12-15  | 2023-12-22  | 7 days   | Unit & Integration Testing     |
-| User Acceptance Testing      | 2023-12-22  | 2024-01-12  | 21 days  | Deployment to Cloud          |
+| Unit & Integration Testing     | 2025-03-25  | 2025-03-31  | 6 days  | All Development Tasks         |
+| Deployment to Cloud          | 2025-04-01  | 2025-04-07  | 7 days   | Unit & Integration Testing     |
+| User Acceptance Testing      | 2025-04-08  | 2025-04-14  | 7 days  | Deployment to Cloud          |
 | **Phase 4: Refinement**       |             |             |          |                                |
-| Bug Fixing & Improvements    | 2024-01-12  | 2024-01-26  | 14 days  | User Acceptance Testing      |
-| Documentation                 | 2024-01-19  | 2024-02-02  | 14 days  | All Development Tasks         |
+| Bug Fixing & Improvements    | 2025-04-15  | 2025-04-21  | 7 days  | User Acceptance Testing      |
+| Documentation                 | 2025-04-22  | 2025-04-28  | 7 days  | All Development Tasks         |
 
 **Note:** This is a preliminary timeline and may be adjusted based on progress, unforeseen challenges, and resource availability, however since the project scoping is due on september 27th, I have made sure to start after that.
 
@@ -424,6 +424,3 @@ The project will be considered successful and accepted when it meets all the fun
 *   **Testing:** We will write unit tests and integration tests to ensure code quality and prevent regressions.
 *   **Documentation:** We will thoroughly document the code, API endpoints, and system architecture.
 
----
-
-This comprehensive project scoping document provides a solid foundation for your Personal Fitness AI Agent project. Remember to fill in the placeholders, create your GitHub repository, and adjust the timeline and other details as needed. Good luck with your project!
