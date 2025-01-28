@@ -3,11 +3,11 @@
 **Team Members:**
 
 *   Bhavya Pranav Tandra
-*   2
-*   3
-*   4
-*   5
-
+*   Ruthvika Reddy Tangirala
+*   Sabarish Subramaniam A.V
+*   Samarthkumar Galchar
+*   Vinyas Naidu Karri
+  
 ---
 
 **1. Introduction**
