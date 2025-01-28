@@ -79,7 +79,7 @@ The inclusion of these sources will ensure that the AI Agent's recommendations a
 
 **4. GitHub Repository**
 
-*   **Link:** [Create a GitHub repository and put the link here. If you need to keep it private initially, you can share it later.]
+*   **Link:** https://github.com/Pranavbp525/PersonalTrainerAI
 *   **Folder Structure:**
 
 ```
