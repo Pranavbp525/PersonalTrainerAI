@@ -275,13 +275,13 @@ graph TD
 
 **9. Deployment Infrastructure**
 
-*   **Cloud Platform:** AWS, Google Cloud, or Azure (choose based on cost, features, and familiarity).
+*   **Cloud Platform:** AWS, Google Cloud, or Azure (will be chosen based on cost, features, and familiarity).
 *   **Server:**
-    *   **Web Server:**  For hosting the chatbot interface and serving API requests (e.g., Flask, Django, Node.js application running on a compute instance like EC2, Compute Engine, or App Service).
+    *   **Web Server:**  For hosting the chatbot interface and serving API requests (e.g., FastAPI, Django, Node.js application running on a compute instance like EC2, Compute Engine, or App Service).
     *   **Database Server:** For storing user data, workout data, and potentially RAG embeddings (e.g., managed database services like RDS, Cloud SQL, or Azure SQL).
 *   **RAG Model Hosting:**
     *   Can be hosted on the same server as the web application or on a separate server optimized for machine learning workloads (e.g., using a GPU instance for faster inference).
-    *   Consider using a model serving framework like TensorFlow Serving or TorchServe.
+    *   Considering using a model serving framework like TensorFlow Serving or TorchServe.
 *   **Hevy API Integration:**
     *   The application will make API calls to Hevy's servers to import and export data.
 *   **Caching:**
