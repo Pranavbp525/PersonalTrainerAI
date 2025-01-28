@@ -32,7 +32,7 @@ The inclusion of these sources will ensure that the AI Agent's recommendations a
 *   **Dataset Name:** Fitness and Workout Knowledge Base
 *   **Data Types:** Text data (articles, blogs, research papers).
 *   **Format:** Primarily text (.txt, .pdf, web scraping output).
-*   **Size:** Initial size estimated based on available free content from Renaissance Periodization, with significant growth expected upon inclusion of research publications. Estimated to be several gigabytes after processing and summarization.
+*   **Size:** Initial size estimated based on available free content from Renaissance Periodization, with significant growth expected upon inclusion of research publications. Estimated to be several documents after processing and summarization.
 *   **Features:**
     *   Workout routines (exercises, sets, reps, rest times)
     *   Exercise descriptions and instructions
