@@ -171,7 +171,7 @@ class YouTubeChannelTranscripts:
 
 def main():
     """Main execution function."""
-    channel_name = "Jeff Nippard"
+    channel_name = "emi wong"
     processor = YouTubeChannelTranscripts(API_KEY)
     
     print(f"Starting to process channel: {channel_name}")
