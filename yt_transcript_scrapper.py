@@ -4,13 +4,16 @@ from typing import List, Dict, Optional
 from time import sleep
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from youtube_transcript_api import YouTubeTranscriptApi
 
+load_dotenv()
+
 # Configuration
-API_KEY = 'API-KEY'
+API_KEY = os.getenv('youtube-api-key')
 MAX_RESULTS_PER_PAGE = 50
 RATE_LIMIT_DELAY = 1  # Delay in seconds between API calls
 DATA_FOLDER = 'data'  # Folder to store JSON files
