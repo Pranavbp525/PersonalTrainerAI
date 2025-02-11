@@ -1,0 +1,40 @@
+{
+  "video_info": {
+    "id": "rHYWzcFvYqY",
+    "title": "running is my new therapy 😉",
+    "description": "",
+    "published_at": "2024-05-12T17:04:50Z",
+    "channel_id": "UCsLF0qPTpkYKq81HsjgzhwQ",
+    "channel_title": "growingannanas",
+    "duration": "PT18S",
+    "view_count": "929144",
+    "like_count": "65253",
+    "comment_count": "351"
+  },
+  "transcript": [
+    {
+      "text": "I",
+      "start": 0.08,
+      "duration": 4.679
+    },
+    {
+      "text": "can't I got a feeling that I just I",
+      "start": 1.2,
+      "duration": 9.27
+    },
+    {
+      "text": "can't just a feeling that I want want",
+      "start": 4.759,
+      "duration": 14.24
+    },
+    {
+      "text": "[Music]",
+      "start": 10.47,
+      "duration": 8.529
+    }
+  ],
+  "metadata": {
+    "retrieved_at": "2025-02-02T13:23:13.377793",
+    "has_transcript": true
+  }
+}

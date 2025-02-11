@@ -1,0 +1,35 @@
+{
+  "video_info": {
+    "id": "2g9hcEnbP44",
+    "title": "this is not healthy…",
+    "description": "",
+    "published_at": "2024-03-19T10:17:50Z",
+    "channel_id": "UCvGEK5_U-kLgO6-AMDPeTUQ",
+    "channel_title": "emi wong",
+    "duration": "PT9S",
+    "view_count": "118485",
+    "like_count": "7583",
+    "comment_count": "45"
+  },
+  "transcript": [
+    {
+      "text": "[Music]",
+      "start": 0.92,
+      "duration": 3.92
+    },
+    {
+      "text": "to see you",
+      "start": 2.0,
+      "duration": 2.84
+    },
+    {
+      "text": "again okay",
+      "start": 6.839,
+      "duration": 3.641
+    }
+  ],
+  "metadata": {
+    "retrieved_at": "2025-02-02T13:29:40.745307",
+    "has_transcript": true
+  }
+}

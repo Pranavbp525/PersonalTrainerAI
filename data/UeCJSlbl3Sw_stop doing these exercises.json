@@ -1,0 +1,40 @@
+{
+  "video_info": {
+    "id": "UeCJSlbl3Sw",
+    "title": "stop doing these exercises",
+    "description": "",
+    "published_at": "2024-02-28T10:26:48Z",
+    "channel_id": "UCvGEK5_U-kLgO6-AMDPeTUQ",
+    "channel_title": "emi wong",
+    "duration": "PT19S",
+    "view_count": "3845414",
+    "like_count": "228039",
+    "comment_count": "521"
+  },
+  "transcript": [
+    {
+      "text": "we going Spin and",
+      "start": 1.439,
+      "duration": 2.641
+    },
+    {
+      "text": "kill",
+      "start": 7.44,
+      "duration": 3.0
+    },
+    {
+      "text": "we",
+      "start": 15.199,
+      "duration": 5.24
+    },
+    {
+      "text": "on bag one",
+      "start": 16.72,
+      "duration": 3.719
+    }
+  ],
+  "metadata": {
+    "retrieved_at": "2025-02-02T13:30:17.320911",
+    "has_transcript": true
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "video_info": {
+    "id": "Ym-K0cLlbIk",
+    "title": "reminder to give yourself some self-love",
+    "description": "",
+    "published_at": "2024-03-08T11:05:02Z",
+    "channel_id": "UCvGEK5_U-kLgO6-AMDPeTUQ",
+    "channel_title": "emi wong",
+    "duration": "PT8S",
+    "view_count": "74256",
+    "like_count": "4130",
+    "comment_count": "30"
+  },
+  "transcript": [
+    {
+      "text": "good night to me I love myself so much I",
+      "start": 0.199,
+      "duration": 5.401
+    },
+    {
+      "text": "mean the world to",
+      "start": 2.76,
+      "duration": 2.84
+    },
+    {
+      "text": "me",
+      "start": 6.319,
+      "duration": 3.0
+    }
+  ],
+  "metadata": {
+    "retrieved_at": "2025-02-02T13:30:02.869705",
+    "has_transcript": true
+  }
+}

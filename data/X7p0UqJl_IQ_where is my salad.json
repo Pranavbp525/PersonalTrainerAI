@@ -1,0 +1,45 @@
+{
+  "video_info": {
+    "id": "X7p0UqJl_IQ",
+    "title": "where is my salad?",
+    "description": "",
+    "published_at": "2024-05-30T10:57:23Z",
+    "channel_id": "UCvGEK5_U-kLgO6-AMDPeTUQ",
+    "channel_title": "emi wong",
+    "duration": "PT14S",
+    "view_count": "55101",
+    "like_count": "2176",
+    "comment_count": "21"
+  },
+  "transcript": [
+    {
+      "text": "where is my salad oh my God I forgot to",
+      "start": 0.199,
+      "duration": 5.041
+    },
+    {
+      "text": "order a",
+      "start": 3.76,
+      "duration": 5.759
+    },
+    {
+      "text": "salad wow what was I even",
+      "start": 5.24,
+      "duration": 7.439
+    },
+    {
+      "text": "thinking have to eat it now then no",
+      "start": 9.519,
+      "duration": 6.08
+    },
+    {
+      "text": "salad",
+      "start": 12.679,
+      "duration": 2.92
+    }
+  ],
+  "metadata": {
+    "retrieved_at": "2025-02-02T13:28:32.095802",
+    "has_transcript": true
+  }
+}

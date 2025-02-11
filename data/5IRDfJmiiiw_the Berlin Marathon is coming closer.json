@@ -1,0 +1,45 @@
+{
+  "video_info": {
+    "id": "5IRDfJmiiiw",
+    "title": "the Berlin Marathon is coming closer",
+    "description": "",
+    "published_at": "2024-09-26T17:13:45Z",
+    "channel_id": "UCsLF0qPTpkYKq81HsjgzhwQ",
+    "channel_title": "growingannanas",
+    "duration": "PT27S",
+    "view_count": "674436",
+    "like_count": "36316",
+    "comment_count": "175"
+  },
+  "transcript": [
+    {
+      "text": "we're on the bright",
+      "start": 7.799,
+      "duration": 6.601
+    },
+    {
+      "text": "side we're on a Johnny for the",
+      "start": 10.599,
+      "duration": 7.561
+    },
+    {
+      "text": "good we chase the star",
+      "start": 14.4,
+      "duration": 7.6
+    },
+    {
+      "text": "signs painted a road across the dark",
+      "start": 18.16,
+      "duration": 9.199
+    },
+    {
+      "text": "night we breaking through the s",
+      "start": 22.0,
+      "duration": 5.359
+    }
+  ],
+  "metadata": {
+    "retrieved_at": "2025-02-02T13:21:05.222429",
+    "has_transcript": true
+  }
+}
