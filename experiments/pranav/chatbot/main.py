@@ -1,22 +1,38 @@
 import logging
 import os
+import requests
 import openai  # Import the OpenAI library
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from .models import get_db, Message, MessageCreate, MessageResponse, User, Session as DBSession
-from .redis_utils import store_chat_history, get_chat_history
-from .config import config
+from models import get_db, Message, MessageCreate, MessageResponse, User, Session as DBSession
+from redis_utils import store_chat_history, get_chat_history
+from config import config
+from dotenv import load_dotenv
+from pydantic import BaseModel
+from fastapi import Request
+# Define a Pydantic model for user creation
+class UserCreate(BaseModel):
+    username: str
+
+class SessionCreate(BaseModel):
+    user_id: int
+
+
+
+load_dotenv()
 
 logging.basicConfig(level=config.LOGGING_LEVEL)
 log = logging.getLogger(__name__)
 
 app = FastAPI()
 
+api_key = os.environ.get("OPENAI_API_KEY")
 # --- OpenAI API Setup ---
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-if not openai.api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set!")
+client = openai.OpenAI(api_key=api_key)
 
+
+if not client.api_key:
+    raise ValueError("OPENAI_API_KEY environment variable not set!")
 # --- (Optional) Vector Database Integration Placeholder ---
 def retrieve_context_from_vector_db(user_input: str) -> list[str]:
     """
@@ -37,69 +53,43 @@ def retrieve_context_from_vector_db(user_input: str) -> list[str]:
 
 
 async def generate_response(session_id: str, db: Session) -> str:
-    """
-    Generates a response using the OpenAI API.
-
-    Args:
-        session_id: The ID of the current chat session.
-        db: The database session
-
-    Returns:
-        The assistant's response text.
-
-    Raises:
-        HTTPException: If there's an error communicating with the OpenAI API.
-    """
     try:
-        # 1. Retrieve chat history from Redis (fast) or PostgreSQL (if needed).
         messages_for_openai = []
         chat_history = get_chat_history(session_id)
         if not chat_history:
-            # Fallback to PostgreSQL if Redis is empty/unavailable
             db_messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.timestamp).all()
             chat_history = [f"{msg.role}: {msg.content}" for msg in db_messages]
 
-        # --- (Optional) RAG Integration ---
         if chat_history:
-          most_recent_user_message = ""
-          #find most recent user message from the chat history
-          for message in reversed(chat_history):
-            if message.startswith("user:"):
-                most_recent_user_message = message.split(":", 1)[1].strip()
-                break
-          relevant_message_ids = retrieve_context_from_vector_db(most_recent_user_message)  # Get IDs
-          if relevant_message_ids:
+            most_recent_user_message = ""
+            for message in reversed(chat_history):
+                if message.startswith("user:"):
+                    most_recent_user_message = message.split(":", 1)[1].strip()
+                    break
+            relevant_message_ids = retrieve_context_from_vector_db(most_recent_user_message)
+            if relevant_message_ids:
                 context_messages = db.query(Message).filter(Message.id.in_(relevant_message_ids)).order_by(Message.timestamp).all()
                 context_history = [f"{msg.role}: {msg.content}" for msg in context_messages]
-                #Prepend context history to the chat history, being mindful not to exceed model limit
                 for message in reversed(context_history):
-                    chat_history.insert(0,message)
-          # -----------------------------------
-          
-          # 2. Format messages for OpenAI's ChatCompletion API.
-          for message_text in chat_history:
-            role, content = message_text.split(":", 1)  # Assumes "role: content" format
-            messages_for_openai.append({"role": role.strip().lower(), "content": content.strip()})
-            
-        # 3. Call the OpenAI API.
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Or your preferred model
+                    chat_history.insert(0, message)
+
+            for message_text in chat_history:
+                role, content = message_text.split(":", 1)
+                messages_for_openai.append({"role": role.strip().lower(), "content": content.strip()})
+
+        # Use the new OpenAI client
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=messages_for_openai,
-            max_tokens=150,  # Adjust as needed
-            temperature=0.7,  # Adjust for creativity/focus
+            max_tokens=150,
+            temperature=0.7,
         )
-        # 4. Extract the assistant's response.
-        assistant_response = response.choices[0].message['content'].strip()
+        assistant_response = response.choices[0].message.content.strip()
         return assistant_response
 
-    except openai.error.OpenAIError as e:
-        log.error(f"OpenAI API error: {e}")
-        raise HTTPException(status_code=500, detail=f"OpenAI API error: {e}")
     except Exception as e:
-        log.exception(f"Unexpected error during OpenAI API call: {e}")  # Log full traceback
-        raise HTTPException(status_code=500, detail="Unexpected error during response generation")
-
-
+        log.error(f"Error in OpenAI API call: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error in response generation: {str(e)}")
 
 @app.post("/messages/", response_model=MessageResponse)
 async def create_message(message_data: MessageCreate, db: Session = Depends(get_db)):
@@ -164,13 +154,15 @@ async def get_messages(session_id: str, db: Session = Depends(get_db)):
     return messages
     
 @app.post("/users/", response_model=dict)
-async def create_user(username: str, db: Session = Depends(get_db)):
-    #Check if username is unique
-    existing_user = db.query(User).filter(User.username == username).first()
+async def create_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
+    # Check if username is unique
+    log.debug(f"Received request body: {await request.json()}")
+
+    existing_user = db.query(User).filter(User.username == user.username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    new_user = User(username=username)
+    new_user = User(username=user.username)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -178,14 +170,14 @@ async def create_user(username: str, db: Session = Depends(get_db)):
 
 
 @app.post("/sessions/", response_model=dict)
-async def create_session(user_id: int, db: Session = Depends(get_db)):
-
-    #Check if user exists
-    user = db.query(User).filter(User.id == user_id).first()
+async def create_session(session: SessionCreate, request: Request, db: Session = Depends(get_db)):
+    # Check if user exists
+    log.debug(f"Received request body: {await request.json()}")
+    user = db.query(User).filter(User.id == session.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
-    new_session = DBSession(user_id = user_id)
+    
+    new_session = DBSession(user_id=session.user_id)
     db.add(new_session)
     db.commit()
     db.refresh(new_session)
@@ -194,5 +186,5 @@ async def create_session(user_id: int, db: Session = Depends(get_db)):
 # --- Example Usage (Without FastAPI - for initialization) ---
 if __name__ == "__main__":
     from .models import Base, engine
-    Base.metadata.create_all(bind=engine)  # Create tables (use Alembic!)
+    # Base.metadata.create_all(bind=engine)  # Create tables (use Alembic!)
     print("Database tables created.  Run 'uvicorn main:app --reload' to start the API.")

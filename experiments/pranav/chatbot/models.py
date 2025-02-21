@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, crea
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.dialects.postgresql import UUID  # Import UUID type
-from .config import config # Import the config
+from config import config # Import the config
 from pydantic import BaseModel, Field  # For data validation (optional)
 
 Base = declarative_base()
@@ -14,7 +14,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    username = Column(String(50), unique=True, nullable=False)
+    username = Column(String(50), nullable=False)  # Removed unique=True
     sessions = relationship('Session', back_populates='user')
 
 
