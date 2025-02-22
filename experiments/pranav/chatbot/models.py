@@ -14,7 +14,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    username = Column(String(50), nullable=False)  # Removed unique=True
+    username = Column(String(50), unique=False, nullable=False)  # Removed unique=True
     sessions = relationship('Session', back_populates='user')
 
 
