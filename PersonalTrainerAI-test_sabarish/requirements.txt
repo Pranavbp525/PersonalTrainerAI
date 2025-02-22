@@ -1,6 +1,0 @@
-requests
-beautifulsoup4
-PyPDF2
-youtube-transcript-api
-google-api-python-client
-python-dotenv
