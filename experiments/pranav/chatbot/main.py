@@ -55,8 +55,10 @@ def retrieve_context_from_vector_db(user_input: str) -> list[str]:
 async def generate_response(session_id: str, db: Session) -> str:
     try:
         messages_for_openai = []
+        log.debug(f"Attempting to retrieve chat history from Redis for session: {session_id}") # Log attempt
         chat_history = get_chat_history(session_id)
         if not chat_history:
+            log.info(f"Chat history not found in Redis for session: {session_id}.  Falling back to PostgreSQL.") # Log fallback
             db_messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.timestamp).all()
             chat_history = [f"{msg.role}: {msg.content}" for msg in db_messages]
 
@@ -103,6 +105,7 @@ async def create_message(message_data: MessageCreate, db: Session = Depends(get_
     try:
         db.commit()
         db.refresh(db_message)
+        log.info(f"User message stored in PostgreSQL for session: {message_data.session_id}") # Add log here
     except Exception as e:
         db.rollback()
         log.error(f"Database error (user message): {e}")
@@ -128,6 +131,7 @@ async def create_message(message_data: MessageCreate, db: Session = Depends(get_
     try:
         db.commit()
         db.refresh(db_assistant_message)
+        log.info(f"Assistant message stored in PostgreSQL for session: {message_data.session_id}") # Add log here
     except Exception as e:
         db.rollback()
         log.error(f"Database error (assistant message): {e}")
