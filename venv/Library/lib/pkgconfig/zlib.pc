@@ -1,0 +1,13 @@
+prefix=D:/Mlops_Vinyas/web-scraping-project/venv/Library
+exec_prefix=D:/Mlops_Vinyas/web-scraping-project/venv/Library
+libdir=D:/Mlops_Vinyas/web-scraping-project/venv/Library/lib
+sharedlibdir=D:/Mlops_Vinyas/web-scraping-project/venv/Library/lib
+includedir=D:/Mlops_Vinyas/web-scraping-project/venv/Library/include
+
+Name: zlib
+Description: zlib compression library
+Version: 1.2.13
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz
+Cflags: -I${includedir}
