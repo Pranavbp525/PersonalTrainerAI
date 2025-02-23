@@ -10,6 +10,7 @@ from config import config
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from fastapi import Request
+from agent import agent_app
 # Define a Pydantic model for user creation
 class UserCreate(BaseModel):
     username: str
@@ -53,46 +54,48 @@ def retrieve_context_from_vector_db(user_input: str) -> list[str]:
 
 
 async def generate_response(session_id: str, db: Session) -> str:
+    log.info(f"Starting generate_response for session: {session_id}")
     try:
-        messages_for_openai = []
-        log.debug(f"Attempting to retrieve chat history from Redis for session: {session_id}") # Log attempt
+        messages_for_agent = []
         chat_history = get_chat_history(session_id)
+        log.info(f"Retrieved chat history from Redis: {chat_history}")
         if not chat_history:
-            log.info(f"Chat history not found in Redis for session: {session_id}.  Falling back to PostgreSQL.") # Log fallback
             db_messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.timestamp).all()
             chat_history = [f"{msg.role}: {msg.content}" for msg in db_messages]
+            log.info(f"Fetched chat history from PostgreSQL: {chat_history}")
 
-        if chat_history:
-            most_recent_user_message = ""
-            for message in reversed(chat_history):
-                if message.startswith("user:"):
-                    most_recent_user_message = message.split(":", 1)[1].strip()
-                    break
-            relevant_message_ids = retrieve_context_from_vector_db(most_recent_user_message)
-            if relevant_message_ids:
-                context_messages = db.query(Message).filter(Message.id.in_(relevant_message_ids)).order_by(Message.timestamp).all()
-                context_history = [f"{msg.role}: {msg.content}" for msg in context_messages]
-                for message in reversed(context_history):
-                    chat_history.insert(0, message)
+        for message_text in chat_history:
+            role, content = message_text.split(":", 1)
+            messages_for_agent.append({"role": role.strip().lower(), "content": content.strip()})
+        log.info(f"Prepared messages for agent: {messages_for_agent}")
 
-            for message_text in chat_history:
-                role, content = message_text.split(":", 1)
-                messages_for_openai.append({"role": role.strip().lower(), "content": content.strip()})
+        state = {
+            "messages": messages_for_agent,
+            "session_id": session_id,
+            "tool_results": {}
+        }
+        log.info(f"Initial state: {state}")
 
-        # Use the new OpenAI client
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages_for_openai,
-            max_tokens=150,
-            temperature=0.7,
-        )
-        assistant_response = response.choices[0].message.content.strip()
+        result = agent_app.invoke(state)
+        log.info(f"Agent result: {result}")
+        
+        last_message = result["messages"][-1]
+        log.info(f"Last message: {last_message}")
+        if hasattr(last_message, "content"):  # AIMessage or ToolMessage
+            assistant_response = last_message.content.strip()
+            log.info(f"Extracted content from object: {assistant_response}")
+        elif isinstance(last_message, dict) and "content" in last_message:  # Plain dict
+            assistant_response = last_message["content"].strip()
+            log.info(f"Extracted content from dict: {assistant_response}")
+        else:
+            raise ValueError(f"Unexpected message format: {last_message}")
+        log.info(f"Final assistant response: {assistant_response}")
         return assistant_response
 
     except Exception as e:
-        log.error(f"Error in OpenAI API call: {type(e).__name__}: {str(e)}")
+        log.error(f"Error in agent response generation: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error in response generation: {str(e)}")
-
+            
 @app.post("/messages/", response_model=MessageResponse)
 async def create_message(message_data: MessageCreate, db: Session = Depends(get_db)):
     """
