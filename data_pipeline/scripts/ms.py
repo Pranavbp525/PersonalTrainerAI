@@ -6,10 +6,21 @@ import logging
 from urllib.parse import urljoin
 import random
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+# # Set up logging
+# logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# logger = logging.getLogger(__name__)
 
+# ✅ Configure logging for each file, writing to the same file
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
+    handlers=[
+        logging.FileHandler("scraper.log"),  # ✅ Logs go into the same file
+        logging.StreamHandler()  # ✅ Also print logs to the console
+    ]
+)
+
+logger = logging.getLogger(__name__)  # ✅ Logger for each file
 class WorkoutScraper:
     def __init__(self, base_url):
         self.base_url = base_url
@@ -145,7 +156,7 @@ class WorkoutScraper:
             return {
                 "source": self.base_url,
                 "title": title,
-                "workout_url": url,
+                "url": url,
                 "summary": summary,
                 "description": description_text,
                 "exercises": exercises,
