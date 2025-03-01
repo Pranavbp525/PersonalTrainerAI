@@ -21,17 +21,20 @@ class WorkoutScraper:
 
     def fetch_html(self, url):
         """Fetch and parse HTML content with error handling."""
-        try:
-            delay = random.uniform(*self.rate_limit_delay)
-            logger.info(f"Waiting {delay:.2f} sec before fetching: {url}")
-            time.sleep(delay)  # Avoid getting blocked
-
-            response = self.session.get(url, timeout=5)  # Faster timeout (5 sec)
-            response.raise_for_status()
-            return BeautifulSoup(response.text, "html.parser")
-        except requests.RequestException as e:
-            logger.error(f"Error fetching {url}: {str(e)}")
-            return None
+        retries = 3  # Number of retries
+        for attempt in range(retries):
+            try:
+                response = self.session.get(url, timeout=5)  # Faster timeout (5 sec)
+                response.raise_for_status()
+                return BeautifulSoup(response.text, "html.parser")
+            except requests.RequestException as e:
+                logger.error(f"Error fetching {url} (Attempt {attempt + 1}/{retries}): {str(e)}")
+                if attempt < retries - 1:  # Only delay if there are more retries left
+                    delay = random.uniform(*self.rate_limit_delay)
+                    logger.info(f"Retrying after {delay:.2f} sec...")
+                    time.sleep(delay)
+    
+        return None  # Return None if all retries fail
 
     def extract_workout_links(self, soup):
         """Extracts workout links from the main page."""
@@ -61,15 +64,17 @@ class WorkoutScraper:
             return "No description available."
 
         try:
-            description_div = soup.find("div", class_="node-stats-block")
-            if description_div:
-                # Extracting exercise summary
-                summary = ''
-                rows = description_div.find_all("li")
-                for row in rows:
-                    row_label = row.find("span").text.strip()
-                    value = row.text.replace(row_label, "").strip()
-                    summary += row_label + ': ' + value + '; '
+            content_div = soup.find("div", class_="content clearfix")
+
+            if content_div:
+                # Removing unwanted divs
+                for unwanted_class in ["node-stats-block", "grid-x target-muscles"]:
+                    unwanted_div = content_div.find("div", class_=unwanted_class)
+                    if unwanted_div:
+                        unwanted_div.decompose()
+    
+                # Extracting cleaned text
+                summary = content_div.get_text(strip=True, separator="\n")
 
                 return summary
             return "No description available."
@@ -98,6 +103,8 @@ class WorkoutScraper:
 
             # Extracting workout description
             description = soup.find("div", class_="field field-name-body field-type-text-with-summary field-label-hidden")
+            if description:
+                description_text = description.get_text(strip=True, separator=" ")
 
             # Extracting exercises from the same section (No Limit)
             exercises = []
@@ -118,14 +125,14 @@ class WorkoutScraper:
                 })
 
 
-            # Remove all <table> elements from the description
-            if description:
-                for table in description.find_all("table"):
-                    table.decompose()  # Removes the table from the HTML
+            # # Remove all <table> elements from the description
+            # if description:
+            #     for table in description.find_all("table"):
+            #         table.decompose()  # Removes the table from the HTML
 
-                description_text = description.get_text(strip=True)
-            else:
-                description_text = "No description available."  
+            #     description_text = description.get_text(strip=True)
+            # else:
+            #     description_text = "No description available."  
 
 
             logger.info(f"Scraped {len(exercises)} exercises from {url}")
@@ -145,7 +152,7 @@ class WorkoutScraper:
         workouts = []
         current_url = self.base_url
         page_count = 1
-        max_workouts = 2  # Limit to 5 workout tiles only
+        max_workouts = 100  # Limit to 5 workout tiles only
         workout_count = 0  # Counter for scraped workouts
 
         while current_url and workout_count < max_workouts:
@@ -171,10 +178,12 @@ class WorkoutScraper:
             if workout_count >= max_workouts:
                 break
 
-            next_page = self.get_next_page(soup)
-            current_url = urljoin(self.base_url, next_page) if next_page else None
-            page_count += 1  # Move to the next page
-
+            try:
+                next_page = self.get_next_page(soup)
+                current_url = urljoin(self.base_url, next_page) if next_page else None
+                page_count += 1  # Move to the next page
+            except Exception as e:
+                logger.error(f"Error getting next page: {str(e)}")
         logger.info(f"Finished scraping {workout_count} workouts.")
         return workouts
 
@@ -197,13 +206,17 @@ class WorkoutScraper:
             logger.error(f"Error saving to JSON: {str(e)}")
 
 def main():
-    base_url = "https://www.muscleandstrength.com/workouts/men"
+    base_url = ["https://www.muscleandstrength.com/workouts/men","https://www.muscleandstrength.com/workouts/women","https://www.muscleandstrength.com/workouts/muscle-building",
+                "https://www.muscleandstrength.com/workouts/fat-loss", "https://www.muscleandstrength.com/workouts/strength", "https://www.muscleandstrength.com/workouts/abs",
+                "https://www.muscleandstrength.com/workouts/full-body"]
     output_file = "workouts1.json"
-
+    all_workouts = []
     try:
-        scraper = WorkoutScraper(base_url)
-        workouts = scraper.scrape_workouts()
-        scraper.save_to_json(workouts, output_file)
+        for link in base_url:
+            scraper = WorkoutScraper(link)
+            workouts = scraper.scrape_workouts()
+            all_workouts = all_workouts + workouts
+            scraper.save_to_json(all_workouts, output_file)
     except Exception as e:
         logger.error(f"Scraping failed: {str(e)}")
 
