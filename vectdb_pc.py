@@ -9,20 +9,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# 🔹 Step 1: Load JSON Data
-json_file_path = r"data/preprocessed_json_data/youtube_transcripts.json"  # Replace with your actual file path
+# Step 1: Load JSON Data
+json_file_path = r"data/preprocessed_json_data/youtube_transcripts.json"
 
 with open(json_file_path, "r", encoding="utf-8") as file:
     data = json.load(file)
 
-# 🔹 Step 2: Initialize LangChain's Chunking
+# Step 2: Initialize LangChain's Chunking
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=400,  # Adjust based on model limit
     chunk_overlap=50,  # Overlapping to maintain context
     separators=["\n\n", ".", "?", "!", " "],  # Break at logical points
 )
 
-# 🔹 Step 3: Process and Chunk Transcripts
+# Step 3: Process and Chunk Transcripts
 chunked_data = []
 for item in data:
     #print(item)
@@ -43,7 +43,7 @@ for item in data:
 
 print(f"Total Chunks Created: {len(chunked_data)}")
 
-# 🔹 Step 4: Generate Embeddings for Each Chunk
+# Step 4: Generate Embeddings for Each Chunk
 # Load embedding model
 #model = SentenceTransformer("intfloat/multilingual-e5-large")
 model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
@@ -55,16 +55,16 @@ for chunk in tqdm(chunked_data, desc="Generating Embeddings", unit="chunk"):
 
 print("Chunked embeddings generated successfully!")
 
-# 🔹 Step 5: Store Chunked Embeddings in Pinecone
+# Step 5: Store Chunked Embeddings in Pinecone
 API_KEY = os.getenv('pinecone_api_key')
 # Initialize Pinecone
-pc = Pinecone(api_key= API_KEY, environment="us-east-1")  # Replace with your values
+pc = Pinecone(api_key= API_KEY, environment="us-east-1")
 index_name = "fitness-chatbot"
 
 # Create index if it doesn't exist
 if index_name not in pc.list_indexes().names():
     pc.create_index(name=index_name, dimension=768, metric="cosine", spec=ServerlessSpec(cloud="aws",
-        region="us-east-1"))  # Change from 1024 → 768
+        region="us-east-1"))
 
 
 # Connect to index
@@ -90,7 +90,7 @@ def query_pinecone(query):
     result = index.query(vector=query_embedding, top_k=3, include_metadata=True)
 
     # Display results
-    print("\n🔍 Relevant Transcript Chunks:\n")
+    print("\n Relevant Transcript Chunks:\n")
     for match in result['matches']:
         print(f"{match['metadata']['text']}\n")
 
