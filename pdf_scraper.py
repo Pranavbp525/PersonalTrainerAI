@@ -3,18 +3,19 @@ import json
 import PyPDF2
 import unicodedata
 import logging
+import re
 
-# ✅ Configure logging (Logs to `scraper.log` instead of a separate file)
+# ✅ Configure logging for each file, writing to the same file
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
     handlers=[
-        logging.FileHandler("scraper.log", mode='a'),  # ✅ Append logs to 'scraper.log'
-        logging.StreamHandler()  # ✅ Also prints logs to console
+        logging.FileHandler("scraper.log"),  # ✅ Logs go into the same file
+        logging.StreamHandler()  # ✅ Also print logs to the console
     ]
 )
 
-logger = logging.getLogger(__name__)  # ✅ Logger instance
+logger = logging.getLogger(__name__)  # ✅ Logger for each file
 
 # Define output directory
 OUTPUT_DIR = "data/pdf_raw_json_data"
@@ -23,7 +24,7 @@ if not os.path.exists(OUTPUT_DIR):
 
 def clean_text(text):
     """Normalize text encoding to remove special characters and excessive whitespace."""
-    return unicodedata.normalize("NFKD", text).strip()
+    return re.sub(r'[\s●"“”]+', ' ', text).strip()
 
 def extract_text_from_pdf(pdf_path):
     """Extract text from a PDF file."""
