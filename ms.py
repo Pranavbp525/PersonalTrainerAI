@@ -6,10 +6,21 @@ import logging
 from urllib.parse import urljoin
 import random
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+# # Set up logging
+# logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# logger = logging.getLogger(__name__)
 
+# ✅ Configure logging for each file, writing to the same file
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
+    handlers=[
+        logging.FileHandler("scraper.log"),  # ✅ Logs go into the same file
+        logging.StreamHandler()  # ✅ Also print logs to the console
+    ]
+)
+
+logger = logging.getLogger(__name__)  # ✅ Logger for each file
 class WorkoutScraper:
     def __init__(self, base_url):
         self.base_url = base_url
@@ -90,6 +101,11 @@ class WorkoutScraper:
             return {}
 
         try:
+            #extracing title
+            title_tag = soup.find("div", class_="node-header").find("h1")  # Find <h1> inside div
+            title = title_tag.get_text(strip=True) if title_tag else "No title found"
+
+            
             # Extracting workout summary
             summary_table = soup.find("div", class_="node-stats-block")
             summary = {}
@@ -138,6 +154,9 @@ class WorkoutScraper:
             logger.info(f"Scraped {len(exercises)} exercises from {url}")
 
             return {
+                "source": self.base_url,
+                "title": title,
+                "url": url,
                 "summary": summary,
                 "description": description_text,
                 "exercises": exercises,
@@ -152,7 +171,7 @@ class WorkoutScraper:
         workouts = []
         current_url = self.base_url
         page_count = 1
-        max_workouts = 100  # Limit to 5 workout tiles only
+        max_workouts = 2  # Limit to 5 workout tiles only
         workout_count = 0  # Counter for scraped workouts
 
         while current_url and workout_count < max_workouts:
@@ -206,17 +225,13 @@ class WorkoutScraper:
             logger.error(f"Error saving to JSON: {str(e)}")
 
 def main():
-    base_url = ["https://www.muscleandstrength.com/workouts/men","https://www.muscleandstrength.com/workouts/women","https://www.muscleandstrength.com/workouts/muscle-building",
-                "https://www.muscleandstrength.com/workouts/fat-loss", "https://www.muscleandstrength.com/workouts/strength", "https://www.muscleandstrength.com/workouts/abs",
-                "https://www.muscleandstrength.com/workouts/full-body"]
-    output_file = "workouts1.json"
-    all_workouts = []
+    url = "https://www.muscleandstrength.com/workouts/men"
+    output_file = "workouts.json"
+    
     try:
-        for link in base_url:
-            scraper = WorkoutScraper(link)
-            workouts = scraper.scrape_workouts()
-            all_workouts = all_workouts + workouts
-            scraper.save_to_json(all_workouts, output_file)
+        scraper = WorkoutScraper(url)
+        workouts = scraper.scrape_workouts()
+        scraper.save_to_json(workouts, output_file)
     except Exception as e:
         logger.error(f"Scraping failed: {str(e)}")
 
