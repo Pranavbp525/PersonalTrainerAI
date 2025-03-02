@@ -9,22 +9,17 @@ from urllib.parse import urljoin
 # ----------------------------------
 # Logging Configuration
 # ----------------------------------
-# ✅ Configure logging for each file, writing to the same file
+#  Configure logging for each file, writing to the same file
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
     handlers=[
-        logging.FileHandler("scraper.log"),  # ✅ Logs go into the same file
-        logging.StreamHandler()  # ✅ Also print logs to the console
+        logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/scraper.log"))),  # Logs go into the same file
+        logging.StreamHandler()  # Also print logs to the console
     ]
 )
 
-logger = logging.getLogger(__name__)  # ✅ Logger for each file
-
-# Define output directory
-OUTPUT_DIR = "data/raw_json_data"
-if not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR)
+logger = logging.getLogger(__name__)  # Logger for each file
 
 # Define URLs for blogs
 BLOG_URLS = [
@@ -54,7 +49,7 @@ def fetch_page_content(url):
         response.raise_for_status()
         return BeautifulSoup(response.text, 'html.parser')
     except requests.exceptions.RequestException as e:
-        logger.error(f"⚠️ Error fetching URL {url}: {e}", exc_info=True)
+        logger.error(f"Error fetching URL {url}: {e}", exc_info=True)
         return None
 
 def clean_text(text):
@@ -89,7 +84,7 @@ def scrape_text_from_url(url, visited, all_data):
     visited.add(url)
     main_content = extract_main_content(soup)
     if not main_content:
-        logger.warning(f"⚠️ Could not find a main content block for {url}")
+        logger.warning(f"Could not find a main content block for {url}")
         return
 
     paragraphs = main_content.find_all('p')
@@ -122,7 +117,7 @@ def scrape_web():
 
     # Scrape blog URLs
     for url in BLOG_URLS:
-        logger.info(f"🔗 Scraping blog URL: {url}")
+        logger.info(f"Scraping blog URL: {url}")
         scrape_text_from_url(url, visited, blogs_data)
 
     # Return combined or separate data depending on your needs
@@ -136,21 +131,22 @@ def save_to_json(data, filename):
         path = os.path.join(OUTPUT_DIR, filename)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-        logger.info(f"✅ Data saved to {path}")
+        logger.info(f"Data saved to {path}")
     except Exception as e:
-        logger.error(f"⚠️ Error saving to {filename}: {e}", exc_info=True)
+        logger.error(f"Error saving to {filename}: {e}", exc_info=True)
 
 
 # Main Execution
 def blog_scraper():
 
-    logger.info("📌 Starting web scraping...")
+    logger.info("Starting web scraping...")
 
     blogs_data = scrape_web()
 
     if blogs_data:
-        save_to_json(blogs_data, "blogs.json")
+        output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/raw_json_data/blogs.json"))
+        save_to_json(blogs_data, output_file)
     else:
-        logger.warning("⚠️ No blog data extracted.")
+        logger.warning("No blog data extracted.")
 
-    logger.info("✅ Web scraping completed successfully!")
+    logger.info("Web scraping completed successfully!")
