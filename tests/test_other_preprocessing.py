@@ -25,7 +25,7 @@ EXPECTED_JSON = [
 @patch("os.path.exists", return_value=True)  # Mock path existence
 def test_preprocess_json_files(mock_exists, mock_json_dump, mock_file):
     """Test that JSON preprocessing reads, cleans, and writes data correctly."""
-    preprocess_json_files()
+    preprocess_json_other_files()
 
     # Ensure that json.dump was called with the expected cleaned data
     cleaned_data = mock_json_dump.call_args[0][0]
