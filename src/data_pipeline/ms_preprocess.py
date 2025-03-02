@@ -74,7 +74,8 @@ def extract_relevant_workout_data(json_data):
     return extracted_data
 
 
-if __name__ == "__main__":
+def ms_preprocessing():
+
     logger.info("Reading input file: workouts.json")  # ✅ Log file reading start
 
     try:
