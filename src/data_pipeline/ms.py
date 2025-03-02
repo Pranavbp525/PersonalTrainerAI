@@ -5,17 +5,17 @@ import time
 import logging
 from urllib.parse import urljoin
 import random
-
+import os
 # # Set up logging
 # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 # logger = logging.getLogger(__name__)
 
-# ✅ Configure logging for each file, writing to the same file
+#  Configure logging for each file, writing to the same file
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
     handlers=[
-        logging.FileHandler("scraper.log"),  # ✅ Logs go into the same file
+        logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/scraper.log"))),  # ✅ Logs go into the same file
         logging.StreamHandler()  # ✅ Also print logs to the console
     ]
 )
@@ -224,7 +224,8 @@ class WorkoutScraper:
         except IOError as e:
             logger.error(f"Error saving to JSON: {str(e)}")
 
-def main():
+
+def ms_scraper():
     url = "https://www.muscleandstrength.com/workouts/men"
     output_file = "workouts.json"
     
@@ -235,5 +236,3 @@ def main():
     except Exception as e:
         logger.error(f"Scraping failed: {str(e)}")
 
-if __name__ == "__main__":
-    main()
