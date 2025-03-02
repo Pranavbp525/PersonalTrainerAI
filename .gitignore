@@ -4,3 +4,6 @@ venv/*
 __pycache__/*
 scraper.log
 preprocessing.log
+logs/*
+src/data/*
+src/data_pipeline/__pycache__/*
