@@ -5,22 +5,20 @@ import unicodedata
 import logging
 import re
 
-logger = logging.getLogger(__name__)  # Inherit global logger
+#  Configure logging for each file, writing to the same file
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/scraper.log"))),  # Logs go into the same file
+        logging.StreamHandler()  # Also print logs to the console
+    ]
+)
 
-if not logger.handlers:
-    # Ensure logs are written to 'scraper.log' from pdfs.py
-    file_handler = logging.FileHandler("scraper.log", mode='a')
-    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s - %(message)s"))
-    logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)  # Logger for each file
 
 logger.info("Logging initialized in pdfs.py")
 
-logger = logging.getLogger(__name__)
-# Define output directory
-OUTPUT_DIR = "data/pdf_raw_json_data"
-if not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR)
 
 def clean_text(text):
     """Normalize text encoding to remove special characters and excessive whitespace."""
@@ -76,7 +74,7 @@ def scrape_pdfs(directory="data/source_pdf", max_pdfs=2):
 def save_to_json(data, filename):
     """Save extracted data to a JSON file."""
     try:
-        output_path = os.path.join(OUTPUT_DIR, filename)
+        output_path = filename
         with open(output_path, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=4, ensure_ascii=False)
         logger.info(f"Data saved to {output_path}")  # Log success
@@ -90,7 +88,8 @@ def pdf_scraper():
     pdf_data = scrape_pdfs(max_pdfs=2)  #  Limit to 2 PDFs
     
     if pdf_data:
-        save_to_json(pdf_data, "pdf_data.json")
+        output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/raw_json_data/pdf_data.json"))
+        save_to_json(pdf_data, output_file)
         logger.info("PDF extraction and saving completed successfully!")  #  Log final success
         print("PDF extraction and saving completed successfully!")  #  Print final success
     else:
