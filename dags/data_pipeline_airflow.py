@@ -13,8 +13,7 @@ from data_pipeline.ms import ms_scraper
 from data_pipeline.blogs import blog_scraper
 from data_pipeline.pdfs import pdf_scraper
 from data_pipeline.other_preprocesing import preprocess_json_other_files
-
-#from data_pipeline.index_data import index_data_in_search
+from data_pipeline.vector_db import chunk_to_db
 
 
 default_args = {
@@ -45,7 +44,7 @@ with DAG(
 
     def preprocess_ms_data():
 
-        preprocess_json_other_files()
+        ms_preprocessing()
 
 
     preprocess_ms_task = PythonOperator(
@@ -80,6 +79,17 @@ with DAG(
         python_callable=preprocess_other_data,
     )
 
+    def vectordb_pinecone():
+        chunk_to_db()
+
+
+    chunk_db_task = PythonOperator(
+        task_id='chunk_db_task',
+        python_callable=vectordb_pinecone,
+    )
+
+
+
     # def upload_task_func():
     #     # Iterate through all processed files in the directory
     #     for root, _, files in os.walk(PROCESSED_DATA_PATH):
@@ -99,5 +109,9 @@ with DAG(
     #     python_callable=index_data_in_search,
     # )
 
+    # ✅ Define task dependencies for parallel execution
+    scrape_ms_task >> preprocess_ms_task  # (1) MS data processing
 
-    scrape_ms_task >> preprocess_ms_task >> scrape_blog_task >> scrape_pdf_task >> preprocess_other_data_task
+    [scrape_blog_task, scrape_pdf_task] >> preprocess_other_data_task  # (2) & (3) run in parallel and then merge
+
+    [preprocess_ms_task, preprocess_other_data_task] >> chunk_db_task  # ✅ Final merge before storing in DB
