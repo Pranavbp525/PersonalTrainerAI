@@ -15,12 +15,12 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
     handlers=[
-        logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/scraper.log"))),  # ✅ Logs go into the same file
-        logging.StreamHandler()  # ✅ Also print logs to the console
+        logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/scraper.log"))),  # Logs go into the same file
+        logging.StreamHandler()  # Also print logs to the console
     ]
 )
 
-logger = logging.getLogger(__name__)  # ✅ Logger for each file
+logger = logging.getLogger(__name__)  # Logger for each file
 class WorkoutScraper:
     def __init__(self, base_url):
         self.base_url = base_url
@@ -227,7 +227,8 @@ class WorkoutScraper:
 
 def ms_scraper():
     url = "https://www.muscleandstrength.com/workouts/men"
-    output_file = "workouts.json"
+    #output_file = "workouts.json"
+    output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/raw_json_data/ms_data.json"))
     
     try:
         scraper = WorkoutScraper(url)
