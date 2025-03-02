@@ -1,0 +1,5 @@
+outs:
+- md5: 34052df913fc76f5d49d951dc6761954
+  size: 28708209
+  hash: md5
+  path: blogs.json
