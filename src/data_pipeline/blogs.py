@@ -140,9 +140,10 @@ def save_to_json(data, filename):
     except Exception as e:
         logger.error(f"⚠️ Error saving to {filename}: {e}", exc_info=True)
 
-# Main Execution
 
-if __name__ == "__main__":
+# Main Execution
+def blog_scraper():
+
     logger.info("📌 Starting web scraping...")
 
     blogs_data = scrape_web()
