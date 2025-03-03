@@ -39,7 +39,7 @@ def extract_text_from_pdf(pdf_path):
         logger.error(f"Error reading {pdf_path}: {e}", exc_info=True)  #  Log error with traceback
     return clean_text(text)
 
-def scrape_pdfs(directory="data/source_pdf", max_pdfs=2):
+def scrape_pdfs(directory="data/source_pdf"):
     """Extract text from only 2 PDFs in the specified folder and format JSON output."""
     all_pdfs = []
     
@@ -47,13 +47,13 @@ def scrape_pdfs(directory="data/source_pdf", max_pdfs=2):
         logger.warning(f"Directory '{directory}' not found.")  #  Log missing directory
         return all_pdfs
     
-    pdf_files = [f for f in os.listdir(directory) if f.endswith(".pdf")][:max_pdfs]  #  Limit to 2 PDFs
+    pdf_files = [f for f in os.listdir(directory) if f.endswith(".pdf")]  #  Limit to 2 PDFs
     
     if not pdf_files:
         logger.warning(f" No PDF files found in '{directory}'.")  # Log if no PDFs exist
         return all_pdfs
 
-    logger.info(f"Found {len(pdf_files)} PDFs. Extracting only {max_pdfs} for testing...")  # Log number of PDFs found
+    logger.info(f"Found {len(pdf_files)} PDFs.")  # Log number of PDFs found
 
     for filename in pdf_files:
         file_path = os.path.join(directory, filename)
@@ -85,7 +85,7 @@ def save_to_json(data, filename):
 def pdf_scraper():
     logger.info("Starting PDF extraction process (Limited to 2 PDFs)...")  # Log script start
     
-    pdf_data = scrape_pdfs(max_pdfs=2)  #  Limit to 2 PDFs
+    pdf_data = scrape_pdfs()
     
     if pdf_data:
         output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/raw_json_data/pdf_data.json"))
