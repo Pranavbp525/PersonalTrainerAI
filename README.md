@@ -9,19 +9,16 @@ Our project includes developing a comprehensive Machine Learning Operations (MLO
 ## Table of Contents
 
 1. [Directory Structure](#directory-structure)
-2. [Data Sources](#data-sources)
-3. [Setup and Usage](#setup-and-usage)
-4. [Environment Setup](#environment-setup)
-5. [Running the Pipeline](#running-the-pipeline)
-6. [Test Functions](#test-functions)
-7. [Reproducibility and Data Versioning](#reproducibility-and-data-versioning)
-8. [Airflow Implementation](#airflow-implementation)
-9. [Pipeline Components](#pipeline-components)
-10. [CI/CD Prerequisites](#cicd-prerequisites)
-11. [Model Serving and Deployment](#model-serving-and-deployment)
-12. [Monitoring and Maintenance](#monitoring-and-maintenance)
-13. [Notifications](#notifications)
-14. [UI Dashboard](#ui-dashboard)
+2. [Setup and Usage](#setup-and-usage)
+3. [Environment Setup](#environment-setup)
+4. [Running the Pipeline](#running-the-pipeline)
+5. [Test Functions](#test-functions)
+6. [Reproducibility and Data Versioning](#reproducibility-and-data-versioning)
+7. [Data Sources](#data-sources)
+8. [Schema](#schema)
+9. [Bias Detection](#bias-detection)
+10. [Airflow Implementation](#airflow-implementation)
+11. [Pipeline Tasks Overview](#pipeline-tasks-overview)
 
 ## Directory Structure
 
@@ -236,7 +233,13 @@ dvc push
     "https://www.strongerbyscience.com/metabolic-adaptation/"
 - Pdfs are downloaded from different websites and stored locally
 
-## Bias Detection
+## Schema
+
+- **Source**: Website where the workout was retrieved.
+- **Title**: Workout program name.
+- **URL**: Link to the full workout details.
+- **Description**: Description of the workout with summary.
+
 ## Bias Detection
 
 ### Overview
