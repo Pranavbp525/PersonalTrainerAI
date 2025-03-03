@@ -1,0 +1,5 @@
+outs:
+- md5: 9299f6408430e06ddffa99fd1c3f2a19
+  size: 386638
+  hash: md5
+  path: pdf_data.json
