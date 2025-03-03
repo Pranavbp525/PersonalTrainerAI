@@ -74,7 +74,7 @@ def split_text(data, chunk_size=400, chunk_overlap=50):
                 "source": source,
                 "title": title,
                 "url": url,
-                "chunk_id": f"{source}_{idx}",  # Unique ID for each chunk
+                "chunk_id": f"{title}_{idx}",  # Unique ID for each chunk
                 "chunk": chunk
             })
 
