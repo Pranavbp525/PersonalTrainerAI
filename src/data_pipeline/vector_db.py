@@ -63,6 +63,7 @@ def split_text(data, chunk_size=400, chunk_overlap=50):
         text = item.get("description", "")  # Use "description" field instead of "transcript"
         source = item.get("source", "")
         title = item.get("title", "")
+        url = item.get("url", "")
 
         # Split text into chunks
         chunks = text_splitter.split_text(text)
@@ -72,6 +73,7 @@ def split_text(data, chunk_size=400, chunk_overlap=50):
             chunked_data.append({
                 "source": source,
                 "title": title,
+                "url": url,
                 "chunk_id": f"{source}_{idx}",  # Unique ID for each chunk
                 "chunk": chunk
             })
@@ -116,11 +118,17 @@ def store_in_pinecone(chunked_data):
             {
                 "text": chunk["chunk"],  # Main chunk of text
                 "title": chunk["title"],  # Include title
-                "source": chunk["source"]  # Include source
+                "source": chunk["source"],  # Include source
+                "url": chunk["url"]
             }
         )
         for chunk in chunked_data
     ]
+
+    # Wait for index initialization
+    while pc.describe_index(INDEX_NAME).status['ready'] is False:
+        logger.info("Waiting for index to be ready...")
+        time.sleep(5)
 
     # Upload in batches (to avoid rate limits)
     batch_size = 50
@@ -142,7 +150,7 @@ def query_pinecone(query, model):
     # Display results
     logger.info("\n Relevant Transcript Chunks:\n")
     for match in result['matches']:
-        print(f"{match['metadata']['text']}\n")
+        print(f"{match['metadata']}\n")
 
 
 # **Step 6: Main Execution**
@@ -175,3 +183,6 @@ def chunk_to_db():
     else:
         logger.warning("No data was processed from JSON files.")
 
+# model_name="sentence-transformers/all-mpnet-base-v2"
+# model = HuggingFaceEmbeddings(model_name=model_name)
+# query_pinecone("How to improve pull-ups?", model)
