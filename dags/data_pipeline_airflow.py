@@ -4,9 +4,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 
-# src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
-# # Append the absolute path to src directory
-# sys.path.append(src_path)
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 from data_pipeline.ms_preprocess import ms_preprocessing
 from data_pipeline.ms import ms_scraper
@@ -90,28 +88,9 @@ with DAG(
 
 
 
-    # def upload_task_func():
-    #     # Iterate through all processed files in the directory
-    #     for root, _, files in os.walk(PROCESSED_DATA_PATH):
-    #         for file in files:
-    #             if file.endswith(".json"):  # Assuming you want to upload .txt files
-    #                 file_path = os.path.join(root, file)
-    #                 upload_to_blob(file_path, file)  # Upload each processed file
-    #
-    #
-    # blob_storage_task = PythonOperator(
-    #     task_id='blob_storage_task',
-    #     python_callable=upload_task_func,
-    # )
-    #
-    # index_task = PythonOperator(
-    #     task_id='index_task',
-    #     python_callable=index_data_in_search,
-    # )
-
-    # ✅ Define task dependencies for parallel execution
+    #  Define task dependencies for parallel execution
     scrape_ms_task >> preprocess_ms_task  # (1) MS data processing
 
     [scrape_blog_task, scrape_pdf_task] >> preprocess_other_data_task  # (2) & (3) run in parallel and then merge
 
-    [preprocess_ms_task, preprocess_other_data_task] >> chunk_db_task  # ✅ Final merge before storing in DB
+    [preprocess_ms_task, preprocess_other_data_task] >> chunk_db_task  # Final merge before storing in DB
