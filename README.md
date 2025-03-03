@@ -40,6 +40,8 @@ PersonalTrainerAI/
 │   ├── raw_json_data/
 │   ├── source_pdf/
 │── logs/
+│   ├── dag_preprocessor_manager/
+│   ├── scheduler/
 │   ├── vectordb.log
 │   ├── tscraper.log
 │   ├── preprocessing.log
@@ -134,7 +136,6 @@ Trigger the DAG manually to start processing. The pipeline will:
 - Scrape the data from pdfs and preprocess it data/preprocessed_json_data/.
 - Scrape the data from blogs and preprocess it data/preprocessed_json_data/.
 - In the next steps the data is chunked and stored into pinecone.
-
 
 ### Check Outputs
 
@@ -234,4 +235,108 @@ dvc push
     "https://www.strongerbyscience.com/hypertrophy-range-fact-fiction/",
     "https://www.strongerbyscience.com/metabolic-adaptation/"
 - Pdfs are downloaded from different websites and stored locally
+
+## Bias Detection
+## Bias Detection
+
+### Overview
+This module analyzes potential biases in the PersonalTrainerAI dataset, specifically focusing on gender representation and workout intensity distribution. It helps identify imbalances in fitness recommendations and ensures fairness in chatbot responses.
+
+### How It Works
+1. **Load Data**: Reads workout descriptions from JSON files.
+2. **Gender Bias Analysis**: Identifies if workouts are male, female, or unisex-focused.
+3. **Workout Intensity Analysis**: Classifies workouts as High, Medium, or Low intensity.
+4. **Bias Evaluation**: Uses Fairlearn to measure accuracy differences in recommendations across gender groups.
+
+### Findings
+- Initially, the data was biased towards men and unisex workouts.
+- More balanced data was added to ensure fairness.
+- Now, workout recommendations are more evenly distributed.
+
+### Running Bias Detection
+To check for bias, run:
+
+```bash
+python bias_detection.py
+```
+
+It will analyze `pdf_data.json`, `ms_data.json`, and `blogs.json`.
+
+
+
+## Airflow Implementation
+
+![Airflow Implementation](image.png)
+
+## Pipeline Tasks Overview
+
+### 1️⃣ Scraping Tasks (Extract Data)
+
+#### `scrape_ms_task` ( Success)
+- **Description:** Scrapes data from Muscle & Strength (MS) website.
+- **Details:** Fetches workout plans and fitness-related content.
+- **Implementation:** Uses a `PythonOperator` to execute the scraping logic.
+
+#### `scrape_blog_task` ( Success)
+- **Description:** Scrapes blogs and articles from various fitness sources.
+- **Details:** Extracts information from fitness blogs, research, and expert articles.
+
+#### `scrape_pdf_task` (Success)
+- **Description:** Extracts text from fitness-related PDFs.
+- **Implementation:** Uses `PyPDF2` or another PDF parsing tool to retrieve content.
+
+### 2️⃣ Preprocessing Tasks (Transform Data)
+
+#### `preprocess_ms_task` ( Success)
+- **Description:** Cleans and preprocesses the raw data from the Muscle & Strength website.
+- **Details:** Formats the data into a structured JSON format.
+
+#### `preprocess_other_data_task` ( Success)
+- **Description:** Merges and preprocesses data from blogs and PDFs.
+- **Details:** Ensures the data is structured and cleaned before vectorization.
+
+### 3️⃣ Vectorization and Database Storage (Load Data)
+
+#### `chunk_db_task` ( Success)
+- **Description:** Converts text data into vector embeddings.
+- **Implementation:** Uses Pinecone or another vector database to store the embeddings.
+- **Details:** Enables RAG (Retrieval-Augmented Generation) to query fitness content efficiently.
+
+### DAG Execution Flow
+- `scrape_ms_task` → `preprocess_ms_task`
+- `scrape_blog_task` & `scrape_pdf_task` → `preprocess_other_data_task`
+- `preprocess_ms_task` & `preprocess_other_data_task` → `chunk_db_task`
+
+## Test Functions
+
+### 1️⃣ `test_ms.py`
+**✅ Test Cases**
+- **Test Successful Scraping:** Ensures workout title, URL, and description are extracted.
+- **Test Handling of Missing Fields:** Checks how scraper reacts to empty/missing fields.
+- **Test URL Validity:** Verifies that extracted workout URLs are correct and accessible.
+
+### 2️⃣ `test_ms_preprocess.py`
+**✅ Test Cases**
+- **Test Text Cleaning:** Ensures removal of HTML tags, special characters, and extra spaces.
+- **Test Summary Formatting:** Verifies if the summary fields are structured correctly.
+- **Test Consistent Output:** Checks if preprocessed data maintains expected structure.
+
+### 3️⃣ `test_other_preprocessing.py`
+**✅ Test Cases**
+- **Test Blog Cleaning:** Ensures extracted text is clean and readable.
+- **Test Article Formatting:** Checks if article headers, subheaders, and content are well-structured.
+- **Test Handling of Noisy Data:** Ensures that unwanted elements like ads, pop-ups, or scripts are removed.
+
+### 4️⃣ `test_pdf_scraper.py`
+**✅ Test Cases**
+- **Test PDF Extraction:** Ensures text is extracted from multiple pages correctly.
+- **Test Handling of Non-Text Elements:** Verifies that tables/images do not break extraction.
+- **Test Empty or Corrupted PDFs:** Ensures the function gracefully handles unreadable PDFs.
+
+### 5️⃣ `test_vectdb.py`
+**✅ Test Cases**
+- **Test Embedding Generation:** Ensures vector embeddings are correctly computed.
+- **Test Storage in Pinecone:** Verifies that embeddings are successfully stored in the database.
+- **Test Query Retrieval:** Ensures that similarity search returns relevant results.
+
 
