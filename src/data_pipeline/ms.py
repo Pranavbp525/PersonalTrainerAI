@@ -171,10 +171,9 @@ class WorkoutScraper:
         workouts = []
         current_url = self.base_url
         page_count = 1
-        max_workouts = 2  # Limit to 5 workout tiles only
         workout_count = 0  # Counter for scraped workouts
 
-        while current_url and workout_count < max_workouts:
+        while current_url:
             logger.info(f"Scraping page {page_count}: {current_url}")
 
             soup = self.fetch_html(current_url)
@@ -184,29 +183,36 @@ class WorkoutScraper:
             workout_links = self.extract_workout_links(soup)
             
             for link in workout_links:
-                if workout_count >= max_workouts:
-                    break  # Stop after 5 workouts
-
                 detailed_info = self.extract_detailed_info(link)
                 if detailed_info:
                     workouts.append(detailed_info)
                     logger.info(f"Scraped workout {workout_count + 1} from: {link}")
                     workout_count += 1  # Increment count
 
-            # Stop if we have scraped 5 workouts
-            if workout_count >= max_workouts:
-                break
-
             try:
+
                 next_page = self.get_next_page(soup)
-                current_url = urljoin(self.base_url, next_page) if next_page else None
-                page_count += 1  # Move to the next page
+                print(next_page)
+                if next_page:
+                    current_url = urljoin(self.base_url, next_page) if next_page else None
+                    page_count += 1  # Move to the next page
+                else:
+                    break
             except Exception as e:
                 logger.error(f"Error getting next page: {str(e)}")
         logger.info(f"Finished scraping {workout_count} workouts.")
         return workouts
 
-
+    def get_next_page(self, soup):
+        # Find the 'Next' button in pagination
+        try:
+            next_button = soup.find('li', class_='pager-next').find('a')
+            print(next_button)
+            if next_button and 'href' in next_button.attrs:
+                return next_button['href']
+            return None
+        except Exception as e:
+            return None
 
     def save_to_json(self, workouts, filename):
         """Save scraped data to JSON file."""
@@ -236,4 +242,3 @@ def ms_scraper():
         scraper.save_to_json(workouts, output_file)
     except Exception as e:
         logger.error(f"Scraping failed: {str(e)}")
-
