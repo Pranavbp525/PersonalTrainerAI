@@ -217,3 +217,21 @@ If new files are added, to track them. Example:
 dvc add <file-path>
 dvc push
 ```
+
+## Data Sources
+
+- Muscle and Strength workout data: https://www.muscleandstrength.com/workouts/men
+- Articles are scraped from the link :
+- "https://www.muscleandstrength.com/articles/beginners-guide-to-zone-2-cardio",
+    "https://www.muscleandstrength.com/articles/best-hiit-routines-gym-equipment",
+    "https://jeffnippard.com/blogs/news",
+    "https://rpstrength.com/blogs/articles",
+    "https://rpstrength.com/collections/guides",
+    "https://www.strongerbyscience.com/complete-strength-training-guide/",
+    "https://www.strongerbyscience.com/how-to-squat/",
+    "https://www.strongerbyscience.com/how-to-bench/",
+    "https://www.strongerbyscience.com/how-to-deadlift/",
+    "https://www.strongerbyscience.com/hypertrophy-range-fact-fiction/",
+    "https://www.strongerbyscience.com/metabolic-adaptation/"
+- Pdfs are downloaded from different websites and stored locally
+
