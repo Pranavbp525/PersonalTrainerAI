@@ -273,7 +273,7 @@ It will analyze `pdf_data.json`, `ms_data.json`, and `blogs.json`.
 
 ## Pipeline Tasks Overview
 
-### 1️⃣ Scraping Tasks (Extract Data)
+### Scraping Tasks (Extract Data)
 
 #### `scrape_ms_task` ( Success)
 - **Description:** Scrapes data from Muscle & Strength (MS) website.
@@ -288,7 +288,7 @@ It will analyze `pdf_data.json`, `ms_data.json`, and `blogs.json`.
 - **Description:** Extracts text from fitness-related PDFs.
 - **Implementation:** Uses `PyPDF2` or another PDF parsing tool to retrieve content.
 
-### 2️⃣ Preprocessing Tasks (Transform Data)
+###  Preprocessing Tasks (Transform Data)
 
 #### `preprocess_ms_task` ( Success)
 - **Description:** Cleans and preprocesses the raw data from the Muscle & Strength website.
@@ -298,7 +298,7 @@ It will analyze `pdf_data.json`, `ms_data.json`, and `blogs.json`.
 - **Description:** Merges and preprocesses data from blogs and PDFs.
 - **Details:** Ensures the data is structured and cleaned before vectorization.
 
-### 3️⃣ Vectorization and Database Storage (Load Data)
+###  Vectorization and Database Storage (Load Data)
 
 #### `chunk_db_task` ( Success)
 - **Description:** Converts text data into vector embeddings.
@@ -312,32 +312,32 @@ It will analyze `pdf_data.json`, `ms_data.json`, and `blogs.json`.
 
 ## Test Functions
 
-### 1️⃣ `test_ms.py`
-**✅ Test Cases**
+###  `test_ms.py`
+** Test Cases**
 - **Test Successful Scraping:** Ensures workout title, URL, and description are extracted.
 - **Test Handling of Missing Fields:** Checks how scraper reacts to empty/missing fields.
 - **Test URL Validity:** Verifies that extracted workout URLs are correct and accessible.
 
-### 2️⃣ `test_ms_preprocess.py`
-**✅ Test Cases**
+###  `test_ms_preprocess.py`
+**Test Cases**
 - **Test Text Cleaning:** Ensures removal of HTML tags, special characters, and extra spaces.
 - **Test Summary Formatting:** Verifies if the summary fields are structured correctly.
 - **Test Consistent Output:** Checks if preprocessed data maintains expected structure.
 
-### 3️⃣ `test_other_preprocessing.py`
-**✅ Test Cases**
+###  `test_other_preprocessing.py`
+**Test Cases**
 - **Test Blog Cleaning:** Ensures extracted text is clean and readable.
 - **Test Article Formatting:** Checks if article headers, subheaders, and content are well-structured.
 - **Test Handling of Noisy Data:** Ensures that unwanted elements like ads, pop-ups, or scripts are removed.
 
-### 4️⃣ `test_pdf_scraper.py`
-**✅ Test Cases**
+###  `test_pdf_scraper.py`
+**Test Cases**
 - **Test PDF Extraction:** Ensures text is extracted from multiple pages correctly.
 - **Test Handling of Non-Text Elements:** Verifies that tables/images do not break extraction.
 - **Test Empty or Corrupted PDFs:** Ensures the function gracefully handles unreadable PDFs.
 
-### 5️⃣ `test_vectdb.py`
-**✅ Test Cases**
+### `test_vectdb.py`
+**Test Cases**
 - **Test Embedding Generation:** Ensures vector embeddings are correctly computed.
 - **Test Storage in Pinecone:** Verifies that embeddings are successfully stored in the database.
 - **Test Query Retrieval:** Ensures that similarity search returns relevant results.
