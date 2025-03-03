@@ -1,0 +1,5 @@
+[core]
+    remote = myremote
+['remote "myremote"']
+    url = gs://fitnesschatbot
+    credentialpath = ../gen-lang-client-0113635676-3ad57733ca8d.json
