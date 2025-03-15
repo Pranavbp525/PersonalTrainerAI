@@ -1,142 +1,236 @@
 # RAG Implementation Strategy for PersonalTrainerAI
 
-## Overview
+This document outlines the comprehensive strategy for implementing Retrieval Augmented Generation (RAG) in the PersonalTrainerAI project, including the newly added Graph RAG and RAPTOR RAG architectures.
 
-This document outlines the strategy for implementing and evaluating multiple Retrieval-Augmented Generation (RAG) approaches for the PersonalTrainerAI project. The goal is to create a system that can effectively retrieve relevant fitness information from our knowledge base and generate personalized workout routines and advice.
+## 1. Project Overview
 
-## Current Implementation Status
+PersonalTrainerAI aims to provide personalized fitness guidance through an AI assistant that leverages a comprehensive fitness knowledge base. The RAG component is critical for retrieving relevant fitness information and generating accurate, helpful responses.
 
-- Data pipeline for scraping fitness content from Renaissance Periodization and other sources is complete
-- Data preprocessing and chunking is implemented
-- Vector embeddings are generated using sentence-transformers/all-mpnet-base-v2
-- Pinecone vector database is set up for storing and retrieving embeddings
-- Airflow orchestration is in place for the data pipeline
+## 2. RAG Architecture Options
 
-## RAG Architecture Options
+We've implemented five different RAG architectures to compare their performance in the fitness domain:
 
-Based on our research, we'll implement and evaluate three RAG architectures:
+### 2.1 Naive RAG (Baseline)
 
-### 1. Naive RAG (Baseline)
+**Description**: A straightforward implementation that directly retrieves documents based on vector similarity.
 
-- **Description**: The simplest RAG implementation that directly retrieves a fixed number of documents based on query similarity and passes them to the LLM.
-- **Components**:
-  - Query embedding using the same model as document embeddings
-  - Vector similarity search in Pinecone
-  - Fixed context window with top-k retrieved documents
-  - Direct passage to LLM with minimal prompt engineering
+**Components**:
+- Vector similarity search using Pinecone
+- Direct document retrieval
+- Simple prompt construction
 
-### 2. Advanced RAG
+**Advantages**:
+- Simplicity and speed
+- Lower computational requirements
+- Easier to debug and maintain
 
-- **Description**: Enhanced RAG implementation with improved retrieval and context processing.
-- **Components**:
-  - Query expansion using LLM to generate multiple related queries
-  - Sentence-window retrieval for better context
-  - Re-ranking of retrieved documents using relevance scoring
-  - Dynamic context window based on relevance scores
-  - Structured prompt engineering for better LLM utilization
+**Limitations**:
+- May miss contextual nuances
+- Limited ability to handle complex queries
+- No specialized handling for different query types
 
-### 3. Modular RAG
+### 2.2 Advanced RAG
 
-- **Description**: A flexible, component-based RAG system that can be optimized for different query types.
-- **Components**:
-  - Query classification to determine query intent (workout planning, exercise technique, nutrition advice, etc.)
-  - Specialized retrievers for different query types
-  - Hypothetical Document Embedding (HyDE) for complex queries
-  - Multi-stage retrieval with feedback loops
-  - LLM-based reranking for final document selection
-  - Template-based response generation with structured output formats
+**Description**: An enhanced implementation that builds upon the baseline with several improvements.
 
-## Implementation Plan
+**Components**:
+- Query expansion using LLM
+- Sentence-window retrieval for better context
+- Re-ranking of retrieved documents
+- Dynamic context window based on relevance
+- Structured prompt engineering
 
-### Phase 1: Core RAG Components
+**Advantages**:
+- Better handling of ambiguous queries
+- Improved context retrieval
+- More relevant document selection
 
-1. **Query Processing**
-   - Implement query embedding using the existing embedding model
-   - Create query expansion module using LLM
-   - Develop query classification for different fitness-related intents
+**Limitations**:
+- Higher computational cost
+- More complex implementation
+- May still struggle with relationship-based queries
 
-2. **Retrieval Mechanisms**
-   - Implement basic vector similarity search (already available with Pinecone)
-   - Develop sentence-window retrieval for better context
-   - Create HyDE implementation for complex queries
-   - Build multi-query retrieval system
+### 2.3 Modular RAG
 
-3. **Reranking**
-   - Implement relevance scoring based on semantic similarity
-   - Create LLM-based reranking module
-   - Develop Maximum Marginal Relevance (MMR) for diversity in results
+**Description**: A flexible system with specialized components for different types of fitness queries.
 
-4. **Response Generation**
-   - Design prompt templates for different query types
-   - Implement structured output formatting for workout plans
-   - Create citation and reference tracking
+**Components**:
+- Query classification (workout, nutrition, injury, etc.)
+- Specialized retrievers for different fitness topics
+- Template-based responses for different query types
+- Fitness-specific prompt templates
 
-### Phase 2: Architecture Assembly
+**Advantages**:
+- Tailored handling of different fitness query types
+- More structured responses
+- Better domain adaptation
 
-1. **Naive RAG**
-   - Assemble basic components with minimal complexity
-   - Focus on direct retrieval and generation
+**Limitations**:
+- Requires maintenance of multiple specialized components
+- Classification errors can lead to using the wrong retriever
+- May not handle cross-domain queries well
 
-2. **Advanced RAG**
-   - Integrate query expansion and reranking
-   - Implement sentence-window retrieval
-   - Add structured prompt engineering
+### 2.4 Graph RAG
 
-3. **Modular RAG**
-   - Implement query classification and routing
-   - Create specialized retrievers for different query types
-   - Integrate multi-stage retrieval with feedback loops
-   - Develop template-based response generation
+**Description**: A knowledge graph-based approach that represents relationships between fitness concepts.
 
-## Evaluation Framework
+**Components**:
+- Knowledge graph construction from fitness documents
+- Graph-based retrieval using node relationships
+- Path-aware context augmentation
+- Relationship-enhanced prompting
+- Multi-hop reasoning for complex queries
 
-We'll evaluate each RAG architecture using the following metrics:
+**Advantages**:
+- Captures relationships between fitness concepts
+- Better handling of queries requiring relational understanding
+- Provides explanations based on concept relationships
+- Supports multi-hop reasoning across fitness domains
 
-### Retrieval Metrics
+**Limitations**:
+- Requires building and maintaining a knowledge graph
+- Higher computational complexity
+- Graph quality depends on extraction accuracy
 
-1. **Precision@k**: Percentage of relevant documents among top-k retrieved
-2. **Recall@k**: Percentage of all relevant documents that are retrieved in top-k
-3. **Mean Reciprocal Rank (MRR)**: Average position of the first relevant document
-4. **Normalized Discounted Cumulative Gain (nDCG)**: Measures ranking quality with relevance scores
+### 2.5 RAPTOR RAG
 
-### Generation Metrics
+**Description**: A multi-step reasoning approach with iterative retrieval for complex fitness questions.
 
-1. **Answer Relevance**: How well the generated answer addresses the query
-2. **Factual Accuracy**: Correctness of information in the generated response
-3. **Contextual Precision**: How well the response uses the retrieved information
-4. **Hallucination Rate**: Frequency of generated content not supported by retrieved documents
+**Components**:
+- Query planning and decomposition
+- Iterative, multi-step retrieval
+- Reasoning over retrieved information
+- Self-reflection and refinement
+- Structured response synthesis
 
-### Fitness Domain-Specific Metrics
+**Advantages**:
+- Handles complex, multi-part fitness questions
+- More thorough exploration of the knowledge base
+- Better reasoning for personalized fitness advice
+- Self-correcting through reflection
 
-1. **Exercise Accuracy**: Correctness of exercise recommendations
-2. **Workout Completeness**: Whether the workout plan covers all necessary components
-3. **Personalization Quality**: How well the response adapts to user-specific information
-4. **Scientific Backing**: Whether recommendations are supported by scientific evidence
+**Limitations**:
+- Highest computational cost
+- Multiple API calls increase latency
+- More complex implementation and maintenance
 
-## Technology Stack
+## 3. Implementation Strategy
 
-1. **LLM Options**:
-   - OpenAI models (GPT-3.5-turbo, GPT-4)
-   - Open-source models (Llama 3, Mistral)
-   - Specialized fitness-tuned models (if available)
+### 3.1 Data Preparation
 
-2. **Vector Database**:
-   - Continue using Pinecone (already implemented)
+1. **Vector Database**: Continue using Pinecone for vector storage
+2. **Embedding Model**: Use "sentence-transformers/all-mpnet-base-v2" for consistent embeddings
+3. **Knowledge Graph**: Build a fitness-specific knowledge graph for Graph RAG
+4. **Query Templates**: Develop fitness-specific query templates for different architectures
 
-3. **Embedding Models**:
-   - Continue using sentence-transformers/all-mpnet-base-v2 (already implemented)
-   - Evaluate domain-specific embeddings for fitness content
+### 3.2 Implementation Phases
 
-4. **Framework**:
-   - LangChain for RAG pipeline components
-   - Evaluation frameworks like RAGAS or TruLens
+1. **Phase 1**: Implement and test Naive, Advanced, and Modular RAG (completed)
+2. **Phase 2**: Implement Graph RAG and RAPTOR RAG (current)
+3. **Phase 3**: Evaluate and compare all implementations
+4. **Phase 4**: Select and optimize the best approach for production
 
-## Next Steps
+### 3.3 Evaluation Framework
 
-1. Implement the core RAG components
-2. Assemble the three RAG architectures
-3. Develop the evaluation framework
-4. Test and compare the RAG implementations
-5. Select the best approach or create a hybrid solution
-6. Integrate with the existing data pipeline
-7. Document the implementation and results
+Evaluate all implementations using these metrics:
+
+1. **Relevance**: How well the response addresses the user's query
+2. **Factual Accuracy**: Whether the information provided is correct
+3. **Completeness**: Whether the response covers all important aspects
+4. **Hallucination**: Whether the response contains information not in the retrieved documents
+5. **Relationship Awareness**: How well the response demonstrates understanding of relationships between fitness concepts
+6. **Reasoning Quality**: The quality of reasoning demonstrated in complex responses
+
+## 4. Implementation Details
+
+### 4.1 Naive RAG Implementation
+
+```python
+# Key components
+vector_search = PineconeVectorSearch(index_name, embedding_model)
+documents = vector_search.search(query, top_k=5)
+response = llm.generate(query, documents)
+```
+
+### 4.2 Advanced RAG Implementation
+
+```python
+# Key components
+expanded_query = query_expansion_chain.run(query)
+documents = vector_search.search(expanded_query, top_k=10)
+reranked_documents = reranker.rerank(documents, query)
+windowed_documents = sentence_window_processor.process(reranked_documents)
+response = llm.generate(query, windowed_documents)
+```
+
+### 4.3 Modular RAG Implementation
+
+```python
+# Key components
+query_type = classifier.classify(query)
+specialized_retriever = retrievers[query_type]
+documents = specialized_retriever.retrieve(query)
+template = templates[query_type]
+response = llm.generate(query, documents, template)
+```
+
+### 4.4 Graph RAG Implementation
+
+```python
+# Key components
+# Build knowledge graph (done once)
+knowledge_graph = graph_builder.build_from_documents(documents)
+
+# Query processing
+entities = entity_extractor.extract(query)
+graph_paths = knowledge_graph.find_paths(entities)
+documents = vector_search.search(query, top_k=5)
+augmented_context = context_augmenter.augment(documents, graph_paths)
+response = llm.generate(query, augmented_context, graph_paths)
+```
+
+### 4.5 RAPTOR RAG Implementation
+
+```python
+# Key components
+sub_questions = query_planner.plan(query)
+retrieved_info = {}
+
+for sub_question in sub_questions:
+    documents = vector_search.search(sub_question, top_k=3)
+    retrieved_info[sub_question] = documents
+
+reasoning = reasoning_engine.reason(query, sub_questions, retrieved_info)
+response = response_synthesizer.synthesize(query, reasoning, retrieved_info)
+```
+
+## 5. Integration with Existing Pipeline
+
+The RAG implementations will integrate with the existing data pipeline:
+
+1. **Data Collection**: Fitness content scraped from various sources
+2. **Processing**: Text chunking and cleaning
+3. **Embedding**: Converting chunks to vector embeddings
+4. **Storage**: Storing in Pinecone vector database
+5. **Retrieval**: Using RAG to retrieve relevant information
+6. **Generation**: Producing helpful fitness responses
+
+## 6. Evaluation and Selection
+
+1. Run all five implementations on a test set of fitness queries
+2. Evaluate using the metrics defined in section 3.3
+3. Compare performance across different query types and complexities
+4. Select the best implementation based on overall performance
+5. Consider hybrid approaches if different implementations excel in different areas
+
+## 7. Future Enhancements
+
+1. **Hybrid RAG**: Combine strengths of different architectures
+2. **User Feedback Loop**: Incorporate user feedback to improve retrieval
+3. **Personalization**: Adapt retrieval based on user fitness profiles
+4. **Multi-modal RAG**: Extend to handle image and video fitness content
+5. **Continuous Learning**: Update the knowledge base with new fitness research
+
+## 8. Conclusion
+
+This strategy provides a comprehensive approach to implementing and evaluating five different RAG architectures for the PersonalTrainerAI project. By systematically comparing these approaches, we can select the most effective method for providing accurate, helpful fitness guidance to users.
