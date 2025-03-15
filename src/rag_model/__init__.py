@@ -4,7 +4,7 @@ RAG Model Package for PersonalTrainerAI
 This package contains implementations of different Retrieval-Augmented Generation (RAG)
 architectures for the PersonalTrainerAI project.
 """
-
+ly
 from .naive_rag import NaiveRAG
 from .advanced_rag import AdvancedRAG
 from .modular_rag import ModularRAG
