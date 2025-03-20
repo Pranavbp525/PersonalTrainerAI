@@ -14,7 +14,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 
 from dotenv import load_dotenv
-import pinecone
+from pinecone import Pinecone
 import numpy as np
 
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -57,13 +57,15 @@ class ModularRAG:
             max_tokens: Maximum tokens for LLM response
         """
         # Initialize Pinecone
-        pinecone_api_key = os.getenv("PINECONE_API_KEY")
-        pinecone_env = os.getenv("PINECONE_ENVIRONMENT", "gcp-starter")
+        PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+        PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
+        PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fitness-chatbot")
         
         if not pinecone_api_key:
             raise ValueError("PINECONE_API_KEY environment variable not set")
         
-        pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        index = pc.Index(PINECONE_INDEX_NAME)
         
         # Check if the index exists, if not create it
         if vector_db_name not in pinecone.list_indexes():

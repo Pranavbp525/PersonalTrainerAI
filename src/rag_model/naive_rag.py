@@ -11,7 +11,7 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
-import pinecone
+from pinecone import Pinecone
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
@@ -27,8 +27,8 @@ load_dotenv()
 
 # Pinecone configuration
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "gcp-starter")
-INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "personal-trainer-ai")
+PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fitness-chatbot")
 
 # OpenAI configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -61,9 +61,9 @@ class NaiveRAG:
         
         # Initialize Pinecone
         logger.info("Connecting to Pinecone")
-        pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
-        self.index = pinecone.Index(INDEX_NAME)
-        
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        index = pc.Index(PINECONE_INDEX_NAME)
+                
         # Initialize LLM
         logger.info(f"Initializing LLM: {llm_model_name}")
         self.llm = OpenAI(model_name=llm_model_name, temperature=0.7, api_key=OPENAI_API_KEY)
