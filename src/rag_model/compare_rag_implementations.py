@@ -19,7 +19,7 @@ from rag_model.naive_rag import NaiveRAG
 from rag_model.advanced_rag import AdvancedRAG
 from rag_model.modular_rag import ModularRAG
 from rag_model.graph_rag import GraphRAG
-from rag_model.raptor_rag import RAPTORRAG
+from rag_model.raptor_rag import RaptorRAG
 from rag_model.rag_evaluation import RAGEvaluator
 
 # Configure logging
