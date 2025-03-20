@@ -9,8 +9,7 @@ from .naive_rag import NaiveRAG
 from .advanced_rag import AdvancedRAG
 from .modular_rag import ModularRAG
 from .graph_rag import GraphRAG
-# Comment out the problematic import until fixed
-from .raptor_rag import RAPTORRAG
+from .raptor_rag import RaptorRAG
 from .rag_integration import RAGIntegration
 from .rag_evaluation import RAGEvaluator
 
@@ -19,7 +18,7 @@ __all__ = [
     'AdvancedRAG', 
     'ModularRAG', 
     'GraphRAG',
-    'RAPTORRAG',  # Comment this out too
+    'RaptorRAG',
     'RAGIntegration',
     'RAGEvaluator'
 ]

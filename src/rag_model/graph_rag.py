@@ -1,596 +1,444 @@
 """
 Graph RAG Implementation for PersonalTrainerAI
 
-This module implements a Graph RAG approach that uses a knowledge graph structure
-to represent relationships between fitness concepts, allowing for more contextual
-retrieval by traversing related nodes.
-
-Key features:
-1. Knowledge graph construction from fitness documents
-2. Graph-based retrieval using node relationships
-3. Path-aware context augmentation
-4. Relationship-enhanced prompting
-5. Multi-hop reasoning for complex queries
+This module implements a Graph RAG approach using a knowledge graph structure.
 """
 
 import os
 import logging
-import json
+import pickle
 from typing import List, Dict, Any, Optional, Set, Tuple
-from collections import defaultdict
 import networkx as nx
-import numpy as np
 from dotenv import load_dotenv
-import pinecone
-
+from pinecone import Pinecone
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
 class GraphRAG:
     """
-    Graph-based Retrieval Augmented Generation for fitness knowledge.
+    A graph-based implementation of Retrieval-Augmented Generation (RAG) for fitness knowledge.
     
-    This implementation builds a knowledge graph from fitness documents and uses
-    graph traversal algorithms to enhance context retrieval for more accurate
-    and contextually relevant responses.
+    This implementation uses a knowledge graph structure to represent relationships
+    between fitness concepts, enhancing retrieval with graph-based context.
     """
     
     def __init__(
         self,
-        vector_db_name: str = "fitness-knowledge",
-        embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2",
         llm_model_name: str = "gpt-3.5-turbo",
-        temperature: float = 0.2,
-        max_tokens: int = 500,
-        graph_path: Optional[str] = None
+        temperature: float = 0.7,
+        top_k: int = 5,
+        graph_path: str = "fitness_knowledge_graph.gpickle"
     ):
         """
-        Initialize the Graph RAG system.
+        Initialize the GraphRAG system.
         
         Args:
-            vector_db_name: Name of the Pinecone vector database
             embedding_model_name: Name of the embedding model to use
             llm_model_name: Name of the language model to use
             temperature: Temperature parameter for the LLM
-            max_tokens: Maximum tokens for LLM response
+            top_k: Number of documents to retrieve
             graph_path: Path to save/load the knowledge graph
         """
-        # Initialize Pinecone
-        pinecone_api_key = os.getenv("PINECONE_API_KEY")
-        pinecone_env = os.getenv("PINECONE_ENVIRONMENT", "gcp-starter")
+        # Load environment variables
+        self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+        self.PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
+        self.PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fitness-chatbot")
+        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
         
-        if not pinecone_api_key:
-            raise ValueError("PINECONE_API_KEY environment variable not set")
+        if not self.PINECONE_API_KEY or not self.OPENAI_API_KEY:
+            raise ValueError("Missing required environment variables. Please check your .env file.")
         
-        pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
-        
-        # Check if the index exists, if not create it
-        if vector_db_name not in pinecone.list_indexes():
-            logger.info(f"Creating new Pinecone index: {vector_db_name}")
-            pinecone.create_index(
-                name=vector_db_name,
-                dimension=384,  # Dimension for all-MiniLM-L6-v2
-                metric="cosine"
-            )
-        
-        self.index = pinecone.Index(vector_db_name)
+        self.top_k = top_k
+        self.graph_path = graph_path
         
         # Initialize embedding model
-        self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
+        logger.info(f"Initializing embedding model: {embedding_model_name}")
+        self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
+        
+        # Initialize Pinecone
+        logger.info("Connecting to Pinecone")
+        self.pc = Pinecone(api_key=self.PINECONE_API_KEY)
+        self.index = self.pc.Index(self.PINECONE_INDEX_NAME)
         
         # Initialize LLM
-        self.llm = OpenAI(
-            model_name=llm_model_name,
-            temperature=temperature,
-            max_tokens=max_tokens
+        logger.info(f"Initializing LLM: {llm_model_name}")
+        self.llm = OpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
+        self.graph_builder_llm = OpenAI(model_name=llm_model_name, temperature=0.2, openai_api_key=self.OPENAI_API_KEY)
+        
+        # Define prompt templates
+        self.entity_extraction_template = PromptTemplate(
+            input_variables=["text"],
+            template="""
+            Extract all fitness-related entities from the following text. 
+            Entities can include exercises, muscles, equipment, nutrition concepts, training methods, etc.
+            
+            Text: {text}
+            
+            Return only a comma-separated list of entities, nothing else.
+            """
         )
         
-        # Initialize knowledge graph
-        self.graph = nx.DiGraph()
-        self.graph_path = graph_path or "fitness_knowledge_graph.gpickle"
-        
-        # Load existing graph if available
-        if os.path.exists(self.graph_path):
-            self._load_graph()
-        
-        # Define entity types and relationships for the fitness domain
-        self.entity_types = {
-            "exercise": ["name", "muscle_group", "equipment", "difficulty"],
-            "workout": ["name", "type", "duration", "intensity", "goal"],
-            "nutrition": ["name", "category", "macros", "benefits"],
-            "muscle_group": ["name", "location", "function"],
-            "equipment": ["name", "type", "difficulty"],
-            "fitness_goal": ["name", "timeframe", "metrics"]
-        }
-        
-        self.relationships = [
-            ("exercise", "targets", "muscle_group"),
-            ("exercise", "requires", "equipment"),
-            ("exercise", "contributes_to", "fitness_goal"),
-            ("workout", "includes", "exercise"),
-            ("workout", "aims_for", "fitness_goal"),
-            ("nutrition", "supports", "fitness_goal"),
-            ("nutrition", "benefits", "muscle_group")
-        ]
-        
-        # Templates for graph-based prompting
-        self.prompt_template = PromptTemplate(
-            input_variables=["context", "question", "graph_paths"],
+        self.relation_extraction_template = PromptTemplate(
+            input_variables=["entity1", "entity2"],
             template="""
-            You are a knowledgeable fitness assistant with expertise in workouts, nutrition, and exercise science.
+            Determine the relationship between these two fitness concepts:
+            Entity 1: {entity1}
+            Entity 2: {entity2}
             
-            Use the following retrieved information to answer the question. If you don't know the answer, just say that you don't know.
+            Examples of relationships:
+            - works (muscle works exercise)
+            - targets (exercise targets muscle)
+            - requires (exercise requires equipment)
+            - complements (exercise complements another exercise)
+            - precedes (exercise precedes another in a routine)
+            - provides (food provides nutrient)
+            - prevents (technique prevents injury)
             
-            Retrieved information:
+            Return only the relationship as a single word or short phrase, or "none" if no clear relationship exists.
+            """
+        )
+        
+        self.answer_template = PromptTemplate(
+            input_variables=["context", "graph_context", "question"],
+            template="""
+            You are a knowledgeable fitness trainer assistant with expertise in how different fitness concepts relate to each other.
+            Use the following retrieved information and knowledge graph relationships to answer the question.
+            
+            Retrieved documents:
             {context}
             
-            The following relationships between fitness concepts are relevant:
-            {graph_paths}
+            Knowledge graph relationships:
+            {graph_context}
             
             Question: {question}
+            
+            Provide a comprehensive and accurate answer based on both the retrieved information and the knowledge graph relationships.
+            Explain connections between concepts when relevant to the question.
+            If the information doesn't contain the answer, say "I don't have enough information to answer this question."
             
             Answer:
             """
         )
-
-    def _load_graph(self):
-        """Load the knowledge graph from disk."""
+        
+        # Create LLM chains
+        self.entity_extraction_chain = LLMChain(llm=self.graph_builder_llm, prompt=self.entity_extraction_template)
+        self.relation_extraction_chain = LLMChain(llm=self.graph_builder_llm, prompt=self.relation_extraction_template)
+        self.answer_chain = LLMChain(llm=self.llm, prompt=self.answer_template)
+        
+        # Initialize or load knowledge graph
+        self.graph = self._load_graph() if os.path.exists(self.graph_path) else nx.DiGraph()
+        
+        logger.info("GraphRAG initialized successfully")
+    
+    def _load_graph(self) -> nx.DiGraph:
+        """
+        Load the knowledge graph from disk.
+        
+        Returns:
+            The loaded knowledge graph
+        """
+        logger.info(f"Loading knowledge graph from {self.graph_path}")
         try:
-            self.graph = nx.read_gpickle(self.graph_path)
-            logger.info(f"Loaded knowledge graph with {self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges")
+            return nx.read_gpickle(self.graph_path)
         except Exception as e:
-            logger.warning(f"Could not load knowledge graph: {e}")
-            self.graph = nx.DiGraph()
-
-    def _save_graph(self):
-        """Save the knowledge graph to disk."""
+            logger.error(f"Error loading graph: {e}")
+            return nx.DiGraph()
+    
+    def _save_graph(self) -> None:
+        """
+        Save the knowledge graph to disk.
+        """
+        logger.info(f"Saving knowledge graph to {self.graph_path}")
         try:
             nx.write_gpickle(self.graph, self.graph_path)
-            logger.info(f"Saved knowledge graph with {self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges")
+            logger.info(f"Graph saved with {self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges")
         except Exception as e:
-            logger.error(f"Could not save knowledge graph: {e}")
-
-    def build_graph_from_documents(self, documents: List[Dict[str, Any]]):
+            logger.error(f"Error saving graph: {e}")
+    
+    def build_knowledge_graph(self, rebuild: bool = False) -> None:
         """
-        Build a knowledge graph from fitness documents.
+        Build or update the knowledge graph from the vector database.
         
         Args:
-            documents: List of document dictionaries with text and metadata
+            rebuild: Whether to rebuild the graph from scratch
         """
-        logger.info(f"Building knowledge graph from {len(documents)} documents")
+        logger.info("Building knowledge graph from vector database")
         
-        # Extract entities and relationships from documents
-        for doc in documents:
-            text = doc.get("text", "")
-            metadata = doc.get("metadata", {})
+        if rebuild:
+            self.graph = nx.DiGraph()
+        
+        # Get all documents from Pinecone
+        # This is a simplified approach - in a real implementation, you would need to paginate
+        # through all vectors in the index
+        
+        # For demonstration, we'll use a sample query to get some documents
+        sample_queries = [
+            "workout routine", 
+            "nutrition", 
+            "muscle groups", 
+            "exercise technique", 
+            "fitness equipment"
+        ]
+        
+        all_docs = []
+        for query in sample_queries:
+            query_embedding = self.embedding_model.embed_query(query)
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=100,  # Get more documents for graph building
+                include_metadata=True
+            )
             
-            # Extract entities based on metadata
-            doc_type = metadata.get("type", "unknown")
+            for match in results.matches:
+                if hasattr(match, 'metadata') and match.metadata:
+                    all_docs.append({
+                        "id": match.id,
+                        "text": match.metadata.get("text", ""),
+                        "source": match.metadata.get("source", "Unknown")
+                    })
+        
+        # Remove duplicates
+        unique_docs = {doc["id"]: doc for doc in all_docs}.values()
+        logger.info(f"Retrieved {len(unique_docs)} unique documents for graph building")
+        
+        # Extract entities and build graph
+        all_entities = set()
+        for doc in unique_docs:
+            # Extract entities
+            entity_text = self.entity_extraction_chain.run(text=doc["text"])
+            entities = [e.strip() for e in entity_text.split(",") if e.strip()]
             
-            if doc_type in self.entity_types:
-                # Create node for the document
-                node_id = metadata.get("id", f"{doc_type}_{len(self.graph.nodes)}")
+            # Add entities to graph
+            for entity in entities:
+                if entity not in self.graph:
+                    self.graph.add_node(entity, documents=[doc["id"]])
+                else:
+                    if "documents" not in self.graph.nodes[entity]:
+                        self.graph.nodes[entity]["documents"] = []
+                    self.graph.nodes[entity]["documents"].append(doc["id"])
                 
-                # Add node to graph with document properties
-                self.graph.add_node(
-                    node_id,
-                    type=doc_type,
-                    text=text,
-                    **{k: metadata.get(k) for k in self.entity_types[doc_type] if k in metadata}
-                )
+                all_entities.add(entity)
+        
+        logger.info(f"Extracted {len(all_entities)} entities")
+        
+        # Extract relationships between entities
+        entities_list = list(all_entities)
+        # Limit the number of entity pairs to avoid too many API calls
+        max_pairs = min(1000, len(entities_list) * (len(entities_list) - 1) // 2)
+        
+        # Process a subset of entity pairs
+        processed = 0
+        for i in range(len(entities_list)):
+            if processed >= max_pairs:
+                break
                 
-                # Connect to related entities based on metadata
-                for rel_type, rel_name, target_type in self.relationships:
-                    if rel_type == doc_type and f"{rel_name}_ids" in metadata:
-                        for target_id in metadata[f"{rel_name}_ids"]:
-                            self.graph.add_edge(
-                                node_id,
-                                target_id,
-                                type=rel_name
-                            )
-        
-        # Save the updated graph
-        self._save_graph()
-        logger.info(f"Knowledge graph built with {self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges")
-
-    def extract_entities_from_text(self, text: str) -> Dict[str, List[str]]:
-        """
-        Extract fitness-related entities from text using LLM.
-        
-        Args:
-            text: Input text to extract entities from
-            
-        Returns:
-            Dictionary of entity types and their instances
-        """
-        # Use LLM to extract entities
-        prompt = f"""
-        Extract fitness-related entities from the following text. 
-        Return a JSON object with the following entity types:
-        - exercises: List of exercise names
-        - muscle_groups: List of muscle groups
-        - equipment: List of equipment mentioned
-        - workout_types: List of workout types
-        - nutrition: List of nutrition concepts
-        - fitness_goals: List of fitness goals
-        
-        Text: {text}
-        
-        JSON:
-        """
-        
-        try:
-            response = self.llm(prompt)
-            entities = json.loads(response)
-            return entities
-        except Exception as e:
-            logger.error(f"Error extracting entities: {e}")
-            return {
-                "exercises": [],
-                "muscle_groups": [],
-                "equipment": [],
-                "workout_types": [],
-                "nutrition": [],
-                "fitness_goals": []
-            }
-
-    def add_document_to_graph(self, document: Dict[str, Any]):
-        """
-        Add a single document to the knowledge graph.
-        
-        Args:
-            document: Document dictionary with text and metadata
-        """
-        text = document.get("text", "")
-        metadata = document.get("metadata", {})
-        doc_id = metadata.get("id", f"doc_{len(self.graph.nodes)}")
-        
-        # Add document node
-        self.graph.add_node(
-            doc_id,
-            type="document",
-            text=text,
-            **metadata
-        )
-        
-        # Extract entities
-        entities = self.extract_entities_from_text(text)
-        
-        # Add entity nodes and connect to document
-        for entity_type, entity_list in entities.items():
-            for entity in entity_list:
-                # Create a normalized entity ID
-                entity_id = f"{entity_type}_{entity.lower().replace(' ', '_')}"
-                
-                # Add entity node if it doesn't exist
-                if not self.graph.has_node(entity_id):
-                    self.graph.add_node(
-                        entity_id,
-                        type=entity_type,
-                        name=entity
-                    )
-                
-                # Connect document to entity
-                self.graph.add_edge(
-                    doc_id,
-                    entity_id,
-                    type="mentions"
-                )
-                
-                # Connect entities to each other based on domain knowledge
-                self._connect_related_entities(entity_id, entity_type, entities)
-        
-        # Save the updated graph
-        self._save_graph()
-
-    def _connect_related_entities(self, entity_id: str, entity_type: str, entities: Dict[str, List[str]]):
-        """
-        Connect related entities based on domain knowledge.
-        
-        Args:
-            entity_id: ID of the entity to connect
-            entity_type: Type of the entity
-            entities: Dictionary of extracted entities
-        """
-        # Map entity types to relationship types
-        type_to_rel = {
-            "exercises": {
-                "muscle_groups": "targets",
-                "equipment": "requires",
-                "fitness_goals": "contributes_to"
-            },
-            "workout_types": {
-                "exercises": "includes",
-                "fitness_goals": "aims_for"
-            },
-            "nutrition": {
-                "fitness_goals": "supports",
-                "muscle_groups": "benefits"
-            }
-        }
-        
-        # Connect entity to related entities
-        if entity_type in type_to_rel:
-            for target_type, rel_type in type_to_rel[entity_type].items():
-                for target_entity in entities.get(target_type, []):
-                    target_id = f"{target_type}_{target_entity.lower().replace(' ', '_')}"
+            for j in range(i + 1, len(entities_list)):
+                if processed >= max_pairs:
+                    break
                     
-                    # Add target entity if it doesn't exist
-                    if not self.graph.has_node(target_id):
-                        self.graph.add_node(
-                            target_id,
-                            type=target_type,
-                            name=target_entity
-                        )
-                    
-                    # Connect entities
-                    self.graph.add_edge(
-                        entity_id,
-                        target_id,
-                        type=rel_type
-                    )
-
-    def find_paths_between_entities(self, source_entities: List[str], target_entities: List[str], max_length: int = 3) -> List[List[str]]:
-        """
-        Find paths between source and target entities in the knowledge graph.
-        
-        Args:
-            source_entities: List of source entity IDs
-            target_entities: List of target entity IDs
-            max_length: Maximum path length
-            
-        Returns:
-            List of paths (each path is a list of node IDs)
-        """
-        all_paths = []
-        
-        for source in source_entities:
-            for target in target_entities:
-                try:
-                    # Find all simple paths between source and target
-                    paths = list(nx.all_simple_paths(
-                        self.graph, 
-                        source=source, 
-                        target=target, 
-                        cutoff=max_length
-                    ))
-                    all_paths.extend(paths)
-                except (nx.NetworkXNoPath, nx.NodeNotFound):
+                entity1 = entities_list[i]
+                entity2 = entities_list[j]
+                
+                # Skip if relationship already exists
+                if self.graph.has_edge(entity1, entity2) or self.graph.has_edge(entity2, entity1):
                     continue
-        
-        return all_paths
-
-    def format_paths_for_prompt(self, paths: List[List[str]]) -> str:
-        """
-        Format graph paths for inclusion in the prompt.
-        
-        Args:
-            paths: List of paths (each path is a list of node IDs)
-            
-        Returns:
-            Formatted string describing the paths
-        """
-        if not paths:
-            return "No relevant relationships found."
-        
-        formatted_paths = []
-        
-        for path in paths:
-            path_description = []
-            
-            for i in range(len(path) - 1):
-                source = path[i]
-                target = path[i + 1]
                 
-                # Get node names
-                source_name = self.graph.nodes[source].get("name", source)
-                target_name = self.graph.nodes[target].get("name", target)
+                # Extract relationship
+                relation = self.relation_extraction_chain.run(entity1=entity1, entity2=entity2)
+                relation = relation.strip().lower()
                 
-                # Get edge type
-                edge_data = self.graph.get_edge_data(source, target)
-                relation = edge_data.get("type", "related_to") if edge_data else "related_to"
-                
-                # Format relationship
-                path_description.append(f"{source_name} {relation} {target_name}")
-            
-            formatted_paths.append(" -> ".join(path_description))
+                # Add edge if relationship exists
+                if relation and relation != "none":
+                    self.graph.add_edge(entity1, entity2, relation=relation)
+                    processed += 1
+                    
+                    # Log progress periodically
+                    if processed % 100 == 0:
+                        logger.info(f"Processed {processed} entity pairs")
         
-        return "\n".join(formatted_paths)
-
-    def retrieve_relevant_documents(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        logger.info(f"Added {self.graph.number_of_edges()} relationships to the graph")
+        
+        # Save the graph
+        self._save_graph()
+    
+    def retrieve_documents(self, query: str) -> List[Dict[str, Any]]:
         """
         Retrieve relevant documents from the vector database.
         
         Args:
-            query: User query
-            top_k: Number of documents to retrieve
+            query: The query string
             
         Returns:
-            List of relevant documents
+            A list of retrieved documents
         """
+        logger.info(f"Retrieving documents for query: {query}")
+        
         # Generate query embedding
-        query_embedding = self.embeddings.embed_query(query)
+        query_embedding = self.embedding_model.embed_query(query)
         
         # Query Pinecone
         results = self.index.query(
             vector=query_embedding,
-            top_k=top_k,
+            top_k=self.top_k,
             include_metadata=True
         )
         
-        # Extract documents
+        # Extract documents from results
         documents = []
         for match in results.matches:
-            doc = {
-                "id": match.id,
-                "score": match.score,
-                "text": match.metadata.get("text", ""),
-                "metadata": {k: v for k, v in match.metadata.items() if k != "text"}
-            }
-            documents.append(doc)
+            if hasattr(match, 'metadata') and match.metadata:
+                documents.append({
+                    "id": match.id,
+                    "score": match.score,
+                    "text": match.metadata.get("text", ""),
+                    "source": match.metadata.get("source", "Unknown")
+                })
         
+        logger.info(f"Retrieved {len(documents)} documents")
         return documents
-
-    def extract_query_entities(self, query: str) -> Dict[str, List[str]]:
+    
+    def extract_entities_from_query(self, query: str) -> List[str]:
         """
-        Extract entities from the user query.
+        Extract fitness entities from the query.
         
         Args:
-            query: User query
+            query: The query string
             
         Returns:
-            Dictionary of entity types and their instances
+            List of extracted entities
         """
-        return self.extract_entities_from_text(query)
-
-    def get_entity_ids_from_names(self, entities: Dict[str, List[str]]) -> List[str]:
+        entity_text = self.entity_extraction_chain.run(text=query)
+        entities = [e.strip() for e in entity_text.split(",") if e.strip()]
+        logger.info(f"Extracted {len(entities)} entities from query: {entities}")
+        return entities
+    
+    def get_graph_context(self, entities: List[str], max_hops: int = 2) -> str:
         """
-        Convert entity names to entity IDs.
+        Get relevant subgraph context for the query entities.
         
         Args:
-            entities: Dictionary of entity types and their instances
+            entities: List of entities extracted from the query
+            max_hops: Maximum number of hops from query entities
             
         Returns:
-            List of entity IDs
+            Formatted graph context string
         """
-        entity_ids = []
+        if not self.graph.nodes:
+            logger.warning("Knowledge graph is empty. Run build_knowledge_graph() first.")
+            return ""
         
-        for entity_type, entity_list in entities.items():
-            for entity in entity_list:
-                entity_id = f"{entity_type}_{entity.lower().replace(' ', '_')}"
-                if self.graph.has_node(entity_id):
-                    entity_ids.append(entity_id)
+        # Find matching nodes in the graph
+        matched_entities = [e for e in entities if e in self.graph]
+        if not matched_entities:
+            logger.warning("No entities from query found in knowledge graph")
+            return ""
         
-        return entity_ids
-
+        # Extract subgraph around matched entities
+        subgraph_nodes = set(matched_entities)
+        frontier = set(matched_entities)
+        
+        # Expand by hops
+        for _ in range(max_hops):
+            new_frontier = set()
+            for node in frontier:
+                # Add neighbors
+                neighbors = set(self.graph.successors(node)) | set(self.graph.predecessors(node))
+                new_frontier |= neighbors
+            
+            # Update sets
+            subgraph_nodes |= new_frontier
+            frontier = new_frontier
+        
+        # Create subgraph
+        subgraph = self.graph.subgraph(subgraph_nodes)
+        
+        # Format relationships
+        relationships = []
+        for u, v, data in subgraph.edges(data=True):
+            relation = data.get("relation", "related to")
+            relationships.append(f"{u} {relation} {v}")
+        
+        logger.info(f"Found {len(relationships)} relationships in knowledge graph")
+        return "\n".join(relationships)
+    
+    def format_context(self, documents: List[Dict[str, Any]]) -> str:
+        """
+        Format retrieved documents into a context string.
+        
+        Args:
+            documents: List of retrieved documents
+            
+        Returns:
+            Formatted context string
+        """
+        context_parts = []
+        for i, doc in enumerate(documents):
+            context_parts.append(f"Document {i+1} [Source: {doc['source']}]:\n{doc['text']}\n")
+        
+        return "\n".join(context_parts)
+    
     def answer_question(self, question: str) -> str:
         """
-        Answer a fitness-related question using Graph RAG.
+        Answer a question using the graph-based RAG approach.
         
         Args:
-            question: User question
+            question: The question to answer
             
         Returns:
-            Answer to the question
+            Generated answer
         """
-        # Step 1: Retrieve relevant documents
-        documents = self.retrieve_relevant_documents(question, top_k=5)
-        context = "\n\n".join([doc["text"] for doc in documents])
+        logger.info(f"Answering question: {question}")
         
-        # Step 2: Extract entities from question and documents
-        question_entities = self.extract_query_entities(question)
-        question_entity_ids = self.get_entity_ids_from_names(question_entities)
+        # Check if graph exists
+        if not self.graph.nodes:
+            logger.warning("Knowledge graph is empty. Building graph first...")
+            self.build_knowledge_graph()
         
-        document_entities = {}
-        for doc in documents:
-            doc_entities = self.extract_entities_from_text(doc["text"])
-            for entity_type, entity_list in doc_entities.items():
-                if entity_type not in document_entities:
-                    document_entities[entity_type] = []
-                document_entities[entity_type].extend(entity_list)
+        # Retrieve documents
+        documents = self.retrieve_documents(question)
         
-        document_entity_ids = self.get_entity_ids_from_names(document_entities)
+        if not documents:
+            return "I couldn't find any relevant information to answer your question."
         
-        # Step 3: Find paths between question entities and document entities
-        paths = self.find_paths_between_entities(question_entity_ids, document_entity_ids)
-        formatted_paths = self.format_paths_for_prompt(paths)
+        # Extract entities from query
+        entities = self.extract_entities_from_query(question)
         
-        # Step 4: Generate answer using LLM with enhanced context
-        prompt = self.prompt_template.format(
-            context=context,
-            question=question,
-            graph_paths=formatted_paths
+        # Get graph context
+        graph_context = self.get_graph_context(entities)
+        
+        # Format document context
+        doc_context = self.format_context(documents)
+        
+        # Generate answer
+        response = self.answer_chain.run(
+            context=doc_context,
+            graph_context=graph_context if graph_context else "No relevant relationships found.",
+            question=question
         )
         
-        answer = self.llm(prompt)
-        return answer
+        return response.strip()
 
-    def get_related_concepts(self, concept: str, relationship_type: Optional[str] = None) -> List[str]:
-        """
-        Get concepts related to a given concept in the knowledge graph.
-        
-        Args:
-            concept: Concept name
-            relationship_type: Type of relationship to filter by
-            
-        Returns:
-            List of related concept names
-        """
-        # Find the concept node
-        concept_id = None
-        for node, data in self.graph.nodes(data=True):
-            if data.get("name", "").lower() == concept.lower():
-                concept_id = node
-                break
-        
-        if not concept_id:
-            return []
-        
-        # Get neighbors
-        related = []
-        for neighbor in self.graph.successors(concept_id):
-            edge_data = self.graph.get_edge_data(concept_id, neighbor)
-            edge_type = edge_data.get("type", "")
-            
-            if relationship_type is None or edge_type == relationship_type:
-                neighbor_data = self.graph.nodes[neighbor]
-                related.append(neighbor_data.get("name", neighbor))
-        
-        return related
 
-    def visualize_graph(self, output_file: str = "fitness_knowledge_graph.html"):
-        """
-        Visualize the knowledge graph using NetworkX and Pyvis.
-        
-        Args:
-            output_file: Path to save the visualization
-        """
-        try:
-            from pyvis.network import Network
-            
-            # Create network
-            net = Network(notebook=False, height="750px", width="100%")
-            
-            # Add nodes
-            for node, data in self.graph.nodes(data=True):
-                node_type = data.get("type", "unknown")
-                label = data.get("name", node)
-                
-                # Set node color based on type
-                color_map = {
-                    "exercise": "#ff7f0e",
-                    "workout": "#1f77b4",
-                    "nutrition": "#2ca02c",
-                    "muscle_group": "#d62728",
-                    "equipment": "#9467bd",
-                    "fitness_goal": "#8c564b",
-                    "document": "#e377c2"
-                }
-                
-                color = color_map.get(node_type, "#7f7f7f")
-                
-                net.add_node(node, label=label, title=str(data), color=color)
-            
-            # Add edges
-            for source, target, data in self.graph.edges(data=True):
-                edge_type = data.get("type", "related_to")
-                net.add_edge(source, target, title=edge_type)
-            
-            # Save visualization
-            net.save_graph(output_file)
-            logger.info(f"Graph visualization saved to {output_file}")
-            
-            return output_file
-        except ImportError:
-            logger.warning("Pyvis not installed. Cannot visualize graph.")
-            return None
+if __name__ == "__main__":
+    # Example usage
+    rag = GraphRAG()
+    
+    # Build knowledge graph if it doesn't exist
+    if not os.path.exists(rag.graph_path):
+        print("Building knowledge graph...")
+        rag.build_knowledge_graph()
+    
+    question = "How are protein intake and muscle recovery related?"
+    answer = rag.answer_question(question)
+    print(f"Question: {question}")
+    print(f"Answer: {answer}")
