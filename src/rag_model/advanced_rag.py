@@ -15,8 +15,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 import pinecone
 import numpy as np
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.llms import OpenAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.schema import Document

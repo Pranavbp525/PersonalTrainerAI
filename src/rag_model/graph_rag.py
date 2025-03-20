@@ -23,8 +23,10 @@ import numpy as np
 from dotenv import load_dotenv
 import pinecone
 
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.llms import OpenAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 
 # Load environment variables

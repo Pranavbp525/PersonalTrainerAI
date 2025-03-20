@@ -17,11 +17,12 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 
 # Import RAG implementations
-from naive_rag import NaiveRAG
-from advanced_rag import AdvancedRAG
-from modular_rag import ModularRAG
-from graph_rag import GraphRAG
-from raptor_rag import RaptorRAG
+from .naive_rag import NaiveRAG
+from .advanced_rag import AdvancedRAG
+from .modular_rag import ModularRAG
+from .graph_rag import GraphRAG
+from .raptor_rag import RAPTORRAG
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

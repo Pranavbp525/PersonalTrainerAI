@@ -13,11 +13,11 @@ from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
 # Import RAG implementations
-from rag_model.naive_rag import NaiveRAG
-from rag_model.advanced_rag import AdvancedRAG
-from rag_model.modular_rag import ModularRAG
-from rag_model.graph_rag import GraphRAG
-from rag_model.raptor_rag import RAPTORRAG
+from .naive_rag import NaiveRAG
+from .advanced_rag import AdvancedRAG
+from .modular_rag import ModularRAG
+from .graph_rag import GraphRAG
+from .raptor_rag import RAPTORRAG 
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
