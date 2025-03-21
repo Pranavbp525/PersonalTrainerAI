@@ -1,18 +1,19 @@
 """
 Modular RAG Implementation for PersonalTrainerAI
 
-This module implements a modular RAG approach with query classification and specialized retrievers.
+This module implements a modular Retrieval-Augmented Generation (RAG) approach
+for fitness knowledge with query classification and specialized retrievers.
 """
 
 import os
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from pinecone import Pinecone
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_core.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain.chains.llm import LLMChain
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,33 +24,19 @@ load_dotenv()
 
 class ModularRAG:
     """
-    A modular implementation of Retrieval-Augmented Generation (RAG) for fitness knowledge.
-    
-    This implementation includes:
-    - Query classification to determine the type of fitness question
-    - Specialized retrievers for different types of fitness questions
-    - Dynamic prompt selection based on query type
+    A modular RAG implementation for fitness knowledge with query classification
+    and specialized retrievers.
     """
-    
-    # Define query types
-    QUERY_TYPES = [
-        "workout_routine",
-        "nutrition_diet",
-        "exercise_technique",
-        "fitness_equipment",
-        "injury_prevention",
-        "general_fitness"
-    ]
     
     def __init__(
         self,
         embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2",
         llm_model_name: str = "gpt-3.5-turbo",
-        temperature: float = 0.7,
+        temperature: float = 0.0,
         top_k: int = 5
     ):
         """
-        Initialize the ModularRAG system.
+        Initialize the modular RAG system.
         
         Args:
             embedding_model_name: Name of the embedding model to use
@@ -66,8 +53,6 @@ class ModularRAG:
         if not self.PINECONE_API_KEY or not self.OPENAI_API_KEY:
             raise ValueError("Missing required environment variables. Please check your .env file.")
         
-        self.top_k = top_k
-        
         # Initialize embedding model
         logger.info(f"Initializing embedding model: {embedding_model_name}")
         self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
@@ -77,216 +62,170 @@ class ModularRAG:
         self.pc = Pinecone(api_key=self.PINECONE_API_KEY)
         self.index = self.pc.Index(self.PINECONE_INDEX_NAME)
         
-        # Initialize LLMs
+        # Initialize LLM
         logger.info(f"Initializing LLM: {llm_model_name}")
-        self.llm = OpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
-        self.classifier_llm = OpenAI(model_name=llm_model_name, temperature=0.0, openai_api_key=self.OPENAI_API_KEY)
+        self.llm = ChatOpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
+        
+        # Set parameters
+        self.top_k = top_k
+        
+        # Define query categories
+        self.query_categories = [
+            "workout_routines",
+            "nutrition_diet",
+            "exercise_technique",
+            "fitness_equipment",
+            "health_wellness",
+            "general"
+        ]
         
         # Define prompt templates
-        self.classifier_template = PromptTemplate(
-            input_variables=["query", "query_types"],
+        self.query_classification_template = PromptTemplate(
+            input_variables=["query", "categories"],
             template="""
-            Classify the following fitness-related query into exactly one of these categories:
-            {query_types}
+            You are a fitness expert. Classify the following question into one of these categories:
+            {categories}
             
-            Query: {query}
+            Question: {query}
             
             Respond with only the category name, nothing else.
             """
         )
         
-        # Define specialized prompt templates for each query type
-        self.prompt_templates = {
-            "workout_routine": PromptTemplate(
-                input_variables=["context", "question"],
-                template="""
-                You are a certified personal trainer specializing in workout routines. Use the following retrieved information to answer the question about workout routines.
-                
-                Retrieved information:
-                {context}
-                
-                Question: {question}
-                
-                Provide a detailed workout routine based on the retrieved information. Include sets, reps, frequency, and progression advice when applicable.
-                
-                Answer:
-                """
-            ),
-            "nutrition_diet": PromptTemplate(
-                input_variables=["context", "question"],
-                template="""
-                You are a certified nutritionist specializing in fitness nutrition. Use the following retrieved information to answer the question about nutrition and diet.
-                
-                Retrieved information:
-                {context}
-                
-                Question: {question}
-                
-                Provide detailed nutritional advice based on the retrieved information. Include macronutrient recommendations, meal timing, and food suggestions when applicable.
-                
-                Answer:
-                """
-            ),
-            "exercise_technique": PromptTemplate(
-                input_variables=["context", "question"],
-                template="""
-                You are a fitness coach specializing in exercise technique. Use the following retrieved information to answer the question about exercise form and technique.
-                
-                Retrieved information:
-                {context}
-                
-                Question: {question}
-                
-                Provide detailed instructions on proper exercise technique based on the retrieved information. Include common mistakes to avoid and cues for proper form.
-                
-                Answer:
-                """
-            ),
-            "fitness_equipment": PromptTemplate(
-                input_variables=["context", "question"],
-                template="""
-                You are a fitness equipment specialist. Use the following retrieved information to answer the question about fitness equipment.
-                
-                Retrieved information:
-                {context}
-                
-                Question: {question}
-                
-                Provide detailed information about fitness equipment based on the retrieved information. Include recommendations, comparisons, and usage advice when applicable.
-                
-                Answer:
-                """
-            ),
-            "injury_prevention": PromptTemplate(
-                input_variables=["context", "question"],
-                template="""
-                You are a sports medicine specialist focusing on injury prevention. Use the following retrieved information to answer the question about injury prevention or recovery.
-                
-                Retrieved information:
-                {context}
-                
-                Question: {question}
-                
-                Provide detailed advice on injury prevention or recovery based on the retrieved information. Include warning signs, preventive measures, and recovery strategies when applicable.
-                
-                Answer:
-                """
-            ),
-            "general_fitness": PromptTemplate(
-                input_variables=["context", "question"],
-                template="""
-                You are a knowledgeable fitness trainer assistant. Use the following retrieved information to answer the general fitness question.
-                
-                Retrieved information:
-                {context}
-                
-                Question: {question}
-                
-                Provide a comprehensive and accurate answer based on the retrieved information. If the information doesn't contain the answer, say "I don't have enough information to answer this question."
-                
-                Answer:
-                """
-            )
-        }
+        self.specialized_query_template = PromptTemplate(
+            input_variables=["query", "category"],
+            template="""
+            You are a fitness expert specializing in {category}. 
+            Reformulate the following question to better target information in your area of expertise.
+            
+            Original question: {query}
+            
+            Reformulated question:
+            """
+        )
+        
+        self.answer_generation_template = PromptTemplate(
+            input_variables=["context", "question", "category"],
+            template="""
+            You are a knowledgeable fitness trainer assistant specializing in {category}.
+            Use the following retrieved information to answer the question.
+            
+            Retrieved information:
+            {context}
+            
+            Question: {question}
+            
+            Provide a comprehensive, accurate, and helpful answer based on the retrieved information.
+            If the retrieved information doesn't contain the answer, acknowledge that and provide general advice.
+            
+            Answer:
+            """
+        )
         
         # Create LLM chains
-        self.classifier_chain = LLMChain(llm=self.classifier_llm, prompt=self.classifier_template)
-        self.answer_chains = {
-            query_type: LLMChain(llm=self.llm, prompt=template)
-            for query_type, template in self.prompt_templates.items()
-        }
+        self.query_classification_chain = LLMChain(llm=self.llm, prompt=self.query_classification_template)
+        self.specialized_query_chain = LLMChain(llm=self.llm, prompt=self.specialized_query_template)
+        self.answer_generation_chain = LLMChain(llm=self.llm, prompt=self.answer_generation_template)
         
         logger.info("ModularRAG initialized successfully")
     
     def classify_query(self, query: str) -> str:
         """
-        Classify the query into one of the predefined types.
+        Classify a query into one of the predefined categories.
         
         Args:
-            query: The query string
+            query: The query to classify
             
         Returns:
-            Query type
+            Category name
         """
         logger.info(f"Classifying query: {query}")
         
-        # Format query types for the prompt
-        query_types_str = "\n".join(self.QUERY_TYPES)
+        # Format categories for prompt
+        categories_str = "\n".join(self.query_categories)
         
         # Classify query
-        response = self.classifier_chain.run(query=query, query_types=query_types_str)
+        response = self.query_classification_chain.invoke({"query": query, "categories": categories_str})
         
-        # Clean and validate response
-        predicted_type = response.strip().lower()
+        # Extract category
+        category = response["text"].strip().lower()
         
-        # Default to general_fitness if classification fails
-        if predicted_type not in self.QUERY_TYPES:
-            logger.warning(f"Classification failed, defaulting to general_fitness. Got: {predicted_type}")
-            predicted_type = "general_fitness"
+        # Validate category
+        if category not in self.query_categories:
+            logger.warning(f"Invalid category: {category}, defaulting to general")
+            category = "general"
         
-        logger.info(f"Query classified as: {predicted_type}")
-        return predicted_type
+        logger.info(f"Classified as: {category}")
+        return category
     
-    def retrieve_documents(self, query: str, query_type: str) -> List[Dict[str, Any]]:
+    def specialize_query(self, query: str, category: str) -> str:
         """
-        Retrieve relevant documents from the vector database based on query type.
+        Specialize a query for a specific category.
         
         Args:
-            query: The query string
-            query_type: The type of query
+            query: The original query
+            category: The query category
             
         Returns:
-            A list of retrieved documents
+            Specialized query
         """
-        logger.info(f"Retrieving documents for query type: {query_type}")
+        logger.info(f"Specializing query for category: {category}")
+        
+        # Skip specialization for general category
+        if category == "general":
+            return query
+        
+        # Specialize query
+        response = self.specialized_query_chain.invoke({"query": query, "category": category})
+        
+        # Extract specialized query
+        specialized_query = response["text"].strip()
+        
+        logger.info(f"Specialized query: {specialized_query}")
+        return specialized_query
+    
+    def retrieve_documents(self, query: str, category: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve documents for a query with category-specific filtering.
+        
+        Args:
+            query: The query to retrieve documents for
+            category: The query category
+            
+        Returns:
+            List of retrieved documents
+        """
+        logger.info(f"Retrieving documents for query in category: {category}")
         
         # Generate query embedding
         query_embedding = self.embedding_model.embed_query(query)
         
-        # Add filter based on query type if available in metadata
+        # Prepare filter based on category
         filter_dict = {}
-        if query_type != "general_fitness":
-            filter_dict = {"category": query_type}
+        if category != "general":
+            filter_dict = {"metadata": {"category": category}}
         
         # Query Pinecone
         results = self.index.query(
             vector=query_embedding,
             top_k=self.top_k,
             include_metadata=True,
-            filter=filter_dict if filter_dict else None
+            filter=filter_dict
         )
         
-        # Extract documents from results
+        # Extract documents
         documents = []
-        for match in results.matches:
-            if hasattr(match, 'metadata') and match.metadata:
+        for match in results["matches"]:
+            if "metadata" in match and "text" in match["metadata"]:
                 documents.append({
-                    "id": match.id,
-                    "score": match.score,
-                    "text": match.metadata.get("text", ""),
-                    "source": match.metadata.get("source", "Unknown"),
-                    "category": match.metadata.get("category", "Unknown")
+                    "text": match["metadata"]["text"],
+                    "score": match["score"],
+                    "id": match["id"],
+                    "category": match["metadata"].get("category", "unknown")
                 })
         
         logger.info(f"Retrieved {len(documents)} documents")
         return documents
-    
-    def format_context(self, documents: List[Dict[str, Any]]) -> str:
-        """
-        Format retrieved documents into a context string.
-        
-        Args:
-            documents: List of retrieved documents
-            
-        Returns:
-            Formatted context string
-        """
-        context_parts = []
-        for i, doc in enumerate(documents):
-            category_info = f" [Category: {doc.get('category', 'Unknown')}]" if 'category' in doc else ""
-            context_parts.append(f"Document {i+1} [Source: {doc['source']}]{category_info}:\n{doc['text']}\n")
-        
-        return "\n".join(context_parts)
     
     def answer_question(self, question: str) -> str:
         """
@@ -301,30 +240,54 @@ class ModularRAG:
         logger.info(f"Answering question: {question}")
         
         # Classify query
-        query_type = self.classify_query(question)
+        category = self.classify_query(question)
         
-        # Retrieve documents based on query type
-        documents = self.retrieve_documents(question, query_type)
+        # Specialize query
+        specialized_query = self.specialize_query(question, category)
         
-        if not documents:
-            return "I couldn't find any relevant information to answer your question."
+        # Retrieve documents
+        documents = self.retrieve_documents(specialized_query, category)
         
-        # Format context
-        context = self.format_context(documents)
-        
-        # Select appropriate chain based on query type
-        answer_chain = self.answer_chains[query_type]
+        # Prepare context
+        if documents:
+            context = "\n\n".join([f"Document {i+1}:\n{doc['text']}" for i, doc in enumerate(documents)])
+        else:
+            context = "No relevant documents found."
         
         # Generate answer
-        response = answer_chain.run(context=context, question=question)
+        response = self.answer_generation_chain.invoke({
+            "context": context, 
+            "question": question,
+            "category": category
+        })
         
-        return response.strip()
+        return response["text"].strip()
 
 
 if __name__ == "__main__":
-    # Example usage
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Modular RAG for fitness knowledge")
+    parser.add_argument("--question", type=str, help="Question to answer")
+    args = parser.parse_args()
+    
+    # Initialize RAG
     rag = ModularRAG()
-    question = "What should I eat before a workout?"
-    answer = rag.answer_question(question)
-    print(f"Question: {question}")
-    print(f"Answer: {answer}")
+    
+    # Answer question
+    if args.question:
+        answer = rag.answer_question(args.question)
+        print(f"Question: {args.question}")
+        print(f"Answer: {answer}")
+    else:
+        # Interactive mode
+        print("Modular RAG for fitness knowledge")
+        print("Enter 'quit' to exit")
+        
+        while True:
+            question = input("\nEnter your fitness question: ")
+            if question.lower() in ["quit", "exit", "q"]:
+                break
+                
+            answer = rag.answer_question(question)
+            print(f"\nAnswer: {answer}")

@@ -5,20 +5,16 @@ This package contains implementations of different Retrieval-Augmented Generatio
 architectures for the PersonalTrainerAI project.
 """
 
-from .naive_rag import NaiveRAG
 from .advanced_rag import AdvancedRAG
 from .modular_rag import ModularRAG
-from .graph_rag import GraphRAG
 from .raptor_rag import RaptorRAG
 from .rag_integration import RAGIntegration
-from .rag_evaluation import RAGEvaluator
+from .simple_rag_evaluation import SimpleRAGEvaluator
 
 __all__ = [
-    'NaiveRAG', 
     'AdvancedRAG', 
-    'ModularRAG', 
-    'GraphRAG',
+    'ModularRAG',
     'RaptorRAG',
     'RAGIntegration',
-    'RAGEvaluator'
+    'SimpleRAGEvaluator'
 ]

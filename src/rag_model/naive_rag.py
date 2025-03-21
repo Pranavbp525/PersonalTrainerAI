@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.llms import OpenAI
+from langchain.llms import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 
@@ -32,7 +32,7 @@ class NaiveRAG:
     def __init__(
         self,
         embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2",
-        llm_model_name: str = "gpt-3.5-turbo",
+        llm_model_name: str = "gpt-4o-mini",
         temperature: float = 0.7,
         top_k: int = 5
     ):
@@ -67,7 +67,7 @@ class NaiveRAG:
         
         # Initialize LLM
         logger.info(f"Initializing LLM: {llm_model_name}")
-        self.llm = OpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
+        self.llm = ChatOpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
         
         # Define prompt template
         self.prompt_template = PromptTemplate(

@@ -10,10 +10,8 @@ from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 
 # Import RAG implementations
-from .naive_rag import NaiveRAG
 from .advanced_rag import AdvancedRAG
 from .modular_rag import ModularRAG
-from .graph_rag import GraphRAG
 from .raptor_rag import RaptorRAG
 
 # Configure logging
@@ -38,30 +36,29 @@ class RAGIntegration:
         
         Args:
             implementation: Name of the RAG implementation to use
-            config: Optional configuration parameters for the RAG implementation
+            config: Configuration parameters for the RAG implementation
         """
         logger.info(f"Initializing RAG integration with {implementation} implementation")
         
-        self.implementation = implementation
-        self.config = config or {}
+        # Set default config if not provided
+        if config is None:
+            config = {}
         
-        # Initialize the selected RAG implementation
-        if implementation == "naive":
-            self.rag = NaiveRAG(**self.config)
-        elif implementation == "advanced":
-            self.rag = AdvancedRAG(**self.config)
-        elif implementation == "modular":
-            self.rag = ModularRAG(**self.config)
-        elif implementation == "graph":
-            self.rag = GraphRAG(**self.config)
-        elif implementation == "raptor":
-            self.rag = RaptorRAG(**self.config)
+        # Initialize the specified RAG implementation
+        if implementation.lower() == "advanced":
+            self.rag = AdvancedRAG(**config)
+        elif implementation.lower() == "modular":
+            self.rag = ModularRAG(**config)
+        elif implementation.lower() == "raptor":
+            self.rag = RaptorRAG(**config)
         else:
             logger.warning(f"Unknown implementation: {implementation}, defaulting to advanced")
-            self.implementation = "advanced"
-            self.rag = AdvancedRAG(**self.config)
+            self.rag = AdvancedRAG(**config)
+        
+        self.implementation = implementation
+        logger.info(f"RAG integration initialized with {implementation} implementation")
     
-    def process_query(self, query: str) -> str:
+    def process_query(self, query: str) -> Dict[str, Any]:
         """
         Process a query using the selected RAG implementation.
         
@@ -69,59 +66,43 @@ class RAGIntegration:
             query: The query string
             
         Returns:
-            Generated answer
+            Dictionary containing the response and metadata
         """
-        logger.info(f"Processing query with {self.implementation} RAG: {query[:50]}...")
-        return self.rag.answer_question(query)
-    
-    def get_implementation_info(self) -> Dict[str, Any]:
-        """
-        Get information about the current RAG implementation.
+        logger.info(f"Processing query with {self.implementation} implementation: {query[:50]}...")
         
-        Returns:
-            Dictionary with implementation details
-        """
-        info = {
-            "name": self.implementation,
-            "config": self.config
+        # Get response from RAG implementation
+        response = self.rag.answer_question(query)
+        
+        # Return response with metadata
+        return {
+            "query": query,
+            "response": response,
+            "implementation": self.implementation
         }
-        
-        # Add implementation-specific information
-        if self.implementation == "naive":
-            info["description"] = "Basic RAG with simple vector similarity search"
-        elif self.implementation == "advanced":
-            info["description"] = "Advanced RAG with reranking and query expansion"
-        elif self.implementation == "modular":
-            info["description"] = "Modular RAG with query classification and specialized retrievers"
-        elif self.implementation == "graph":
-            info["description"] = "Graph RAG using knowledge graph structure"
-        elif self.implementation == "raptor":
-            info["description"] = "RAPTOR RAG with multi-step reasoning and self-reflection"
-        
-        return info
 
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="RAG Integration for PersonalTrainerAI")
+    parser = argparse.ArgumentParser(description="RAG integration for fitness knowledge")
     parser.add_argument("--implementation", type=str, default="advanced", 
-                        choices=["naive", "advanced", "modular", "graph", "raptor"],
+                        choices=["advanced", "modular", "raptor"],
                         help="RAG implementation to use")
     parser.add_argument("--query", type=str, help="Query to process")
     args = parser.parse_args()
     
-    # Initialize integration
+    # Initialize RAG integration
     integration = RAGIntegration(implementation=args.implementation)
     
-    # Process query if provided
+    # Process query
     if args.query:
-        answer = integration.process_query(args.query)
-        print(f"Query: {args.query}")
-        print(f"Answer: {answer}")
+        result = integration.process_query(args.query)
+        print(f"Query: {result['query']}")
+        print(f"Implementation: {result['implementation']}")
+        print(f"Response: {result['response']}")
     else:
         # Interactive mode
-        print(f"Using {integration.implementation} RAG implementation")
+        print(f"RAG integration with {args.implementation} implementation")
         print("Enter 'quit' to exit")
         
         while True:
@@ -129,5 +110,5 @@ if __name__ == "__main__":
             if query.lower() in ["quit", "exit", "q"]:
                 break
                 
-            answer = integration.process_query(query)
-            print(f"\nAnswer: {answer}")
+            result = integration.process_query(query)
+            print(f"\nResponse: {result['response']}")

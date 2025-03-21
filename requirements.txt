@@ -276,28 +276,28 @@
 
 
 # Core dependencies
-python-dotenv>=1.0.0
-langchain>=0.1.0
-langchain-openai>=0.0.2
-langchain-community>=0.0.10
-langchain-core>=0.1.0
-openai==0.28.0
-pinecone>=2.2.1  # Changed from pinecone-client to pinecone
-sentence-transformers>=2.2.2
+python-dotenv
+langchain
+langchain-openai
+langchain-community
+langchain-core
+openai
+pinecone # Changed from pinecone-client to pinecone
+sentence-transformers
 
 # Data processing
-numpy>=1.24.0
-pandas>=2.0.0
+numpy
+pandas
 
 # For Graph RAG
-networkx>=2.8.0
-pyvis>=0.3.1
+networkx
+pyvis
 
 # For evaluation
-scikit-learn>=1.2.0
-matplotlib>=3.7.0
-tqdm>=4.65.0
+scikit-learn
+matplotlib
+tqdm
 
 # Utilities
-pydantic>=2.0.0
-colorlog==4.7.2
+pydantic
+colorlog
