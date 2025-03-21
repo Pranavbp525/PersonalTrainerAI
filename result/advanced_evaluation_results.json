@@ -1,0 +1,417 @@
+{
+  "comparison": {
+    "advanced": {
+      "implementation": "advanced",
+      "results": [
+        {
+          "query": "How much protein should I consume daily for muscle growth?",
+          "response": "Based on the retrieved information, the recommended daily protein intake for muscle growth ranges from .7 to 1 gram per pound of body weight. This means that for an average individual weighing 165-180 lbs, the protein intake should be around 120-180 grams per day to maximize muscle growth. It is important to note that consuming more protein than this range may not provide additional benefits in terms of muscle gains.\n\nHowever, it is also mentioned that consuming slightly more protein, especially when restricting calories, can be beneficial as protein is satiating and can help prevent muscle loss. Therefore, it may be beneficial to aim for the higher end of the recommended range if you are in a caloric deficit or want to be extra cautious.\n\nIn summary, aim to consume around .7 to 1 gram of protein per pound of body weight per day for muscle growth, with a slight increase if you are restricting calories. If you are unsure about your specific protein needs, it is always best to consult with a fitness trainer or nutritionist for personalized advice.",
+          "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.5,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 4.0,
+            "answer_conciseness": 6.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.2250000000000005
+          },
+          "response_time": 9.881160736083984
+        },
+        {
+          "query": "What are the best exercises for core strength?",
+          "response": "Based on the retrieved information, the best exercises for core strength include a combination of weighted spinal flexion exercises such as crunches, anti-rotation exercises like the half kneeling pal off press, anti-extension exercises like the plank, and static core endurance exercises like the traditional prone plank. Additionally, the RKC plank was found to elicit greater activation in the upper and lower abs as well as the obliques compared to traditional planks.\n\nIt is important to focus on core stability exercises that target different areas of the core, including anterior, posterior, lateral, and rotary core stability exercises. These exercises help train the body to resist excessive movements that can lead to lower back pain and spinal instability.\n\nFurthermore, proper form is crucial for maximizing core engagement during exercises. For example, fully straightening your legs, squeezing your thighs, and engaging your glutes can help remove stress on the lower back and increase core engagement during exercises.\n\nIf the retrieved information does not provide a clear answer to the question, it is generally recommended to incorporate a variety of core exercises that target different areas of the core and focus on both strength and endurance to improve overall core strength. It is also important to listen to your body, progress gradually, and consult with a fitness professional for personalized recommendations.",
+          "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.0,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 7.0,
+            "safety_consideration": 8.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 7.5,
+            "answer_conciseness": 4.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.225
+          },
+          "response_time": 8.423548221588135
+        },
+        {
+          "query": "How do I create a balanced workout routine for beginners?",
+          "response": "To create a balanced workout routine for beginners, it is recommended to follow a full body workout split two to three times per week. Within each workout, focus on using mainly compound exercises to target every major muscle group. Compound exercises are movements that engage multiple muscle groups at once, such as squats, deadlifts, and bench presses.\n\nThe goal of a beginner's workout routine should be to master these main movements in the gym, improve motor learning coordination, and build a base level of strength and endurance. By incorporating compound exercises, beginners can effectively work all major muscle groups and develop a strong foundation for future progress.\n\nIt is important to ensure that the workout routine is balanced and targets all major muscle groups proportionately. This not only leads to a more aesthetic physique but also minimizes the risk of injury. Following a structured workout routine based on current scientific literature can help beginners achieve their fitness goals safely and effectively.\n\nIf the retrieved information does not fully address the question, it is advisable to consult with a certified fitness trainer or exercise specialist to create a personalized workout plan tailored to individual needs and goals.",
+          "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.0,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 2.5,
+            "answer_conciseness": 7.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.15
+          },
+          "response_time": 10.213107109069824
+        },
+        {
+          "query": "What's the optimal rest period between strength training sessions?",
+          "response": "Based on the retrieved information, the optimal rest period between strength training sessions is typically recommended to be between 48 to 72 hours. This duration allows for adequate muscle recovery and maximizes strength and muscle gains. Studies have shown that waiting this amount of time before training the same muscle group again is essential for optimal adaptations.\n\nAdditionally, it is suggested to have .5 to 2 minutes of rest between sets for most exercises, with longer rest periods of 3 minutes or more recommended for heavy compound movements. For hypertrophy-focused workouts with sets of 6 to 15 reps, a rest period of 1 to 2 minutes between sets is considered ideal. For pure strength work with sets under 6 reps, longer rest periods may be needed as these exercises generally require more recovery time.\n\nIn conclusion, the optimal rest period between strength training sessions is around 48 to 72 hours, while the rest period between sets during a workout can vary based on the type of exercise and your fitness goals. It is important to listen to your body, adjust rest periods as needed, and trust the process of muscle building and strength gains. If the retrieved information does not directly provide the answer to the question, it is always best to consult with a fitness professional for personalized advice.",
+          "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.0,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 9.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 2.0,
+            "answer_conciseness": 4.0,
+            "answer_helpfulness": 10.0,
+            "overall": 5.1
+          },
+          "response_time": 8.966603755950928
+        },
+        {
+          "query": "How can I improve my running endurance?",
+          "response": "To improve your running endurance, you can incorporate interval training into your workouts. This can be done by increasing the number of total sprints you do or by running at a higher incline on the treadmill. For advanced athletes, starting the workout at a higher incline, such as 2 or 4, can also help improve endurance. By challenging yourself with these variations, you can gradually increase your stamina and endurance over time. Additionally, focusing on proper breathing techniques, staying hydrated, and getting enough rest and recovery are also important factors in improving running endurance. If you have any specific health concerns or limitations, it's always best to consult with a fitness professional for personalized advice.",
+          "ground_truth": "To improve running endurance: 1) Gradually increase weekly mileage by no more than 10% per week; 2) Incorporate long, slow runs at conversational pace to build aerobic base; 3) Add interval training (e.g., 400m repeats) and tempo runs (comfortably hard pace) weekly; 4) Include cross-training like cycling or swimming 1-2 times weekly; 5) Strengthen supporting muscles with exercises like squats and lunges; 6) Maintain proper nutrition with adequate carbohydrates and hydration; 7) Ensure sufficient recovery with rest days and sleep; 8) Practice consistent pacing during runs; 9) Consider periodization with build and recovery phases; 10) Be patient as endurance improvements take time.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 8.0,
+            "scientific_correctness": 10.0,
+            "practical_applicability": 9.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 3.0,
+            "answer_conciseness": 7.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.2250000000000005
+          },
+          "response_time": 4.810102462768555
+        }
+      ],
+      "average_scores": {
+        "faithfulness": 5.0,
+        "answer_relevancy": 9.5,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 8.9,
+        "scientific_correctness": 9.2,
+        "practical_applicability": 8.2,
+        "safety_consideration": 7.2,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 3.8,
+        "answer_conciseness": 5.6,
+        "answer_helpfulness": 9.2,
+        "overall": 5.1850000000000005
+      },
+      "average_response_time": 8.458904457092284
+    },
+    "modular": {
+      "implementation": "modular",
+      "results": [
+        {
+          "query": "How much protein should I consume daily for muscle growth?",
+          "response": "I'm sorry, but the retrieved information does not contain specific details on how much protein you should consume daily for muscle growth. However, a general recommendation for individuals looking to build muscle is to consume between 1.2 to 2.2 grams of protein per kilogram of body weight per day. It is also important to spread your protein intake throughout the day and include a variety of protein sources such as lean meats, poultry, fish, eggs, dairy, legumes, and plant-based sources. Additionally, it is essential to combine protein intake with a well-rounded diet and regular strength training exercises to support muscle growth effectively. If you have specific dietary needs or health concerns, it is recommended to consult with a registered dietitian or nutritionist for personalized advice.",
+          "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 1.6666666666666667,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 10.0,
+            "scientific_correctness": 10.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 8.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 6.0,
+            "answer_conciseness": 6.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.0
+          },
+          "response_time": 3.8142335414886475
+        },
+        {
+          "query": "What are the best exercises for core strength?",
+          "response": "Since no relevant documents were found, I can provide general advice on the best exercises for core strength. Some of the best exercises for core strength include planks, Russian twists, bicycle crunches, mountain climbers, and leg raises. These exercises target the muscles in your abdomen, lower back, and pelvis, helping to improve overall core strength and stability. It's important to incorporate a variety of exercises to target different areas of the core for a well-rounded workout routine. Remember to always maintain proper form and technique to prevent injury and maximize results.",
+          "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 0.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 8.0,
+            "scientific_correctness": 10.0,
+            "practical_applicability": 6.0,
+            "safety_consideration": 6.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 5.0,
+            "answer_conciseness": 9.0,
+            "answer_helpfulness": 8.0,
+            "overall": 4.3500000000000005
+          },
+          "response_time": 3.4484076499938965
+        },
+        {
+          "query": "How do I create a balanced workout routine for beginners?",
+          "response": "Since no relevant documents were found, I can provide you with general advice on creating a balanced workout routine for beginners. \n\nA balanced workout routine for beginners should include a mix of cardiovascular exercise, strength training, and flexibility exercises. Here are some tips to help you create a well-rounded routine:\n\n1. Start with cardio: Include activities like walking, jogging, cycling, or swimming to improve cardiovascular health and burn calories.\n\n2. Add strength training: Incorporate exercises that target major muscle groups, such as squats, lunges, push-ups, and rows. Start with bodyweight exercises and gradually add resistance as you get stronger.\n\n3. Include flexibility exercises: Stretching is important for improving flexibility and preventing injury. Include stretches for all major muscle groups at the end of your workout.\n\n4. Rest and recovery: Make sure to include rest days in your routine to allow your muscles to recover and prevent overtraining.\n\n5. Progress gradually: Start with lighter weights and shorter workout durations, and gradually increase the intensity and duration as your fitness level improves.\n\nRemember to listen to your body and consult with a fitness professional if you have any concerns or specific goals. Enjoy your workouts and stay consistent to see progress over time.",
+          "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 8.0,
+            "scientific_correctness": 10.0,
+            "practical_applicability": 9.0,
+            "safety_consideration": 8.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 8.0,
+            "answer_conciseness": 9.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.625
+          },
+          "response_time": 3.1384997367858887
+        },
+        {
+          "query": "What's the optimal rest period between strength training sessions?",
+          "response": "Unfortunately, the retrieved information does not contain specific details on the optimal rest period between strength training sessions. However, as a general guideline, it is recommended to allow at least 48 hours of rest between strength training sessions for the same muscle group. This rest period allows the muscles to recover and repair, leading to better muscle growth and overall performance. It is also important to listen to your body and adjust the rest period based on individual recovery needs and workout intensity. Remember to prioritize quality sleep, proper nutrition, and hydration to support muscle recovery and overall health.",
+          "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 0.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 10.0,
+            "scientific_correctness": 10.0,
+            "practical_applicability": 9.0,
+            "safety_consideration": 8.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 4.0,
+            "answer_conciseness": 7.0,
+            "answer_helpfulness": 9.0,
+            "overall": 4.775
+          },
+          "response_time": 6.812295436859131
+        },
+        {
+          "query": "How can I improve my running endurance?",
+          "response": "Since no relevant documents were found, I can provide you with some general advice on how to improve your running endurance. \n\nTo improve your running endurance, it is important to gradually increase the duration and intensity of your runs. Consistent training is key, so aim to run regularly and gradually increase your mileage each week. Incorporating interval training, hill repeats, and tempo runs into your routine can also help improve your endurance and speed. \n\nAdditionally, make sure to incorporate strength training exercises into your routine to build muscle strength and prevent injuries. Proper nutrition and hydration are also important factors in improving your endurance, so make sure to fuel your body with the right nutrients before and after your runs. Lastly, don't forget to listen to your body and give yourself enough time to rest and recover between runs.",
+          "ground_truth": "To improve running endurance: 1) Gradually increase weekly mileage by no more than 10% per week; 2) Incorporate long, slow runs at conversational pace to build aerobic base; 3) Add interval training (e.g., 400m repeats) and tempo runs (comfortably hard pace) weekly; 4) Include cross-training like cycling or swimming 1-2 times weekly; 5) Strengthen supporting muscles with exercises like squats and lunges; 6) Maintain proper nutrition with adequate carbohydrates and hydration; 7) Ensure sufficient recovery with rest days and sleep; 8) Practice consistent pacing during runs; 9) Consider periodization with build and recovery phases; 10) Be patient as endurance improvements take time.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 10.0,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 5.0,
+            "answer_conciseness": 7.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.375
+          },
+          "response_time": 2.535837411880493
+        }
+      ],
+      "average_scores": {
+        "faithfulness": 2.333333333333333,
+        "answer_relevancy": 9.5,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 9.2,
+        "scientific_correctness": 9.8,
+        "practical_applicability": 8.0,
+        "safety_consideration": 7.4,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 5.6,
+        "answer_conciseness": 7.6,
+        "answer_helpfulness": 8.8,
+        "overall": 5.025
+      },
+      "average_response_time": 3.9498547554016112
+    },
+    "raptor": {
+      "implementation": "raptor",
+      "results": [
+        {
+          "query": "How much protein should I consume daily for muscle growth?",
+          "response": "Based on the information provided, a range of .7 to 1 gram of protein per pound of body weight is a good starting point for maximizing muscle growth. However, individual factors such as training intensity, body composition, and goals may influence the optimal protein intake for muscle growth. It is essential to tailor your protein intake based on your specific needs and goals to achieve the best results.\n\nTo determine your exact protein needs for muscle growth, consider factors such as your weight, training intensity, and overall fitness goals. Start with a baseline of .7 grams of protein per pound of body weight and adjust as needed based on your progress and individual factors. It may be beneficial to consult with a nutritionist or fitness professional to create a personalized nutrition plan that aligns with your muscle growth goals.\n\nKeep in mind that protein is just one component of a well-rounded fitness plan. Consistent and effective training is also crucial for stimulating muscle growth. Additionally, listen to your body and make adjustments to your protein intake as needed based on your energy levels, recovery, and overall progress.\n\nWhile the recommended range of .7 to 1 gram of protein per pound of body weight is a good starting point, individual variations may require adjustments. Stay mindful of your body's response to your protein intake and make changes accordingly to optimize muscle growth.",
+          "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.0,
+            "scientific_correctness": 8.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 3.0,
+            "answer_conciseness": 3.0,
+            "answer_helpfulness": 9.0,
+            "overall": 4.9
+          },
+          "response_time": 21.981972694396973
+        },
+        {
+          "query": "What are the best exercises for core strength?",
+          "response": "The best exercises for core strength involve a well-rounded approach that targets different aspects of core stability, endurance, and muscle growth. Some effective exercises include planks, Russian twists, bicycle crunches, and leg raises. It is important to also incorporate exercises for spinal flexion, anti-rotation, and anti-extension to fully engage the core muscles. Additionally, progressively overloading the core muscles over time by increasing weight or intensity can stimulate growth and improve overall core strength. Remember to focus on proper form and engagement of the core during each exercise to maximize results. While specific exercise recommendations may vary based on individual needs and fitness levels, a combination of these exercises can help develop a strong and stable core.",
+          "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 10.0,
+            "scientific_correctness": 10.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 8.0,
+            "answer_conciseness": 6.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.55
+          },
+          "response_time": 18.464959859848022
+        },
+        {
+          "query": "How do I create a balanced workout routine for beginners?",
+          "response": "To create a balanced workout routine for beginners, it is essential to start with a lower volume of sets, focus on compound exercises, choose a suitable workout split, and have a structured plan with specific details on sets, reps, and weights. Paying attention to detail in exercise execution, avoiding rushing through workouts, and considering incorporating specialized hypertrophy techniques can also be beneficial. Additionally, incorporating variety and progression by swapping in new exercises is crucial to prevent staleness and continue seeing results. It is important to seek guidance on how to introduce specialized techniques and new exercises effectively for beginners to optimize their workout routines. Remember to listen to your body, progress gradually, and consult with a fitness professional if needed.",
+          "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.0,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 8.0,
+            "safety_consideration": 9.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 3.0,
+            "answer_conciseness": 6.0,
+            "answer_helpfulness": 8.0,
+            "overall": 5.175
+          },
+          "response_time": 13.370279312133789
+        },
+        {
+          "query": "What's the optimal rest period between strength training sessions?",
+          "response": "The optimal rest period between strength training sessions varies depending on factors such as the type of exercise, training goals, individual characteristics, and the frequency of training sessions. For hypertrophy-focused sets, a rest period of 1 to 2 minutes between sets is recommended, while longer rest periods of 2 minutes or more may be beneficial for compound exercises and strength gains. It is essential to experiment with different rest periods and monitor their effects on muscle and strength gains, considering the timing between workouts.\n\nTo determine the most effective approach for each individual, consider factors such as the type of exercise being performed, recovery ability, and specific training goals. While there may be contradictions and gaps in the information provided, incorporating the frequency of training sessions into the rest period considerations can help optimize muscle and strength gains.\n\nIt is important to note that individual responses to rest periods may vary, and further research is needed to provide more specific guidelines based on the frequency of training sessions. In the meantime, focus on finding a balance between adequate rest for recovery and optimizing performance during strength training sessions.",
+          "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 7.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 9.0,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 7.0,
+            "safety_consideration": 7.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 4.0,
+            "answer_conciseness": 3.0,
+            "answer_helpfulness": 8.0,
+            "overall": 4.7
+          },
+          "response_time": 17.310277700424194
+        },
+        {
+          "query": "How can I improve my running endurance?",
+          "response": "To improve your running endurance, it is essential to focus on core strength, proper form, high-intensity interval training (HIIT), progressive overload, smart practice to improve technique, and choosing appropriate exercises based on your fitness level.\n\nStart by incorporating core strengthening exercises into your routine to support your running performance and prevent injuries. Focus on maintaining proper form while running, such as staying on the balls of your feet and keeping your elbows at a 90-degree angle.\n\nIntegrate HIIT on a treadmill into your workouts by sprinting at high speeds for short intervals followed by rest periods. Gradually increase the number of sprints or the incline level with each session to challenge your body and improve endurance over time.\n\nPractice smart by focusing on improving your running technique rather than just increasing volume. Choose exercises that elevate your heart rate, such as sprints on an exercise bike, as a low-impact option to enhance cardiovascular fitness.\n\nKeep in mind that individual fitness levels vary, so it's important to tailor your training to your own capabilities and gradually progress to avoid overtraining and injuries.\n\nWhile these strategies can be effective in improving running endurance, it's important to listen to your body, rest when needed, and consult with a fitness professional if you have any concerns or limitations. Remember that consistency and patience are key to seeing long-term improvements in your running endurance.",
+          "ground_truth": "To improve running endurance: 1) Gradually increase weekly mileage by no more than 10% per week; 2) Incorporate long, slow runs at conversational pace to build aerobic base; 3) Add interval training (e.g., 400m repeats) and tempo runs (comfortably hard pace) weekly; 4) Include cross-training like cycling or swimming 1-2 times weekly; 5) Strengthen supporting muscles with exercises like squats and lunges; 6) Maintain proper nutrition with adequate carbohydrates and hydration; 7) Ensure sufficient recovery with rest days and sleep; 8) Practice consistent pacing during runs; 9) Consider periodization with build and recovery phases; 10) Be patient as endurance improvements take time.",
+          "contexts": [],
+          "evaluation": {
+            "faithfulness": 5.0,
+            "answer_relevancy": 9.5,
+            "context_relevancy": 0.0,
+            "context_precision": 0.0,
+            "fitness_domain_accuracy": 8.5,
+            "scientific_correctness": 9.0,
+            "practical_applicability": 9.0,
+            "safety_consideration": 10.0,
+            "retrieval_precision": 0.0,
+            "retrieval_recall": 0.0,
+            "answer_completeness": 5.0,
+            "answer_conciseness": 6.0,
+            "answer_helpfulness": 9.0,
+            "overall": 5.4
+          },
+          "response_time": 22.871522665023804
+        }
+      ],
+      "average_scores": {
+        "faithfulness": 5.0,
+        "answer_relevancy": 9.1,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 9.1,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 8.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 4.6,
+        "answer_conciseness": 4.8,
+        "answer_helpfulness": 8.6,
+        "overall": 5.1450000000000005
+      },
+      "average_response_time": 18.799802446365355
+    }
+  },
+  "best_implementation": "advanced",
+  "best_score": 5.1850000000000005
+}
