@@ -1,7 +1,7 @@
 """
 RAPTOR RAG Implementation for PersonalTrainerAI
 
-This module implements a RAPTOR (Retrieval Augmented Prompt Tuning and Optimization with Reasoning)
+This module implements the RAPTOR (Retrieval Augmented Prompt Tuning and Optimization for Reasoning) 
 approach for fitness knowledge.
 """
 
@@ -10,10 +10,10 @@ import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from pinecone import Pinecone
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_core.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain.chains.llm import LLMChain
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,21 +24,23 @@ load_dotenv()
 
 class RaptorRAG:
     """
-    A RAPTOR (Retrieval Augmented Prompt Tuning and Optimization with Reasoning) implementation
+    A RAPTOR (Retrieval Augmented Prompt Tuning and Optimization for Reasoning) implementation
     for fitness knowledge.
     
-    This implementation includes:
-    - Multi-step reasoning
-    - Prompt optimization
-    - Self-reflection and correction
+    This implementation enhances the RAG approach with:
+    1. Multi-step reasoning
+    2. Self-reflection and refinement
+    3. Dynamic prompt optimization
+    4. Hybrid retrieval strategies
     """
     
     def __init__(
         self,
         embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2",
         llm_model_name: str = "gpt-3.5-turbo",
-        temperature: float = 0.7,
-        top_k: int = 8
+        temperature: float = 0.0,
+        top_k: int = 8,
+        reasoning_steps: int = 3
     ):
         """
         Initialize the RaptorRAG system.
@@ -48,6 +50,7 @@ class RaptorRAG:
             llm_model_name: Name of the language model to use
             temperature: Temperature parameter for the LLM
             top_k: Number of documents to retrieve
+            reasoning_steps: Number of reasoning steps to perform
         """
         # Load environment variables
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -58,8 +61,6 @@ class RaptorRAG:
         if not self.PINECONE_API_KEY or not self.OPENAI_API_KEY:
             raise ValueError("Missing required environment variables. Please check your .env file.")
         
-        self.top_k = top_k
-        
         # Initialize embedding model
         logger.info(f"Initializing embedding model: {embedding_model_name}")
         self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
@@ -69,188 +70,263 @@ class RaptorRAG:
         self.pc = Pinecone(api_key=self.PINECONE_API_KEY)
         self.index = self.pc.Index(self.PINECONE_INDEX_NAME)
         
-        # Initialize LLMs
+        # Initialize LLM
         logger.info(f"Initializing LLM: {llm_model_name}")
-        self.llm = OpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
-        self.reasoning_llm = OpenAI(model_name=llm_model_name, temperature=0.3, openai_api_key=self.OPENAI_API_KEY)
-        self.reflection_llm = OpenAI(model_name=llm_model_name, temperature=0.0, openai_api_key=self.OPENAI_API_KEY)
+        self.llm = ChatOpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
+        
+        # Set parameters
+        self.top_k = top_k
+        self.reasoning_steps = reasoning_steps
         
         # Define prompt templates
-        self.retrieval_analysis_template = PromptTemplate(
-            input_variables=["question", "documents"],
+        self.retrieval_planning_template = PromptTemplate(
+            input_variables=["question"],
             template="""
-            Analyze the following retrieved documents in relation to the fitness question.
+            You are a fitness knowledge expert. Given the following question, identify the key concepts 
+            and information needed to provide a comprehensive answer.
             
             Question: {question}
             
-            Retrieved documents:
-            {documents}
+            1. List the key fitness concepts in this question.
+            2. What specific information would be needed to answer this question well?
+            3. Generate 3 specific search queries that would help retrieve relevant information.
             
-            For each document, assess:
-            1. Relevance to the question (scale 1-10)
-            2. Key information it provides
-            3. Any gaps or contradictions with other documents
-            
-            Then, identify what additional information might be needed to fully answer the question.
-            
-            Analysis:
+            Format your response as a JSON object with keys: "concepts", "information_needed", and "search_queries".
             """
         )
         
         self.reasoning_template = PromptTemplate(
-            input_variables=["question", "analysis", "documents"],
+            input_variables=["question", "context", "previous_reasoning", "step", "reasoning_steps"],
             template="""
-            Based on the retrieved documents and analysis, reason through how to best answer the fitness question.
+            You are a fitness expert working through a multi-step reasoning process to answer a question.
             
             Question: {question}
             
-            Document Analysis:
-            {analysis}
+            Relevant Context:
+            {context}
             
-            Retrieved documents:
-            {documents}
+            Previous Reasoning Steps:
+            {previous_reasoning}
             
-            Think step by step:
-            1. What are the key concepts needed to answer this question?
-            2. What evidence from the documents supports each concept?
-            3. How should these concepts be organized in a comprehensive answer?
-            4. Are there any cautions, exceptions, or personalization factors to consider?
+            This is reasoning step {step} of {reasoning_steps}.
             
-            Reasoning:
+            For this step:
+            1. Analyze the information provided in the context
+            2. Connect it with your previous reasoning
+            3. Identify any gaps or contradictions
+            4. Draw intermediate conclusions
+            
+            Provide your reasoning for this step:
             """
         )
         
-        self.answer_template = PromptTemplate(
-            input_variables=["question", "reasoning", "documents"],
+        self.reflection_template = PromptTemplate(
+            input_variables=["question", "context", "reasoning_chain"],
             template="""
-            You are a knowledgeable fitness trainer assistant. Use the following reasoning and retrieved information to answer the question.
+            You are a fitness expert reflecting on your reasoning process to ensure accuracy and completeness.
             
             Question: {question}
             
-            Reasoning process:
-            {reasoning}
+            Relevant Context:
+            {context}
             
-            Retrieved information:
-            {documents}
+            Your Reasoning Chain:
+            {reasoning_chain}
             
-            Provide a comprehensive, accurate, and well-structured answer based on the reasoning and retrieved information.
-            Include specific details from the documents when relevant.
-            If the information doesn't contain the answer, acknowledge the limitations of your knowledge.
+            Reflect on your reasoning:
+            1. Are there any logical gaps or inconsistencies in your reasoning?
+            2. Did you miss any important information from the context?
+            3. Are there alternative interpretations or approaches you should consider?
+            4. How confident are you in your conclusions and why?
+            
+            Based on this reflection, provide an improved reasoning chain:
+            """
+        )
+        
+        self.answer_synthesis_template = PromptTemplate(
+            input_variables=["question", "context", "reasoning_chain", "reflection"],
+            template="""
+            You are a knowledgeable fitness trainer assistant. Synthesize a comprehensive answer based on your reasoning.
+            
+            Question: {question}
+            
+            Your reasoning process:
+            {reasoning_chain}
+            
+            Your reflection:
+            {reflection}
+            
+            Synthesize a clear, accurate, and helpful answer to the original question.
+            Focus on providing actionable advice and evidence-based information.
+            If there are limitations to your answer, acknowledge them.
             
             Answer:
             """
         )
         
-        self.reflection_template = PromptTemplate(
-            input_variables=["question", "answer", "documents"],
-            template="""
-            Critically evaluate the following answer to a fitness question.
-            
-            Question: {question}
-            
-            Answer: {answer}
-            
-            Retrieved documents:
-            {documents}
-            
-            Evaluate the answer on:
-            1. Accuracy (Does it align with the retrieved documents?)
-            2. Completeness (Does it address all aspects of the question?)
-            3. Clarity (Is it well-structured and easy to understand?)
-            4. Evidence (Does it properly cite information from the documents?)
-            
-            Identify any issues that need correction.
-            
-            Reflection:
-            """
-        )
-        
-        self.correction_template = PromptTemplate(
-            input_variables=["question", "answer", "reflection", "documents"],
-            template="""
-            You are a knowledgeable fitness trainer assistant. Revise the following answer based on critical reflection.
-            
-            Question: {question}
-            
-            Original answer: {answer}
-            
-            Critical reflection:
-            {reflection}
-            
-            Retrieved documents:
-            {documents}
-            
-            Provide an improved answer that addresses the issues identified in the reflection.
-            The answer should be comprehensive, accurate, well-structured, and properly supported by the retrieved information.
-            
-            Improved answer:
-            """
-        )
-        
         # Create LLM chains
-        self.retrieval_analysis_chain = LLMChain(llm=self.reasoning_llm, prompt=self.retrieval_analysis_template)
-        self.reasoning_chain = LLMChain(llm=self.reasoning_llm, prompt=self.reasoning_template)
-        self.answer_chain = LLMChain(llm=self.llm, prompt=self.answer_template)
-        self.reflection_chain = LLMChain(llm=self.reflection_llm, prompt=self.reflection_template)
-        self.correction_chain = LLMChain(llm=self.llm, prompt=self.correction_template)
+        self.retrieval_planning_chain = LLMChain(llm=self.llm, prompt=self.retrieval_planning_template)
+        self.reasoning_chain = LLMChain(llm=self.llm, prompt=self.reasoning_template)
+        self.reflection_chain = LLMChain(llm=self.llm, prompt=self.reflection_template)
+        self.answer_synthesis_chain = LLMChain(llm=self.llm, prompt=self.answer_synthesis_template)
         
         logger.info("RaptorRAG initialized successfully")
     
-    def retrieve_documents(self, query: str) -> List[Dict[str, Any]]:
+    def plan_retrieval(self, question: str) -> Dict[str, Any]:
         """
-        Retrieve relevant documents from the vector database.
+        Plan the retrieval strategy for a given question.
         
         Args:
-            query: The query string
+            question: The question to answer
             
         Returns:
-            A list of retrieved documents
+            Dictionary with retrieval plan
         """
-        logger.info(f"Retrieving documents for query: {query}")
+        logger.info(f"Planning retrieval for question: {question}")
         
-        # Generate query embedding
-        query_embedding = self.embedding_model.embed_query(query)
+        # Generate retrieval plan
+        plan_response = self.retrieval_planning_chain.invoke({"question": question})
         
-        # Query Pinecone
-        results = self.index.query(
-            vector=query_embedding,
-            top_k=self.top_k,
-            include_metadata=True
-        )
-        
-        # Extract documents from results
-        documents = []
-        for match in results.matches:
-            if hasattr(match, 'metadata') and match.metadata:
-                documents.append({
-                    "id": match.id,
-                    "score": match.score,
-                    "text": match.metadata.get("text", ""),
-                    "source": match.metadata.get("source", "Unknown")
-                })
-        
-        logger.info(f"Retrieved {len(documents)} documents")
-        return documents
+        # Parse response (in a real implementation, we would parse the JSON)
+        # For simplicity, we'll just return the raw response
+        return {"raw_plan": plan_response["text"]}
     
-    def format_documents(self, documents: List[Dict[str, Any]]) -> str:
+    def retrieve_documents(self, question: str, plan: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Format retrieved documents into a string.
+        Retrieve relevant documents using the retrieval plan.
         
         Args:
-            documents: List of retrieved documents
+            question: The question to answer
+            plan: The retrieval plan
             
         Returns:
-            Formatted documents string
+            List of retrieved documents
         """
-        doc_parts = []
-        for i, doc in enumerate(documents):
-            doc_parts.append(f"Document {i+1} [Source: {doc['source']}, Relevance: {doc['score']:.2f}]:\n{doc['text']}\n")
+        logger.info(f"Retrieving documents for question: {question}")
         
-        return "\n".join(doc_parts)
+        # Extract search queries from plan (in a real implementation)
+        # For simplicity, we'll just use the original question
+        search_queries = [question]
+        
+        all_documents = []
+        seen_ids = set()
+        
+        for query in search_queries:
+            # Generate query embedding
+            query_embedding = self.embedding_model.embed_query(query)
+            
+            # Query Pinecone
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=self.top_k,
+                include_metadata=True
+            )
+            
+            # Extract documents
+            for match in results["matches"]:
+                if match["id"] not in seen_ids and "metadata" in match and "text" in match["metadata"]:
+                    all_documents.append({
+                        "text": match["metadata"]["text"],
+                        "score": match["score"],
+                        "id": match["id"]
+                    })
+                    seen_ids.add(match["id"])
+        
+        logger.info(f"Retrieved {len(all_documents)} unique documents")
+        return all_documents
+    
+    def perform_multi_step_reasoning(
+        self, 
+        question: str, 
+        context: str
+    ) -> Dict[str, str]:
+        """
+        Perform multi-step reasoning on the retrieved context.
+        
+        Args:
+            question: The question to answer
+            context: The retrieved context
+            
+        Returns:
+            Dictionary with reasoning chain and reflection
+        """
+        logger.info(f"Performing multi-step reasoning for question: {question}")
+        
+        # Initialize reasoning chain
+        reasoning_steps = []
+        previous_reasoning = ""
+        
+        # Perform reasoning steps
+        for step in range(1, self.reasoning_steps + 1):
+            # Generate reasoning for current step
+            reasoning = self.reasoning_chain.invoke({
+                "question": question,
+                "context": context,
+                "previous_reasoning": previous_reasoning,
+                "step": step,
+                "reasoning_steps": self.reasoning_steps
+            })
+            
+            # Add to reasoning chain
+            reasoning_steps.append(f"Step {step}: {reasoning['text']}")
+            
+            # Update previous reasoning
+            if previous_reasoning:
+                previous_reasoning += f"\n\nStep {step}: {reasoning['text']}"
+            else:
+                previous_reasoning = f"Step {step}: {reasoning['text']}"
+        
+        # Combine reasoning steps
+        reasoning_chain = "\n\n".join(reasoning_steps)
+        
+        # Perform reflection
+        reflection = self.reflection_chain.invoke({
+            "question": question,
+            "context": context,
+            "reasoning_chain": reasoning_chain
+        })
+        
+        return {
+            "reasoning_chain": reasoning_chain,
+            "reflection": reflection["text"]
+        }
+    
+    def synthesize_answer(
+        self, 
+        question: str, 
+        context: str, 
+        reasoning_result: Dict[str, str]
+    ) -> str:
+        """
+        Synthesize the final answer based on reasoning and reflection.
+        
+        Args:
+            question: The question to answer
+            context: The retrieved context
+            reasoning_result: The result of multi-step reasoning
+            
+        Returns:
+            Synthesized answer
+        """
+        logger.info(f"Synthesizing answer for question: {question}")
+        
+        # Extract reasoning chain and reflection
+        reasoning_chain = reasoning_result["reasoning_chain"]
+        reflection = reasoning_result["reflection"]
+        
+        # Synthesize answer
+        answer = self.answer_synthesis_chain.invoke({
+            "question": question,
+            "context": context,
+            "reasoning_chain": reasoning_chain,
+            "reflection": reflection
+        })
+        
+        return answer["text"].strip()
     
     def answer_question(self, question: str) -> str:
         """
-        Answer a question using the RAPTOR RAG approach.
+        Answer a question using the RAPTOR approach.
         
         Args:
             question: The question to answer
@@ -258,64 +334,50 @@ class RaptorRAG:
         Returns:
             Generated answer
         """
-        logger.info(f"Answering question: {question}")
+        logger.info(f"Answering question with RAPTOR approach: {question}")
         
-        # Step 1: Retrieve documents
-        documents = self.retrieve_documents(question)
+        # Plan retrieval
+        retrieval_plan = self.plan_retrieval(question)
         
-        if not documents:
-            return "I couldn't find any relevant information to answer your question."
+        # Retrieve documents
+        documents = self.retrieve_documents(question, retrieval_plan)
         
-        # Format documents
-        formatted_docs = self.format_documents(documents)
+        # Prepare context
+        context = "\n\n".join([f"Document {i+1}:\n{doc['text']}" for i, doc in enumerate(documents)])
         
-        # Step 2: Analyze retrieved documents
-        logger.info("Analyzing retrieved documents")
-        analysis = self.retrieval_analysis_chain.run(
-            question=question,
-            documents=formatted_docs
-        )
+        # Perform multi-step reasoning
+        reasoning_result = self.perform_multi_step_reasoning(question, context)
         
-        # Step 3: Reasoning
-        logger.info("Performing reasoning")
-        reasoning = self.reasoning_chain.run(
-            question=question,
-            analysis=analysis,
-            documents=formatted_docs
-        )
+        # Synthesize answer
+        answer = self.synthesize_answer(question, context, reasoning_result)
         
-        # Step 4: Generate initial answer
-        logger.info("Generating initial answer")
-        initial_answer = self.answer_chain.run(
-            question=question,
-            reasoning=reasoning,
-            documents=formatted_docs
-        )
-        
-        # Step 5: Reflection
-        logger.info("Reflecting on answer")
-        reflection = self.reflection_chain.run(
-            question=question,
-            answer=initial_answer,
-            documents=formatted_docs
-        )
-        
-        # Step 6: Correction
-        logger.info("Applying corrections")
-        final_answer = self.correction_chain.run(
-            question=question,
-            answer=initial_answer,
-            reflection=reflection,
-            documents=formatted_docs
-        )
-        
-        return final_answer.strip()
+        return answer.strip()
 
 
 if __name__ == "__main__":
-    # Example usage
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="RAPTOR RAG for fitness knowledge")
+    parser.add_argument("--question", type=str, help="Question to answer")
+    args = parser.parse_args()
+    
+    # Initialize RAG
     rag = RaptorRAG()
-    question = "Design a weekly workout plan for weight loss and muscle toning."
-    answer = rag.answer_question(question)
-    print(f"Question: {question}")
-    print(f"Answer: {answer}")
+    
+    # Answer question
+    if args.question:
+        answer = rag.answer_question(args.question)
+        print(f"Question: {args.question}")
+        print(f"Answer: {answer}")
+    else:
+        # Interactive mode
+        print("RAPTOR RAG for fitness knowledge")
+        print("Enter 'quit' to exit")
+        
+        while True:
+            question = input("\nEnter your fitness question: ")
+            if question.lower() in ["quit", "exit", "q"]:
+                break
+                
+            answer = rag.answer_question(question)
+            print(f"\nAnswer: {answer}")

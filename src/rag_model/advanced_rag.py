@@ -1,7 +1,8 @@
 """
 Advanced RAG Implementation for PersonalTrainerAI
 
-This module implements an advanced RAG approach with reranking and query expansion.
+This module implements an advanced Retrieval-Augmented Generation (RAG) approach
+for fitness knowledge with query expansion and reranking.
 """
 
 import os
@@ -9,10 +10,10 @@ import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from pinecone import Pinecone
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_core.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain.chains.llm import LLMChain
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,31 +24,26 @@ load_dotenv()
 
 class AdvancedRAG:
     """
-    An advanced implementation of Retrieval-Augmented Generation (RAG) for fitness knowledge.
-    
-    This implementation includes:
-    - Query expansion
-    - Reranking of retrieved documents
-    - Contextual weighting
+    An advanced RAG implementation for fitness knowledge with query expansion and reranking.
     """
     
     def __init__(
         self,
         embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2",
         llm_model_name: str = "gpt-3.5-turbo",
-        temperature: float = 0.7,
-        top_k: int = 10,
-        rerank_top_k: int = 5
+        temperature: float = 0.0,
+        top_k: int = 5,
+        reranking_threshold: float = 0.7
     ):
         """
-        Initialize the AdvancedRAG system.
+        Initialize the advanced RAG system.
         
         Args:
             embedding_model_name: Name of the embedding model to use
             llm_model_name: Name of the language model to use
             temperature: Temperature parameter for the LLM
-            top_k: Number of documents to initially retrieve
-            rerank_top_k: Number of documents to keep after reranking
+            top_k: Number of documents to retrieve
+            reranking_threshold: Threshold for reranking documents
         """
         # Load environment variables
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -58,9 +54,6 @@ class AdvancedRAG:
         if not self.PINECONE_API_KEY or not self.OPENAI_API_KEY:
             raise ValueError("Missing required environment variables. Please check your .env file.")
         
-        self.top_k = top_k
-        self.rerank_top_k = rerank_top_k
-        
         # Initialize embedding model
         logger.info(f"Initializing embedding model: {embedding_model_name}")
         self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
@@ -70,39 +63,45 @@ class AdvancedRAG:
         self.pc = Pinecone(api_key=self.PINECONE_API_KEY)
         self.index = self.pc.Index(self.PINECONE_INDEX_NAME)
         
-        # Initialize LLMs
+        # Initialize LLM
         logger.info(f"Initializing LLM: {llm_model_name}")
-        self.llm = OpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
-        self.query_expansion_llm = OpenAI(model_name=llm_model_name, temperature=0.2, openai_api_key=self.OPENAI_API_KEY)
-        self.reranker_llm = OpenAI(model_name=llm_model_name, temperature=0.0, openai_api_key=self.OPENAI_API_KEY)
+        self.llm = ChatOpenAI(model_name=llm_model_name, temperature=temperature, openai_api_key=self.OPENAI_API_KEY)
+        
+        # Set parameters
+        self.top_k = top_k
+        self.reranking_threshold = reranking_threshold
         
         # Define prompt templates
         self.query_expansion_template = PromptTemplate(
             input_variables=["query"],
             template="""
-            Generate three different versions of the following query to improve search results. 
-            Each version should rephrase the query while preserving its original intent.
+            You are a fitness expert. Given the following question, generate 3 alternative versions 
+            that capture the same information need but with different wording or focus.
             
-            Original query: {query}
+            Original question: {query}
             
-            Output the three versions as a comma-separated list without numbering or additional text.
+            Alternative questions:
+            1.
+            2.
+            3.
             """
         )
         
-        self.reranker_template = PromptTemplate(
+        self.reranking_template = PromptTemplate(
             input_variables=["query", "document"],
             template="""
-            Rate the relevance of this document to the query on a scale of 0 to 10.
+            You are a fitness expert evaluating the relevance of a document to a query.
             
             Query: {query}
             
             Document: {document}
             
-            Provide only a numerical score from 0 to 10, where 0 means completely irrelevant and 10 means perfectly relevant.
+            On a scale of 1-10, how relevant is this document to the query?
+            Provide only a numerical score, nothing else.
             """
         )
         
-        self.answer_template = PromptTemplate(
+        self.answer_generation_template = PromptTemplate(
             input_variables=["context", "question"],
             template="""
             You are a knowledgeable fitness trainer assistant. Use the following retrieved information to answer the question.
@@ -112,55 +111,65 @@ class AdvancedRAG:
             
             Question: {question}
             
-            Provide a comprehensive and accurate answer based on the retrieved information. If the information doesn't contain the answer, say "I don't have enough information to answer this question."
+            Provide a comprehensive, accurate, and helpful answer based on the retrieved information.
+            If the retrieved information doesn't contain the answer, acknowledge that and provide general advice.
             
             Answer:
             """
         )
         
         # Create LLM chains
-        self.query_expansion_chain = LLMChain(llm=self.query_expansion_llm, prompt=self.query_expansion_template)
-        self.reranker_chain = LLMChain(llm=self.reranker_llm, prompt=self.reranker_template)
-        self.answer_chain = LLMChain(llm=self.llm, prompt=self.answer_template)
+        self.query_expansion_chain = LLMChain(llm=self.llm, prompt=self.query_expansion_template)
+        self.reranking_chain = LLMChain(llm=self.llm, prompt=self.reranking_template)
+        self.answer_generation_chain = LLMChain(llm=self.llm, prompt=self.answer_generation_template)
         
         logger.info("AdvancedRAG initialized successfully")
     
     def expand_query(self, query: str) -> List[str]:
         """
-        Expand the original query into multiple variations.
+        Expand a query into multiple variations.
         
         Args:
-            query: The original query string
+            query: The original query
             
         Returns:
-            A list of query variations
+            List of expanded queries
         """
         logger.info(f"Expanding query: {query}")
         
-        # Generate query variations
-        response = self.query_expansion_chain.run(query=query)
+        # Generate expanded queries
+        response = self.query_expansion_chain.invoke({"query": query})
         
         # Parse response
-        variations = [query]  # Always include the original query
-        for var in response.strip().split(','):
-            variations.append(var.strip())
+        expanded_queries = []
+        for line in response["text"].strip().split("\n"):
+            line = line.strip()
+            if line and line[0].isdigit() and "." in line:
+                expanded_query = line.split(".", 1)[1].strip()
+                if expanded_query:
+                    expanded_queries.append(expanded_query)
         
-        logger.info(f"Generated {len(variations)} query variations")
-        return variations
+        # Add original query
+        if query not in expanded_queries:
+            expanded_queries.append(query)
+        
+        logger.info(f"Generated {len(expanded_queries)} expanded queries")
+        return expanded_queries
     
     def retrieve_documents(self, queries: List[str]) -> List[Dict[str, Any]]:
         """
-        Retrieve relevant documents from the vector database for multiple query variations.
+        Retrieve documents for multiple queries.
         
         Args:
-            queries: List of query strings
+            queries: List of queries
             
         Returns:
-            A list of retrieved documents
+            List of retrieved documents
         """
-        logger.info(f"Retrieving documents for {len(queries)} query variations")
+        logger.info(f"Retrieving documents for {len(queries)} queries")
         
-        all_documents = {}  # Use dict to deduplicate by ID
+        all_documents = []
+        seen_ids = set()
         
         for query in queries:
             # Generate query embedding
@@ -173,77 +182,58 @@ class AdvancedRAG:
                 include_metadata=True
             )
             
-            # Extract documents from results
-            for match in results.matches:
-                if hasattr(match, 'metadata') and match.metadata:
-                    # Use ID as key to deduplicate
-                    all_documents[match.id] = {
-                        "id": match.id,
-                        "score": match.score,
-                        "text": match.metadata.get("text", ""),
-                        "source": match.metadata.get("source", "Unknown")
-                    }
+            # Extract documents
+            for match in results["matches"]:
+                if match["id"] not in seen_ids and "metadata" in match and "text" in match["metadata"]:
+                    all_documents.append({
+                        "text": match["metadata"]["text"],
+                        "score": match["score"],
+                        "id": match["id"]
+                    })
+                    seen_ids.add(match["id"])
         
-        documents = list(all_documents.values())
-        logger.info(f"Retrieved {len(documents)} unique documents")
-        return documents
+        logger.info(f"Retrieved {len(all_documents)} unique documents")
+        return all_documents
     
     def rerank_documents(self, query: str, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Rerank documents based on their relevance to the query.
+        Rerank documents based on relevance to the query.
         
         Args:
-            query: The original query string
+            query: The original query
             documents: List of retrieved documents
             
         Returns:
-            Reranked list of documents
+            List of reranked documents
         """
         logger.info(f"Reranking {len(documents)} documents")
         
         reranked_documents = []
+        
         for doc in documents:
-            # Get relevance score from LLM
-            score_text = self.reranker_chain.run(query=query, document=doc["text"])
+            # Generate relevance score
+            response = self.reranking_chain.invoke({"query": query, "document": doc["text"]})
             
             try:
                 # Parse score
-                relevance_score = float(score_text.strip())
-                # Ensure score is in range [0, 10]
-                relevance_score = max(0, min(10, relevance_score))
+                relevance_score = float(response["text"].strip())
+                
+                # Add to reranked documents if above threshold
+                if relevance_score >= self.reranking_threshold * 10:  # Scale to 1-10
+                    reranked_documents.append({
+                        "text": doc["text"],
+                        "score": doc["score"],
+                        "relevance_score": relevance_score,
+                        "id": doc["id"]
+                    })
             except ValueError:
-                # Default score if parsing fails
-                relevance_score = 5.0
-            
-            # Add relevance score to document
-            doc["relevance_score"] = relevance_score
-            reranked_documents.append(doc)
+                logger.warning(f"Failed to parse relevance score: {response}")
         
         # Sort by relevance score
-        reranked_documents.sort(key=lambda x: x["relevance_score"], reverse=True)
+        reranked_documents.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
         
-        # Keep top k
-        reranked_documents = reranked_documents[:self.rerank_top_k]
-        
-        logger.info(f"Kept top {len(reranked_documents)} documents after reranking")
+        logger.info(f"Reranked to {len(reranked_documents)} documents")
         return reranked_documents
-    
-    def format_context(self, documents: List[Dict[str, Any]]) -> str:
-        """
-        Format retrieved documents into a context string.
-        
-        Args:
-            documents: List of retrieved documents
-            
-        Returns:
-            Formatted context string
-        """
-        context_parts = []
-        for i, doc in enumerate(documents):
-            relevance_info = f" [Relevance: {doc.get('relevance_score', 'N/A')}/10]" if 'relevance_score' in doc else ""
-            context_parts.append(f"Document {i+1} [Source: {doc['source']}]{relevance_info}:\n{doc['text']}\n")
-        
-        return "\n".join(context_parts)
     
     def answer_question(self, question: str) -> str:
         """
@@ -260,28 +250,48 @@ class AdvancedRAG:
         # Expand query
         expanded_queries = self.expand_query(question)
         
-        # Retrieve documents using expanded queries
+        # Retrieve documents
         documents = self.retrieve_documents(expanded_queries)
-        
-        if not documents:
-            return "I couldn't find any relevant information to answer your question."
         
         # Rerank documents
         reranked_documents = self.rerank_documents(question, documents)
         
-        # Format context
-        context = self.format_context(reranked_documents)
+        # Prepare context
+        if reranked_documents:
+            context = "\n\n".join([f"Document {i+1}:\n{doc['text']}" for i, doc in enumerate(reranked_documents[:5])])
+        else:
+            context = "No relevant documents found."
         
         # Generate answer
-        response = self.answer_chain.run(context=context, question=question)
+        response = self.answer_generation_chain.invoke({"context": context, "question": question})
         
-        return response.strip()
+        return response["text"].strip()
 
 
 if __name__ == "__main__":
-    # Example usage
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Advanced RAG for fitness knowledge")
+    parser.add_argument("--question", type=str, help="Question to answer")
+    args = parser.parse_args()
+    
+    # Initialize RAG
     rag = AdvancedRAG()
-    question = "How do I improve my squat form?"
-    answer = rag.answer_question(question)
-    print(f"Question: {question}")
-    print(f"Answer: {answer}")
+    
+    # Answer question
+    if args.question:
+        answer = rag.answer_question(args.question)
+        print(f"Question: {args.question}")
+        print(f"Answer: {answer}")
+    else:
+        # Interactive mode
+        print("Advanced RAG for fitness knowledge")
+        print("Enter 'quit' to exit")
+        
+        while True:
+            question = input("\nEnter your fitness question: ")
+            if question.lower() in ["quit", "exit", "q"]:
+                break
+                
+            answer = rag.answer_question(question)
+            print(f"\nAnswer: {answer}")
