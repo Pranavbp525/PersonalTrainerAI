@@ -1,5 +1,5 @@
 """
-Modular RAG Implementation for PersonalTrainerAI
+Fixed Modular RAG Implementation for PersonalTrainerAI
 
 This module implements a modular Retrieval-Augmented Generation (RAG) approach
 for fitness knowledge with query classification and specialized retrievers.
@@ -10,10 +10,11 @@ import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from pinecone import Pinecone
-from langchain.embeddings import HuggingFaceEmbeddings
+# Fixed deprecated import
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain.chains.llm import LLMChain
+from langchain.chains.llm import LLMChain  # Will eventually need to be updated to RunnableSequence
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -200,10 +201,11 @@ class ModularRAG:
         # Generate query embedding
         query_embedding = self.embedding_model.embed_query(query)
         
-        # Prepare filter based on category
+        # Prepare filter based on category - FIXED FILTER SYNTAX
         filter_dict = {}
         if category != "general":
-            filter_dict = {"metadata": {"category": category}}
+            # Correct filter syntax for Pinecone
+            filter_dict = {"category": category}
         
         # Query Pinecone
         results = self.index.query(
