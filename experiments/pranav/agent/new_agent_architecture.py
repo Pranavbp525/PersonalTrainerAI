@@ -18,13 +18,13 @@ import uuid
 from pydantic import BaseModel, Field
 
 # Import Hevy API models directly
-from hevy_api import (
+from experiments.pranav.chatbot.agent.hevy_api import (
     SetRoutineCreate, ExerciseRoutineCreate, RoutineCreate, RoutineCreateRequest,
     SetRoutineUpdate, ExerciseRoutineUpdate, RoutineUpdate, RoutineUpdateRequest
 )
 
 # Import LLM tools directly
-from llm_tools import (
+from experiments.pranav.chatbot.agent.llm_tools import (
     tool_fetch_workouts,
     tool_get_workout_count,
     tool_fetch_routines,
