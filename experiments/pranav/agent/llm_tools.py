@@ -1,7 +1,10 @@
 from langchain.tools import tool
 from hevy_api import get_workouts, create_routine, update_routine, get_workout_count, get_routines
 from pydantic import BaseModel
+from pinecone import Pinecone, ServerlessSpec
 from fastapi import HTTPException
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
+from dotenv import load_dotenv
 from hevy_api import (
     SetUpdate,
     ExerciseUpdate,
@@ -16,6 +19,30 @@ from hevy_api import (
     RoutineCreate,
     RoutineCreateRequest
 )
+import os
+
+from langchain.tools import StructuredTool
+
+load_dotenv()
+
+# Initialize Pinecone
+pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+index_name = "fitness-chatbot"
+
+# Create index if it doesn't exist
+if index_name not in pc.list_indexes().names():
+    pc.create_index(
+        name=index_name,
+        dimension=768,  # Matches embedding dimension
+        metric="cosine",
+        spec=ServerlessSpec(cloud="aws", region="us-east-1")
+    )
+
+index = pc.Index(index_name)
+
+# Initialize embedding model
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+
 
 @tool
 async def tool_fetch_workouts(page: int = 1, page_size: int = 5):
@@ -70,7 +97,15 @@ async def tool_create_routine(routine_data: dict):
         raise HTTPException(status_code=400, detail=f"Invalid routine data: {str(e)}")
 
 
+
 @tool
 async def retrieve_from_rag(query: str) -> str:
     """Retrieves science-based exercise information from Pinecone vector store."""
-    pass
+    try:
+        query_embedding = embeddings.embed_query(query)
+        results = index.query(vector=query_embedding, top_k=3, include_metadata=True)
+        retrieved_docs = [match["metadata"].get("text", "No text available") for match in results["matches"]]
+        return "Retrieved documents:\n" + "\n".join(retrieved_docs)
+    except Exception as e:
+        return f"Error retrieving information: {str(e)}"
+
