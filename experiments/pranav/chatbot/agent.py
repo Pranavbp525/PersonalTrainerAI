@@ -60,7 +60,7 @@ workout_system_prompt = """
 You are a fitness expert tasked with creating a workout routine based on provided exercise data.
 Given the user's goal and retrieved exercise information, generate a workout routine based on the data provided.
 Use the retrieved data to inform your choices. Ensure the routine is practical and science-based.
-If no relevant data is provided, use general fitness knowledge.
+If no relevant data is provided, ask the user questions to get data.
 """
 
 workout_llm_structured = workout_llm.with_structured_output(WorkoutRoutine, method="json_mode")

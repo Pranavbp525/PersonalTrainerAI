@@ -8,83 +8,19 @@ from fastapi.security.api_key import APIKeyHeader, APIKey
 from dotenv import load_dotenv
 import httpx
 from fastapi.encoders import jsonable_encoder
+ 
+from models import (SetUpdate, 
+                    ExerciseUpdate, 
+                    WorkoutUpdate,
+                    WorkoutUpdateRequest,
+                    SetRoutineUpdate,
+                    RoutineUpdateRequest,
+                    RoutineCreateRequest)
 
 
 # Data models 
 # UPDATE Workout models
-class SetUpdate(BaseModel):
-    type: str
-    weight_kg: float
-    reps: int
-    distance_meters: Optional[float] = None
-    duration_seconds: Optional[float] = None
-    rpe: Optional[float] = None
-
-class ExerciseUpdate(BaseModel):
-    exercise_template_id: str
-    superset_id: Optional[str] = None
-    notes: str
-    sets: List[SetUpdate]
-
-class WorkoutUpdate(BaseModel):
-    title: str
-    description: str
-    start_time: datetime
-    end_time: datetime
-    is_private: bool
-    exercises: List[ExerciseUpdate]
-
-class WorkoutUpdateRequest(BaseModel):
-    workout: WorkoutUpdate
-
-# UPDATE Routine models
-class SetRoutineUpdate(BaseModel):
-    type: str
-    weight_kg: float
-    reps: int
-    distance_meters: Optional[float] = None
-    duration_seconds: Optional[float] = None
-
-class ExerciseRoutineUpdate(BaseModel):
-    exercise_template_id: str
-    superset_id: Optional[str] = None
-    rest_seconds: int
-    notes: str
-    sets: List[SetRoutineUpdate]
-
-class RoutineUpdate(BaseModel):
-    title: str
-    notes: str
-    exercises: List[ExerciseRoutineUpdate]
-
-class RoutineUpdateRequest(BaseModel):
-    routine: RoutineUpdate
-
-
-# Create Routine models
-class SetRoutineCreate(BaseModel):
-    type: str
-    weight_kg: float
-    reps: int
-    distance_meters: Optional[float] = None
-    duration_seconds: Optional[float] = None
-
-class ExerciseRoutineCreate(BaseModel):
-    exercise_template_id: str
-    superset_id: Optional[str] = None
-    rest_seconds: int
-    notes: str
-    sets: List[SetRoutineCreate]
-
-class RoutineCreate(BaseModel):
-    title: str
-    folder_id: Optional[int] = None
-    notes: str
-    exercises: List[ExerciseRoutineCreate]
-
-class RoutineCreateRequest(BaseModel):
-    routine: RoutineCreate
-
+# 
 
 load_dotenv()
 
