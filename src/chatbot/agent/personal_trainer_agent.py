@@ -35,6 +35,16 @@ from agent.utils import (extract_adherence_rate,
                    extract_routine_structure,
                    extract_routine_updates,
                    retrieve_data)
+from agent.prompts import (
+    get_adaptation_prompt,
+    get_analysis_prompt,
+    get_coach_prompt,
+    get_coordinator_prompt,
+    get_memory_consolidation_prompt,
+    get_planning_prompt,
+    get_research_prompt,
+    get_user_modeler_prompt
+)
 
 
 from agent.llm_tools import (
@@ -45,6 +55,7 @@ from agent.llm_tools import (
     tool_create_routine,
     retrieve_from_rag
 )
+
 
 
 from dotenv import load_dotenv
@@ -89,23 +100,7 @@ async def user_modeler(state: AgentState) -> AgentState:
     format_instructions = parser.get_format_instructions()
 
     # Define the prompt template with format instructions
-    prompt_template = PromptTemplate(
-        input_variables=["user_model", "recent_exchanges"],
-        template="""
-        You are a user modeling specialist for a fitness training system. Analyze all available information about the user to build a comprehensive model:
-        1. Extract explicit information (stated goals, preferences, constraints)
-        2. Infer implicit information (fitness level, motivation factors, learning style)
-        3. Identify gaps in our understanding that need to be addressed
-        4. Update confidence levels for different aspects of the model
-        
-        Current user model: {user_model}
-        Recent exchanges: {recent_exchanges}
-        
-        Return an updated user model with confidence scores for each attribute in the following JSON format:
-        {format_instructions}
-        """,
-        partial_variables={"format_instructions": format_instructions}
-    )
+    prompt_template = get_user_modeler_prompt()
     
     current_user_model = state.get("user_model", {})
     recent_exchanges = state.get("working_memory", {}).get("recent_exchanges", [])
@@ -113,7 +108,8 @@ async def user_modeler(state: AgentState) -> AgentState:
     # Format the prompt
     formatted_prompt = prompt_template.format(
         user_model=json.dumps(current_user_model),
-        recent_exchanges=json.dumps(recent_exchanges)
+        recent_exchanges=json.dumps(recent_exchanges),
+        format_instructions=format_instructions
     )
     
     # Use LangChain to get structured output
@@ -226,24 +222,14 @@ async def coordinator(state: AgentState) -> AgentState:
     if memory_size > 0 and memory_size % 10 == 0:
         logger.info(f"Performing memory consolidation (memory size: {memory_size})")
         try:
-            memory_prompt = """You are the memory manager for a fitness training system. Review the conversation history and current agent states to:
-            1. Identify key information that should be stored in long-term memory
-            2. Update the user model with new insights
-            3. Consolidate redundant information
-            4. Prune outdated or superseded information
-            5. Ensure critical context is available in working memory
-            
-            Current long-term memory: {{memory}}
-            Current user model: {{user_model}}
-            Current working memory: {{working_memory}}
-            
-            Return a structured update of what should be stored, updated, or removed.
-            """
+            memory_prompt = get_memory_consolidation_prompt()
             
             # Fill template with state data
-            filled_prompt = memory_prompt.replace("{{memory}}", json.dumps(memory))
-            filled_prompt = filled_prompt.replace("{{user_model}}", json.dumps(state.get("user_model", {})))
-            filled_prompt = filled_prompt.replace("{{working_memory}}", json.dumps(working_memory))
+            filled_prompt = memory_prompt.format(
+                memory=json.dumps(memory),
+                user_model=json.dumps(state.get("user_model", {})),
+                working_memory=json.dumps(working_memory)
+            )
             
             # Invoke LLM for memory management decisions
             memory_messages = [SystemMessage(content=filled_prompt)]
@@ -262,62 +248,15 @@ async def coordinator(state: AgentState) -> AgentState:
     # =================== END MEMORY MANAGEMENT SECTION ===================
     
     # Normal flow - use LLM for ALL routing decisions including to user modeler
-    coordinator_prompt = """You are the coordinator for a personal fitness trainer AI. Your role is to:
-    1. Understand the user's current needs and context
-    2. Determine which specialized agent should handle the interaction
-    3. Provide a coherent experience across different interactions
-    4. Ensure all user needs are addressed appropriately
-    5. Conduct user assessment when needed
+    coordinator_prompt = get_coordinator_prompt()
 
-    You have direct access to these specialized capabilities:
-    - Research: Retrieve scientific fitness knowledge using the retrieve_from_rag tool
-    - Planning: Create personalized workout routines
-    - Progress Analysis: Analyze workout data and track progress
-    - Adaptation: Modify workout plans based on progress and feedback
-    - Coach: Provide motivation and adherence strategies
-    - User Modeler: Updates the user model with new information from the user
+    filled_prompt = coordinator_prompt.format(
+        user_model=json.dumps(state.get("user_model", {})),
+        fitness_plan=json.dumps(state.get("fitness_plan", {})),
+        recent_exchanges=json.dumps(working_memory.get("recent_exchanges", [])),
+        research_findings=json.dumps(working_memory.get("research_findings", {}))
+    )
 
-    IMPORTANT ROUTING INSTRUCTIONS:
-    - When a user responds to an assessment question, ALWAYS route to [User Modeler] first
-    - The User Modeler will update the profile and then route back to you for next steps
-    - If assessment is complete but research_findings is empty, route to [Research]
-    - If assessment is complete and research_findings exists but seems irrelevant to current user goals, route to [Research]
-    - Only route to [Planning] when assessment is complete AND relevant research is available
-
-    Assessment process:
-    - If user profile is incomplete, you should ask assessment questions
-    - Required fields for assessment: goals, fitness_level, available_equipment, training_environment, schedule, constraints
-
-    RESPONSE FORMAT:
-    1. First provide your internal reasoning (not shown to user)
-    2. If choosing [Research], include specific research needs in format: <research_needs>specific research topics and information needed based on user profile</research_needs>
-    3. End your internal reasoning with one of these agent tags:
-    [Assessment] - If you need to ask an assessment question
-    [Research] - If research information is needed
-    [Planning] - If workout routine creation is needed
-    [Progress] - If progress analysis is needed
-    [Adaptation] - If routine modification is needed
-    [Coach] - If motivation/coaching is needed
-    [User Modeler] - If the user's message contains information that should update their profile, or if the user's message is a response to an assessment question with information in it, then choose this agent.
-    [Complete] - If you can directly handle the response
-    4. Then wrap your user-facing response in <user>...</user> tags
-    5. If the previous response has PLANNERS RESPONSE with a fitness plan/routine, just copy paste the routine in your response (within the user facing tags).
-
-    Current user model: {{user_model}}
-    Current fitness plan: {{fitness_plan}}
-    Recent interactions: {{recent_exchanges}}
-    Research findings: {{research_findings}}
-    """
-
-    
-    # Fill template with state data
-    filled_prompt = coordinator_prompt.replace("{{user_model}}", json.dumps(state.get("user_model", {})))
-    filled_prompt = filled_prompt.replace("{{fitness_plan}}", json.dumps(state.get("fitness_plan", {})))
-    filled_prompt = filled_prompt.replace("{{recent_exchanges}}", 
-                                     json.dumps(working_memory.get("recent_exchanges", [])))
-    filled_prompt = filled_prompt.replace("{{research_findings}}", 
-                                     json.dumps(working_memory.get("research_findings", {})))
-    
     # Invoke LLM with the filled prompt and conversation history
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
     response = await llm.ainvoke(messages)
@@ -410,17 +349,7 @@ async def coordinator(state: AgentState) -> AgentState:
 async def research_agent(state: AgentState) -> AgentState:
     """Retrieves and synthesizes scientific fitness knowledge from RAG."""
     logger.info(f"Research Agent - Input State: {state}") #Log input state
-    research_prompt = """You are a fitness research specialist. Based on the user's profile and current needs:
-    1. Identify key scientific principles relevant to their goals
-    2. Retrieve evidence-based approaches from the rag knowledge base
-    3. Synthesize this information into actionable insights
-    4. Provide citations to specific sources
-    
-    Current user profile: {{user_profile}}
-    Current research needs: {{research_needs}}
-    
-    Use the retrieve_from_rag tool to access scientific fitness information.
-    """
+    research_prompt = get_research_prompt()
     
     # Generate targeted queries based on user profile
     user_goals = state.get("user_model", {}).get("goals", ["general fitness"])
@@ -446,9 +375,9 @@ async def research_agent(state: AgentState) -> AgentState:
         queries.append(f"safe training with {limitation}")
     
     # Fill template with state data
-    filled_prompt = research_prompt.replace("{{user_profile}}", json.dumps(state.get("user_model", {})))
-    filled_prompt = research_prompt.replace("{{research_needs}}", 
-                                         json.dumps(state.get("working_memory", {}).get("research_needs", [])))
+    filled_prompt = research_prompt.format(
+    user_profile=json.dumps(state.get("user_model", {})),
+    research_needs=json.dumps(state.get("working_memory", {}).get("research_needs", [])))
     
     # Add research topics to prompt
     filled_prompt += f"\n\nSpecific research topics to investigate: {', '.join(queries)}"
@@ -499,52 +428,14 @@ async def planning_agent(state: AgentState) -> AgentState:
     """Creates personalized workout routines and exports to Hevy."""
 
     logger.info(f"Planning Agent - Input State: {state}") #Log input state
-    planning_prompt = """You are a workout programming specialist. Create a detailed, personalized workout plan:
-    1. Design a structured routine based on scientific principles and user profile
-    2. Format the routine specifically for Hevy app integration
-    3. Include exercise selection, sets, reps, rest periods, and progression scheme
-    4. Provide clear instructions for implementation
-    
-    User profile: {{user_profile}}
-    Research findings: {{research_findings}}
+    planning_prompt = get_planning_prompt()  # Latest version
+    # Or for specific version: planning_prompt = get_planning_prompt("production") 
 
-     
-    The routine you provided will be converted into pydantic base classes and accessed this way by the user:
-    exercises = []
-    for exercise_data in routine_structure.get("exercises", []):
-        sets = []
-        for set_data in exercise_data.get("sets", []):
-            sets.append(SetRoutineCreate(
-                type=set_data.get("type", "normal"),
-                weight_kg=set_data.get("weight", 0.0),
-                reps=set_data.get("reps", 0),
-                duration_seconds=set_data.get("duration", None),
-                distance_meters=set_data.get("distance", None)
-            ))
-        
-        exercises.append(ExerciseRoutineCreate(
-            exercise_template_id=exercise_data.get("exercise_id", ""),
-            exercise_name=exercise_data.get("exercise_name", ""),
-            exercise_type=exercise_data.get("exercise_type", "strength"),
-            sets=sets,
-            notes=exercise_data.get("notes", ""),
-            rest_seconds=60  # Default rest time
-        ))
-    
-    # Create the full routine object
-    routine = RoutineCreate(
-        title=routine_structure.get("title", "Personalized Routine"),
-        notes=routine_structure.get("notes", "AI-generated routine"),
-        exercises=exercises
+    # Format the prompt properly using the template's format method
+    filled_prompt = planning_prompt.format(
+        user_profile=json.dumps(state.get("user_model", {})),
+        research_findings=json.dumps(state.get("working_memory", {}).get("research_findings", {}))
     )
-    So make sure you include all the fields in your response
-    """
-    
-    # Fill template with state data
-    filled_prompt = planning_prompt.replace("{{user_profile}}", json.dumps(state.get("user_model", {})))
-    filled_prompt = filled_prompt.replace("{{research_findings}}", 
-                                        json.dumps(state.get("working_memory", {}).get("research_findings", {})))
-
     
     # Invoke LLM with planning prompt and conversation history
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
@@ -588,18 +479,7 @@ async def planning_agent(state: AgentState) -> AgentState:
 async def progress_analysis_agent(state: AgentState) -> AgentState:
     """Analyzes workout logs to track progress and suggest adjustments."""
     logger.info(f"Progress Analysis Agent - Input State: {state}") #Log input state
-    analysis_prompt = """You are a fitness progress analyst. Examine the user's workout logs to:
-    1. Track adherence to the planned routine
-    2. Identify trends in performance (improvements, plateaus, regressions)
-    3. Compare actual progress against expected progress
-    4. Suggest specific adjustments to optimize results
-    
-    User profile: {{user_profile}}
-    Current fitness plan: {{fitness_plan}}
-    Recent workout logs: {{workout_logs}}
-    
-    Use the tool_fetch_workouts tool to access workout logs from Hevy.
-    """
+    analysis_prompt = get_analysis_prompt()
     
     # Fetch recent workout logs from Hevy API
     try:
@@ -607,10 +487,12 @@ async def progress_analysis_agent(state: AgentState) -> AgentState:
     except Exception as e:
         workout_logs = {"error": str(e), "message": "Unable to fetch workout logs"}
     
-    # Fill template with state data
-    filled_prompt = analysis_prompt.replace("{{user_profile}}", json.dumps(state.get("user_model", {})))
-    filled_prompt = analysis_prompt.replace("{{fitness_plan}}", json.dumps(state.get("fitness_plan", {})))
-    filled_prompt = analysis_prompt.replace("{{workout_logs}}", json.dumps(workout_logs))
+
+    filled_prompt = analysis_prompt.format(
+        user_profile = json.dumps(state.get("user_model", {})),
+        fitness_plan = json.dumps(state.get("fitness_plan", {})),
+        workout_logs = json.dumps(workout_logs)
+    )
     
     # Invoke LLM with analysis prompt and conversation history
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
@@ -643,28 +525,17 @@ async def progress_analysis_agent(state: AgentState) -> AgentState:
 async def adaptation_agent(state: AgentState) -> AgentState:
     """Modifies workout routines based on progress and feedback."""
     logger.info(f"Adaptation Agent - Input State: {state}") #Log input state
-    adaptation_prompt = """You are a workout adaptation specialist. Based on progress data and user feedback:
-    1. Identify specific aspects of the routine that need modification
-    2. Apply scientific principles to make appropriate adjustments
-    3. Ensure changes align with the user's goals and constraints
-    4. Update the routine in Hevy
+    adaptation_prompt = get_adaptation_prompt()
     
-    User profile: {{user_profile}}
-    Current fitness plan: {{fitness_plan}}
-    Progress data: {{progress_data}}
-    Suggested adjustments: {{suggested_adjustments}}
     
-    Use the tool_update_routine tool to update the routine in Hevy.
-    """
-    
-    # Fill template with state data
-    filled_prompt = adaptation_prompt.replace("{{user_profile}}", json.dumps(state.get("user_model", {})))
-    filled_prompt = adaptation_prompt.replace("{{fitness_plan}}", json.dumps(state.get("fitness_plan", {})))
-    filled_prompt = adaptation_prompt.replace("{{progress_data}}", json.dumps(state.get("progress_data", {})))
-    filled_prompt = adaptation_prompt.replace("{{suggested_adjustments}}", 
-                                         json.dumps(state.get("progress_data", {})
+    filled_prompt = adaptation_prompt.format(
+        user_profile = json.dumps(state.get("user_model", {})),
+        fitness_plan = json.dumps(state.get("fitness_plan", {})),
+        progress_data = json.dumps(state.get("progress_data", {})),
+        suggested_adjustments = json.dumps(state.get("progress_data", {})
                                                    .get("latest_analysis", {})
-                                                   .get("suggested_adjustments", [])))
+                                                   .get("suggested_adjustments", []))
+    )
     
     # Invoke LLM with adaptation prompt and conversation history
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
@@ -757,24 +628,13 @@ async def adaptation_agent(state: AgentState) -> AgentState:
 async def coach_agent(state: AgentState) -> AgentState:
     """Provides motivation, adherence strategies, and behavioral coaching."""
     logger.info(f"Coach Agent - Input State: {state}") #Log input state
-    coach_prompt = """You are a fitness motivation coach. Your role is to:
-    1. Provide encouragement and motivation tailored to the user's profile
-    2. Offer strategies to improve adherence and consistency
-    3. Address psychological barriers to fitness progress
-    4. Celebrate achievements and milestones
+    coach_prompt = get_coach_prompt()
     
-    User profile: {{user_profile}}
-    Progress data: {{progress_data}}
-    Recent exchanges: {{recent_exchanges}}
-    
-    Be supportive, empathetic, and science-based in your approach.
-    """
-    
-    # Fill template with state data
-    filled_prompt = coach_prompt.replace("{{user_profile}}", json.dumps(state.get("user_model", {})))
-    filled_prompt = coach_prompt.replace("{{progress_data}}", json.dumps(state.get("progress_data", {})))
-    filled_prompt = coach_prompt.replace("{{recent_exchanges}}", 
-                                         json.dumps(state.get("working_memory", {}).get("recent_exchanges", [])))
+    filled_prompt = coach_prompt.format(
+        user_profile=json.dumps(state.get("user_model", {})),
+        progress_data=json.dumps(state.get("progress_data", {})),
+        recent_exchanges=json.dumps(state.get("working_memory", {}).get("recent_exchanges", []))
+    )
     
     # Invoke LLM with coaching prompt and conversation history
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
@@ -787,8 +647,6 @@ async def coach_agent(state: AgentState) -> AgentState:
     }
     logger.info(f"Coach Agent - Output State: {updated_state}") #Log input state
     return 
-
-
 
 async def end_conversation(state: AgentState) -> AgentState:
 

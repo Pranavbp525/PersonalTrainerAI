@@ -14,6 +14,7 @@ from fastapi import Request
 from agent.graph import build_fitness_trainer_graph, get_or_create_state, save_state
 from agent.personal_trainer_agent import end_conversation
 from agent.agent_models import AgentState
+from agent.prompts import push_all_prompts
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 # Define a Pydantic model for user creation
 class UserCreate(BaseModel):
@@ -21,7 +22,6 @@ class UserCreate(BaseModel):
 
 class SessionCreate(BaseModel):
     user_id: int
-
 
 
 load_dotenv()
@@ -34,6 +34,8 @@ app = FastAPI()
 api_key = os.environ.get("OPENAI_API_KEY")
 # --- OpenAI API Setup ---
 client = openai.OpenAI(api_key=api_key)
+
+push_all_prompts()
 
 agent_app = build_fitness_trainer_graph()
 
