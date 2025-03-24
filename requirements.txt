@@ -1,6 +1,3 @@
-
-
-
 # Core dependencies
 python-dotenv
 langchain
@@ -27,7 +24,6 @@ tqdm
 # Utilities
 pydantic
 colorlog
-=======
 aiohappyeyeballs==2.4.6
 aiohttp==3.11.12
 aiosignal==1.3.2
