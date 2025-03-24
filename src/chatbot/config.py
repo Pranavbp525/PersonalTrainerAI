@@ -16,7 +16,7 @@ class Config:
     POSTGRES_PORT = int(os.environ.get("POSTGRES_PORT", 5432))
     POSTGRES_DB = os.environ.get("POSTGRES_DB", "chatbot_db")
     DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-    print(f"DEBUG: DATABASE_URL = {DATABASE_URL}")
+    
 
     # Redis Configuration
     REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
