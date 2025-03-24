@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine # or your preferred PostgreSQL version
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432" # Expose PostgreSQL port (optional, for local access)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist database data
+
+  redis:
+    image: redis:7-alpine # or your preferred Redis version
+    restart: always
+    ports:
+      - "6379:6379" # Expose Redis port (optional, for local access)
+    volumes:
+      - redis_data:/data # Persist Redis data
+
+  app:
+    build: .
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db  # Use the service name 'db' to connect
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis  # Use the service name 'redis'
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      LOGGING_LEVEL: ${LOGGING_LEVEL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      HEVY_API_KEY: ${HEVY_API_KEY}
+      LANGSMITH_API: ${LANGSMITH_API}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+
+volumes:
+  postgres_data:
+  redis_data:
