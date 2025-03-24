@@ -10,14 +10,18 @@ from config import config
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from fastapi import Request
-from agent import agent_app
+
+from agent.graph import build_fitness_trainer_graph, get_or_create_state, save_state
+from agent.personal_trainer_agent import end_conversation
+from agent.agent_models import AgentState
+from agent.prompts import push_all_prompts
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 # Define a Pydantic model for user creation
 class UserCreate(BaseModel):
     username: str
 
 class SessionCreate(BaseModel):
     user_id: int
-
 
 
 load_dotenv()
@@ -30,6 +34,10 @@ app = FastAPI()
 api_key = os.environ.get("OPENAI_API_KEY")
 # --- OpenAI API Setup ---
 client = openai.OpenAI(api_key=api_key)
+
+push_all_prompts()
+
+agent_app = build_fitness_trainer_graph()
 
 
 if not client.api_key:
@@ -66,30 +74,36 @@ async def generate_response(session_id: str, db: Session) -> str:
 
         for message_text in chat_history:
             role, content = message_text.split(":", 1)
-            messages_for_agent.append({"role": role.strip().lower(), "content": content.strip()})
+            role = role.strip().lower()
+            content = content.strip()
+            
+            if role == "user":
+                messages_for_agent.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages_for_agent.append(AIMessage(content=content))
+
         log.info(f"Prepared messages for agent: {messages_for_agent}")
 
-        state = {
-            "messages": messages_for_agent,
-            "session_id": session_id,
-            "tool_results": {}
-        }
+        state = await get_or_create_state(session_id)
+        state["messages"] = messages_for_agent
         log.info(f"Initial state: {state}")
 
-        result = agent_app.invoke(state)
+        config = {"configurable": {"thread_id": session_id}}
+
+        result = await agent_app.ainvoke(state, config=config)
         log.info(f"Agent result: {result}")
         
-        last_message = result["messages"][-1]
-        log.info(f"Last message: {last_message}")
-        if hasattr(last_message, "content"):  # AIMessage or ToolMessage
-            assistant_response = last_message.content.strip()
-            log.info(f"Extracted content from object: {assistant_response}")
-        elif isinstance(last_message, dict) and "content" in last_message:  # Plain dict
-            assistant_response = last_message["content"].strip()
-            log.info(f"Extracted content from dict: {assistant_response}")
+        assistant_messages = [msg for msg in result["messages"] if isinstance(msg, AIMessage)]
+        if assistant_messages:
+            assistant_response = assistant_messages[-1].content
         else:
-            raise ValueError(f"Unexpected message format: {last_message}")
+            assistant_response = "I'm sorry, I couldn't generate a response."
+        
         log.info(f"Final assistant response: {assistant_response}")
+        
+        # Save updated state for future reference
+        await save_state(session_id, result)
+        
         return assistant_response
 
     except Exception as e:
