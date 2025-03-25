@@ -2,7 +2,16 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-from experiments.pranav.chatbot.models import Base
+# from experiments.pranav.chatbot.models import Base
+
+import sys
+import os
+
+# Add the src path to sys.path so we can import chatbot.models
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from chatbot.models import Base
+
 
 from alembic import context
 
