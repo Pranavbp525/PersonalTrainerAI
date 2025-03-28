@@ -235,37 +235,39 @@ class AdvancedRAG:
         logger.info(f"Reranked to {len(reranked_documents)} documents")
         return reranked_documents
     
-    def answer_question(self, question: str) -> str:
+    def answer_question(self, query: str, return_contexts: bool = False):
         """
         Answer a question using the advanced RAG approach.
         
         Args:
-            question: The question to answer
+            query: The question to answer
+            return_contexts: Whether to return retrieved contexts along with the answer
             
         Returns:
-            Generated answer
+            If return_contexts is False: The generated answer
+            If return_contexts is True: Tuple of (answer, contexts)
         """
-        logger.info(f"Answering question: {question}")
-        
         # Expand query
-        expanded_queries = self.expand_query(question)
+        expanded_query = self._expand_query(query)
         
         # Retrieve documents
-        documents = self.retrieve_documents(expanded_queries)
+        documents = self._retrieve_documents(expanded_query)
         
-        # Rerank documents
-        reranked_documents = self.rerank_documents(question, documents)
+        # Re-rank documents
+        reranked_documents = self._rerank_documents(documents, query)
         
-        # Prepare context
-        if reranked_documents:
-            context = "\n\n".join([f"Document {i+1}:\n{doc['text']}" for i, doc in enumerate(reranked_documents[:5])])
+        # Process documents with sentence window
+        processed_documents = self._process_with_sentence_window(reranked_documents)
+        
+        # Generate response
+        response = self._generate_response(query, processed_documents)
+        
+        if return_contexts:
+            # Extract text from documents for evaluation
+            contexts = [doc.page_content for doc in processed_documents]
+            return response, contexts
         else:
-            context = "No relevant documents found."
-        
-        # Generate answer
-        response = self.answer_generation_chain.invoke({"context": context, "question": question})
-        
-        return response["text"].strip()
+            return response
 
 
 if __name__ == "__main__":

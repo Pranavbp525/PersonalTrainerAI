@@ -229,41 +229,37 @@ class ModularRAG:
         logger.info(f"Retrieved {len(documents)} documents")
         return documents
     
-    def answer_question(self, question: str) -> str:
+    # In modular_rag.py
+    def answer_question(self, query: str, return_contexts: bool = False):
         """
         Answer a question using the modular RAG approach.
         
         Args:
-            question: The question to answer
+            query: The question to answer
+            return_contexts: Whether to return retrieved contexts along with the answer
             
         Returns:
-            Generated answer
+            If return_contexts is False: The generated answer
+            If return_contexts is True: Tuple of (answer, contexts)
         """
-        logger.info(f"Answering question: {question}")
-        
         # Classify query
-        category = self.classify_query(question)
+        category = self._classify_query(query)
         
-        # Specialize query
-        specialized_query = self.specialize_query(question, category)
+        # Specialize query for category
+        specialized_query = self._specialize_query(query, category)
         
-        # Retrieve documents
-        documents = self.retrieve_documents(specialized_query, category)
+        # Retrieve documents for category
+        documents = self._retrieve_documents(specialized_query, category)
         
-        # Prepare context
-        if documents:
-            context = "\n\n".join([f"Document {i+1}:\n{doc['text']}" for i, doc in enumerate(documents)])
+        # Generate response
+        response = self._generate_response(query, documents, category)
+        
+        if return_contexts:
+            # Extract text from documents for evaluation
+            contexts = [doc.page_content for doc in documents]
+            return response, contexts
         else:
-            context = "No relevant documents found."
-        
-        # Generate answer
-        response = self.answer_generation_chain.invoke({
-            "context": context, 
-            "question": question,
-            "category": category
-        })
-        
-        return response["text"].strip()
+            return response
 
 
 if __name__ == "__main__":

@@ -324,34 +324,38 @@ class RaptorRAG:
         
         return answer["text"].strip()
     
-    def answer_question(self, question: str) -> str:
+    # In raptor_rag.py
+    def answer_question(self, query: str, return_contexts: bool = False):
         """
-        Answer a question using the RAPTOR approach.
+        Answer a question using the RAPTOR RAG approach.
         
         Args:
-            question: The question to answer
+            query: The question to answer
+            return_contexts: Whether to return retrieved contexts along with the answer
             
         Returns:
-            Generated answer
+            If return_contexts is False: The generated answer
+            If return_contexts is True: Tuple of (answer, contexts)
         """
-        logger.info(f"Answering question with RAPTOR approach: {question}")
-        
         # Plan retrieval
-        retrieval_plan = self.plan_retrieval(question)
+        retrieval_plan = self._plan_retrieval(query)
         
         # Retrieve documents
-        documents = self.retrieve_documents(question, retrieval_plan)
+        documents = self._retrieve_documents(query, retrieval_plan)
         
-        # Prepare context
-        context = "\n\n".join([f"Document {i+1}:\n{doc['text']}" for i, doc in enumerate(documents)])
-        
-        # Perform multi-step reasoning
-        reasoning_result = self.perform_multi_step_reasoning(question, context)
+        # Perform reasoning
+        reasoning = self._perform_reasoning(query, documents)
         
         # Synthesize answer
-        answer = self.synthesize_answer(question, context, reasoning_result)
+        response = self._synthesize_answer(query, reasoning, documents)
         
-        return answer.strip()
+        if return_contexts:
+            # Extract text from documents for evaluation
+            contexts = [doc.page_content for doc in documents]
+            return response, contexts
+        else:
+            return response
+
 
 
 if __name__ == "__main__":

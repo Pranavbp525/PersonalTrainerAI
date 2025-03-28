@@ -1081,19 +1081,31 @@ class AdvancedRAGEvaluator:
         Returns:
             List of retrieved contexts
         """
-        # This is a mock implementation since we don't have direct access to the contexts
-        # In a real implementation, you would modify the RAG implementations to return contexts
+        if implementation_name not in self.rag_implementations:
+            logger.error(f"Unknown implementation: {implementation_name}")
+            return []
         
-        # For demonstration purposes, we'll return empty contexts
-        # In a real implementation, you would need to modify your RAG classes to expose the retrieved contexts
-        return []
+        rag = self.rag_implementations[implementation_name]
+        
+        try:
+            # Use the return_contexts parameter if the implementation supports it
+            if hasattr(rag, 'answer_question') and 'return_contexts' in inspect.signature(rag.answer_question).parameters:
+                _, contexts = rag.answer_question(query, return_contexts=True)
+                return contexts
+            else:
+                # Fallback to the old behavior
+                logger.warning(f"Implementation {implementation_name} does not support returning contexts")
+                return []
+        except Exception as e:
+            logger.error(f"Error retrieving contexts from {implementation_name}: {e}")
+            return []
     
     def evaluate_implementation(self, implementation_name: str) -> Dict[str, Any]:
         """
         Evaluate a specific RAG implementation.
         
         Args:
-            implementation_name: Name of the RAG implementation to evaluate
+            implementation_name: Name of the RAG implementation
             
         Returns:
             Dictionary with evaluation results
@@ -1114,15 +1126,27 @@ class AdvancedRAGEvaluator:
             
             logger.info(f"Processing query {i+1}/{len(self.test_queries)}: {query[:50]}...")
             
-            # Measure response time
+            # Measure response time and get response
             start_time = time.time()
-            response = rag.answer_question(query)
+            
+            # Try to get contexts along with the response if supported
+            try:
+                if hasattr(rag, 'answer_question') and 'return_contexts' in inspect.signature(rag.answer_question).parameters:
+                    response, contexts = rag.answer_question(query, return_contexts=True)
+                else:
+                    response = rag.answer_question(query)
+                    contexts = self.get_retrieved_contexts(implementation_name, query)
+            except Exception as e:
+                logger.error(f"Error getting response and contexts: {e}")
+                response = "Error generating response"
+                contexts = []
+            
             end_time = time.time()
             response_time = end_time - start_time
             total_response_time += response_time
             
-            # Get retrieved contexts (mock implementation)
-            contexts = self.get_retrieved_contexts(implementation_name, query)
+            # Log context information for debugging
+            logger.info(f"Retrieved {len(contexts)} contexts for evaluation")
             
             # Evaluate response
             evaluation = self.evaluate_response(query, response, contexts, ground_truth)
