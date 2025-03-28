@@ -1,21 +1,29 @@
-#!/bin/bash
+#!/bin/sh
+set -e
 
-# Wait for PostgreSQL to be ready and the database to exist
-until psql -h db -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q' &> /dev/null; do
-  echo "Waiting for PostgreSQL and the database to become available..."
+echo "🔍 Waiting for PostgreSQL to be ready..."
+
+# Ensure password is passed to psql
+export PGPASSWORD="$POSTGRES_PASSWORD"
+
+# Try connecting to Postgres for up to 30 seconds
+for i in $(seq 1 30); do
+  echo "Attempt $i: Connecting to $POSTGRES_HOST:$POSTGRES_PORT as $POSTGRES_USER"
+  if psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q' >/dev/null 2>&1; then
+    echo "✅ PostgreSQL is available!"
+    break
+  fi
   sleep 1
 done
 
-# Set the SQLALCHEMY_URL environment variable for Alembic
-export SQLALCHEMY_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}"
-
-# Run Alembic migrations
-echo "Running Alembic migrations..."
-if ! alembic upgrade head; then
-  echo "Alembic migrations failed!"
-  exit 1  # Exit with an error code if migrations fail
+# If loop exited without success
+if [ "$i" = "30" ]; then
+  echo "❌ PostgreSQL not available after 30 attempts. Exiting."
+  exit 1
 fi
 
-# Start the application (this will be overridden by CMD in the Dockerfile)
-echo "Migrations complete.  Starting application..."
+echo "🛠 Running Alembic migrations..."
+alembic upgrade head
+
+echo "🚀 Starting FastAPI server..."
 exec "$@"
