@@ -2,8 +2,6 @@
 import os
 from dotenv import load_dotenv
 
-
-
 load_dotenv()  # Load environment variables from .env file (if it exists)
 
 LOGGING_LEVEL = os.environ.get("LOGGING_LEVEL", "DEBUG")
@@ -17,7 +15,6 @@ class Config:
     POSTGRES_DB = os.environ.get("POSTGRES_DB", "chatbot_db")
     DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
     
-
     # Redis Configuration
     REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
     REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
