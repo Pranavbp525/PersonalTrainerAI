@@ -101,7 +101,7 @@ async def update_routine(routine_id: str, update_data: RoutineUpdateRequest):
     return response.json()
 
 
-# === Workout PUT ===
+# # === Workout PUT ===
 
 async def update_workout(workout_id: str, update_data: WorkoutUpdateRequest):
     url = f"https://api.hevyapp.com/v1/workouts/{workout_id}"
