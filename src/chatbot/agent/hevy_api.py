@@ -83,3 +83,53 @@ async def get_routines(page: int = 1, pageSize: int = 5):
         raise HTTPException(status_code=response.status_code, detail="Error fetching routines")
     
     return response.json()
+
+
+
+# === Routine PUT ===
+
+async def update_routine(routine_id: str, update_data: RoutineUpdateRequest):
+    url = f"https://api.hevyapp.com/v1/routines/{routine_id}"
+    payload = jsonable_encoder(update_data)
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.put(url, headers=HEADERS, json=payload)
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail="Error updating routine")
+    
+    return response.json()
+
+
+# === Workout PUT ===
+
+async def update_workout(workout_id: str, update_data: WorkoutUpdateRequest):
+    url = f"https://api.hevyapp.com/v1/workouts/{workout_id}"
+    payload = jsonable_encoder(update_data)
+
+    async with httpx.AsyncClient() as client:
+        response = await client.put(url, headers=HEADERS, json=payload)
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=f"Error updating workout: {response.text}"
+        )
+
+    return response.json()
+
+
+# === Routine POST ===
+
+async def create_routine(create_data: RoutineCreateRequest):
+    url = "https://api.hevyapp.com/v1/routines"
+    payload = jsonable_encoder(create_data)
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=HEADERS, json=payload)
+    
+    if response.status_code not in (200, 201):
+        raise HTTPException(status_code=response.status_code, detail=f"Error creating routine: {response.text}")
+    
+    return response.json()
+
