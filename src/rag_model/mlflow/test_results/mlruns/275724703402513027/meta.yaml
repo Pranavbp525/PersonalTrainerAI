@@ -1,0 +1,6 @@
+artifact_location: file:D:/PersonalTrainerAI/PersonalTrainerAI/src/rag_model/mlflow/results/artifacts
+creation_time: 1743215186107
+experiment_id: '275724703402513027'
+last_update_time: 1743215186107
+lifecycle_stage: active
+name: rag_evaluation

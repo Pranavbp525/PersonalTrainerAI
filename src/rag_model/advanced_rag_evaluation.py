@@ -26,6 +26,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from src.rag_model.mlflow.mlflow_rag_tracker import MLflowRAGTracker
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -137,6 +139,12 @@ class AdvancedRAGEvaluator:
         )
         
         logger.info(f"AdvancedRAGEvaluator initialized with {len(self.test_queries)} test queries")
+        
+        # Initialize MLflow tracker
+        self.mlflow_tracker = MLflowRAGTracker(
+            experiment_name="rag_evaluation",
+            tracking_uri="http://localhost:5000"
+        )
     
     def _initialize_rag_implementations(self):
         """Initialize RAG implementations with proper imports."""
@@ -1100,7 +1108,7 @@ class AdvancedRAGEvaluator:
             logger.error(f"Error retrieving contexts from {implementation_name}: {e}")
             return []
     
-    def evaluate_implementation(self, implementation_name: str) -> Dict[str, Any]:
+    def evaluate_implementation(self,rag_instance, implementation_name: str) -> Dict[str, Any]:
         """
         Evaluate a specific RAG implementation.
         
@@ -1171,12 +1179,31 @@ class AdvancedRAGEvaluator:
         # Calculate average response time
         average_response_time = total_response_time / len(self.test_queries)
         
+        # Extract parameters from the RAG implementation
+        parameters = {
+            "embedding_model": getattr(rag_instance, "embedding_model", "unknown"),
+            "llm_model": getattr(rag_instance, "llm_model", "unknown"),
+            "chunk_size": getattr(rag_instance, "chunk_size", 0),
+            "chunk_overlap": getattr(rag_instance, "chunk_overlap", 0),
+            "retrieval_k": getattr(rag_instance, "retrieval_k", 0),
+            "temperature": getattr(rag_instance, "temperature", 0.0)
+        }
+        
+        # Log the results to MLflow
+        self.mlflow_tracker.log_rag_evaluation_results(
+            results=results,
+            implementation_name=implementation_name,
+            parameters=parameters
+        )
+        
         return {
             "implementation": implementation_name,
             "results": results,
             "average_scores": average_scores,
             "average_response_time": average_response_time
         }
+    
+
     
     def compare_implementations(self) -> Dict[str, Any]:
         """
