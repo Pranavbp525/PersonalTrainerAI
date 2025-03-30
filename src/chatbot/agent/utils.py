@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import os
-from agent.agent_models import (TrainingPrinciples,
+from .agent_models import (TrainingPrinciples,
                     TrainingApproaches,
                     Citations,
                     BasicRoutine,
@@ -14,7 +14,7 @@ from agent.agent_models import (TrainingPrinciples,
 from pinecone import Pinecone, ServerlessSpec
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
-from agent.agent_models import AgentState
+from .agent_models import AgentState
 from typing import List, Dict
 from datetime import datetime, timedelta
 

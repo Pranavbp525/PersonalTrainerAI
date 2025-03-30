@@ -1,7 +1,11 @@
 # redis_utils.py
 import redis
 import logging
-from config import config  # Import the config
+#from config import config  
+# # Import the config
+from chatbot.config import config
+
+
 
 log = logging.getLogger(__name__)
 

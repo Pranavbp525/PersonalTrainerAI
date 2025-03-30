@@ -6,7 +6,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.dialects.postgresql import UUID  # Import UUID type
 # from config import config # Import the config
+
+#from config import config
 from chatbot.config import config
+
 from pydantic import BaseModel, Field  # For data validation (optional)
 
 Base = declarative_base()

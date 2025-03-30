@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import httpx
 from fastapi.encoders import jsonable_encoder
  
-from agent.agent_models import (SetUpdate, 
+from .agent_models import (SetUpdate, 
                     ExerciseUpdate, 
                     WorkoutUpdate,
                     WorkoutUpdateRequest,

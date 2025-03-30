@@ -19,12 +19,12 @@ import re
 
 import uuid
 from pydantic import BaseModel, Field
-from agent.agent_models import (
+from .agent_models import (
     SetRoutineCreate, ExerciseRoutineCreate, RoutineCreate, RoutineCreateRequest,
     SetRoutineUpdate, ExerciseRoutineUpdate, RoutineUpdate, RoutineUpdateRequest
 )
-from agent.agent_models import AgentState, UserProfile
-from agent.utils import (extract_adherence_rate,
+from .agent_models import AgentState, UserProfile
+from .utils import (extract_adherence_rate,
                    extract_adjustments,
                    extract_approaches,
                    extract_citations,
@@ -35,7 +35,7 @@ from agent.utils import (extract_adherence_rate,
                    extract_routine_structure,
                    extract_routine_updates,
                    retrieve_data)
-from agent.prompts import (
+from .prompts import (
     get_adaptation_prompt,
     get_analysis_prompt,
     get_coach_prompt,
@@ -47,7 +47,7 @@ from agent.prompts import (
 )
 
 
-from agent.llm_tools import (
+from .llm_tools import (
     tool_fetch_workouts,
     tool_get_workout_count,
     tool_fetch_routines,

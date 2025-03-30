@@ -1,21 +1,43 @@
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
-from agent.agent_models import AgentState
+#from agent.agent_models import AgentState
+from .agent_models import AgentState
+
 from datetime import datetime, timedelta
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from agent.personal_trainer_agent import (coach_agent,
-                                    coordinator,
-                                    user_modeler,
-                                    research_agent,
-                                    planning_agent,
-                                    adaptation_agent,
-                                    progress_analysis_agent,
-                                    end_conversation)
+# from agent.personal_trainer_agent import (coach_agent,
+#                                     coordinator,
+#                                     user_modeler,
+#                                     research_agent,
+#                                     planning_agent,
+#                                     adaptation_agent,
+#                                     progress_analysis_agent,
+#                                     end_conversation)
 
 
-from agent.llm_tools import (
+# from agent.llm_tools import (
+#     tool_fetch_workouts,
+#     tool_get_workout_count,
+#     tool_fetch_routines,
+#     tool_update_routine,
+#     tool_create_routine,
+#     retrieve_from_rag
+# )
+
+from .personal_trainer_agent import (
+    coach_agent,
+    coordinator,
+    user_modeler,
+    research_agent,
+    planning_agent,
+    adaptation_agent,
+    progress_analysis_agent,
+    end_conversation
+)
+
+from .llm_tools import (
     tool_fetch_workouts,
     tool_get_workout_count,
     tool_fetch_routines,
@@ -23,7 +45,6 @@ from agent.llm_tools import (
     tool_create_routine,
     retrieve_from_rag
 )
-
 
 
 

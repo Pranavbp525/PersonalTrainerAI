@@ -4,17 +4,25 @@ import requests
 import openai  # Import the OpenAI library
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from models import get_db, Message, MessageCreate, MessageResponse, User, Session as DBSession
-from redis_utils import store_chat_history, get_chat_history
-from config import config
+
+#from models import get_db, Message, MessageCreate, MessageResponse, User, Session as DBSession
+from chatbot.models import get_db, Message, MessageCreate, MessageResponse, User, Session as DBSession
+
+
+#from redis_utils import store_chat_history, get_chat_history
+from chatbot.redis_utils import store_chat_history, get_chat_history
+
+
+#from config import config
+from chatbot.config import config
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from fastapi import Request
 
-from agent.graph import build_fitness_trainer_graph, get_or_create_state, save_state
-from agent.personal_trainer_agent import end_conversation
-from agent.agent_models import AgentState
-from agent.prompts import push_all_prompts
+from chatbot.agent.graph import build_fitness_trainer_graph, get_or_create_state, save_state
+from chatbot.agent.personal_trainer_agent import end_conversation
+from chatbot.agent.agent_models import AgentState
+from chatbot.agent.prompts import push_all_prompts
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 # Define a Pydantic model for user creation
 class UserCreate(BaseModel):

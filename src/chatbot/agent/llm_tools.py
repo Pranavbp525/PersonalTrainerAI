@@ -1,11 +1,11 @@
 from langchain.tools import tool
-from agent.hevy_api import get_workouts, create_routine, update_routine, get_workout_count, get_routines
+from .hevy_api import get_workouts, create_routine, update_routine, get_workout_count, get_routines
 from pydantic import BaseModel
 from pinecone import Pinecone, ServerlessSpec
 from fastapi import HTTPException
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from dotenv import load_dotenv
-from agent.agent_models import (
+from .agent_models import (
     SetUpdate,
     ExerciseUpdate,
     WorkoutUpdate,
