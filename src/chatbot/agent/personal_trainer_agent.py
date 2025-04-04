@@ -8,22 +8,26 @@ specialized components for fitness training, RAG integration, and Hevy API usage
 from typing import Annotated, List, Dict, Any, Optional, Literal, Union, TypedDict
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from langgraph.types import Command, interrupt
-
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph.message import add_messages
+# from langchain_core.pydantic_v1 import BaseModel, Field # Use v1 Pydantic with LangChain/Graph typically
+from langchain.output_parsers.pydantic import PydanticOutputParser
 from datetime import datetime, timedelta
 from langchain_openai import ChatOpenAI
 import json
 import os
 import logging
 import re
+import asyncio
 
 import uuid
 from pydantic import BaseModel, Field
 from agent.agent_models import (
     SetRoutineCreate, ExerciseRoutineCreate, RoutineCreate, RoutineCreateRequest,
-    SetRoutineUpdate, ExerciseRoutineUpdate, RoutineUpdate, RoutineUpdateRequest
+    SetRoutineUpdate, ExerciseRoutineUpdate, RoutineUpdate, RoutineUpdateRequest,
+    PlannerExerciseRoutineCreate, PlannerRoutineCreate, PlannerSetRoutineCreate, PlannerOutputContainer, HevyRoutineApiPayload
 )
-from agent.agent_models import AgentState, UserProfile
+from agent.agent_models import AgentState, UserProfile, DeepFitnessResearchState, StreamlinedRoutineState
 from agent.utils import (extract_adherence_rate,
                    extract_adjustments,
                    extract_approaches,
@@ -34,7 +38,8 @@ from agent.utils import (extract_adherence_rate,
                    extract_routine_data,
                    extract_routine_structure,
                    extract_routine_updates,
-                   retrieve_data)
+                   retrieve_data,
+                   get_exercise_template_by_title_fuzzy)
 from agent.prompts import (
     get_adaptation_prompt,
     get_analysis_prompt,
@@ -43,7 +48,8 @@ from agent.prompts import (
     get_memory_consolidation_prompt,
     get_planning_prompt,
     get_research_prompt,
-    get_user_modeler_prompt
+    get_user_modeler_prompt,
+    summarize_routine_prompt
 )
 
 
@@ -185,7 +191,85 @@ async def user_modeler(state: AgentState) -> AgentState:
 async def coordinator(state: AgentState) -> AgentState:
     """Central coordinator that manages the overall interaction flow, assessment, and memory."""
     logger.info(f"Coordinator Agent - Input State: {state}")
+
+    # logger.info(f"Coordinator Agent - Input State (Partial): current_agent={state.get('current_agent')}, research_topic={state.get('research_topic')}")
+
+    # --- Check if returning from Planning Subgraph ---
+    # Detect return by checking if hevy_results exists and is not None
+    # (It would be None otherwise or before the subgraph runs)
+    returned_hevy_results = state.get("hevy_results")
+    if returned_hevy_results is not None:
+        logger.info("Coordinator: Detected return from planning_subgraph (hevy_results is present).")
+
+        # Store the payloads in working memory for persistence/future reference
+        working_memory = state.get("working_memory", {})
+        generated_routines_key = f"generated_hevy_routines_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        working_memory[generated_routines_key] = returned_hevy_results
+        logger.info(f"Stored generated routines in working_memory under key: {generated_routines_key}")
+
+        # Prepare state for summarization
+        payloads_json = json.dumps(returned_hevy_results, indent=2)
+        summary_prompt_filled = summarize_routine_prompt.format(hevy_results_json=payloads_json)
+
+        user_facing_summary = "An error occurred while summarizing the generated plan." # Default error message
+        try:
+            logger.info("Coordinator: Generating user-facing summary of routines...")
+            summary_response = await llm.ainvoke([SystemMessage(content=summary_prompt_filled)])
+            user_facing_summary = summary_response.content.strip()
+            logger.info("Coordinator: Summary generated successfully.")
+
+        except Exception as summary_err:
+            logger.error(f"Coordinator: Error generating routine summary: {summary_err}", exc_info=True)
+            # Keep the default error message
+
+        # --- Prepare the state update ---
+        # Start with the current state
+        next_state = {**state}
+        # Update messages with the summary
+        next_state["messages"] = add_messages(state.get("messages", []), [AIMessage(content=f"<user>{user_facing_summary}</user>")])
+        # Store the updated working memory
+        next_state["working_memory"] = working_memory
+        # Clear the subgraph output from the main state level
+        next_state["hevy_results"] = None
+        # Keep errors for now, might need review
+        # next_state["errors"] = state.get("errors", [])
+        # Route back to coordinator to decide the *next* step after summarizing
+        next_state["current_agent"] = "end_conversation"
+
+        logger.info("Coordinator Agent - Output State (After Planning Summary): Routing back to end-conversation to show results to user.")
+        return next_state
+
+
+    # --- Check if returning from Deep Research --- <<<< ADD THIS BLOCK AT START >>>>
+    final_report = state.get("final_report")
+    if final_report is not None: # Check specifically for non-None
+        logger.info("Coordinator: Received final report from deep_research subgraph.")
+        # Integrate the report into working memory
+        working_memory = state.get("working_memory", {})
+        research_findings = working_memory.get("research_findings", {}) # Get current findings dict
+        research_findings["report"] = final_report
+        research_findings["report_timestamp"] = datetime.now().isoformat()
+
+        working_memory["research_findings"] = research_findings
+        working_memory["research_needs"] = None # Clear the needs trigger that started research
+
+        # Clean up subgraph communication keys from the main state
+        clean_state = {k: v for k, v in state.items() if k not in ['final_report', 'research_topic', 'user_profile_str']}
+        clean_state["working_memory"] = working_memory # Add updated WM back
+
+        logger.info("Coordinator: Integrated report, clearing subgraph keys.")
+
+        # Decide next step - likely planning now that research is done
+        ai_message = AIMessage(content="<user>Okay, I've completed the research based on your profile and needs. Now I can create a plan, or would you like to discuss the findings?</user>")
+        clean_state["messages"] = add_messages(clean_state.get("messages", []), [ai_message])
+        clean_state["current_agent"] = "planning_agent" # Route to planning
+
+        logger.info(f"Coordinator Agent - Output State (After Research): Routing to {clean_state['current_agent']}")
+        return clean_state # Return updated state
+
     
+    logger.info("Coordinator: Detected nothing. Resuming Normal Flow.")
+
     # =================== MEMORY MANAGEMENT SECTION ===================
     # Process recent messages for context
     recent_exchanges = []
@@ -250,12 +334,19 @@ async def coordinator(state: AgentState) -> AgentState:
     # Normal flow - use LLM for ALL routing decisions including to user modeler
     coordinator_prompt = get_coordinator_prompt()
 
+    # coordinator_prompt_obj = get_coordinator_prompt()
+    # logger.info(f"Coordinator received prompt object of type: {type(coordinator_prompt_obj)}") # Verify type before format
+
+
+
     filled_prompt = coordinator_prompt.format(
         user_model=json.dumps(state.get("user_model", {})),
-        fitness_plan=json.dumps(state.get("fitness_plan", {})),
+        fitness_plan=json.dumps(state.get("hevy_results", {})),
         recent_exchanges=json.dumps(working_memory.get("recent_exchanges", [])),
         research_findings=json.dumps(working_memory.get("research_findings", {}))
     )
+
+    # logger.error(f"\033[91mCO-ORDINATOR PROMPT CHECK - \n {filled_prompt}\033[0m")
 
     # Invoke LLM with the filled prompt and conversation history
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
@@ -282,14 +373,14 @@ async def coordinator(state: AgentState) -> AgentState:
     
     # Extract agent tag
     agent_tags = {
-        "[Assessment]": "assessment",
-        "[Research]": "research_agent",
-        "[Planning]": "planning_agent",
-        "[Progress]": "progress_analysis_agent",
-        "[Adaptation]": "adaptation_agent",
-        "[Coach]": "coach_agent",
-        "[User Modeler]": "user_modeler",
-        "[Complete]": "end_conversation"
+        "<Assessment>": "assessment",
+        "<Research>": "deep_research",
+        "<Planning>": "planning_agent",
+        "<Progress>": "progress_analysis_agent",
+        "<Adaptation>": "adaptation_agent",
+        "<Coach>": "coach_agent",
+        "<User Modeler>": "user_modeler",
+        "<Complete>": "end_conversation"
     }
     
     for tag, agent in agent_tags.items():
@@ -301,6 +392,54 @@ async def coordinator(state: AgentState) -> AgentState:
     
     # Update agent state
     agent_state = state.get("agent_state", {})
+
+    # --- Prepare Subgraph Input if Routing to Deep Research --- <<<< MODIFY/ADD THIS BLOCK >>>>
+    next_state_update = {} # Prepare dictionary for state updates
+    working_memory = state.get("working_memory", {}) # Get current WM
+
+    if selected_agent == "deep_research":
+        # Determine the research topic
+        topic = research_needs if research_needs else working_memory.get('research_needs')
+        if not topic:
+             # Fallback: base topic on user goals if no specific needs identified
+             user_goals = state.get("user_model", {}).get("goals")
+             if user_goals:
+                 topic = f"Research fitness principles for achieving goals: {', '.join(user_goals)}"
+             else:
+                 topic = "General fitness planning based on user profile."
+             logger.warning(f"No specific research needs found, using derived/default topic: {topic}")
+
+        logger.info(f"Coordinator: Preparing state for deep_research subgraph. Topic: '{topic}'")
+
+        # Set the shared state keys for the subgraph
+        next_state_update["research_topic"] = topic
+        next_state_update["user_profile_str"] = json.dumps(state.get("user_model", {})) # Use the JSON string created earlier
+
+        # Ensure working memory has the trigger cleared/updated if needed
+        working_memory["research_needs"] = topic # Store the definitive topic used
+
+        # Clear any old report from previous runs
+        next_state_update["final_report"] = None
+
+    elif selected_agent == "planning_agent":
+         logger.info("Coordinator: Preparing state for planning_subgraph.")
+         
+         # Clear previous outputs explicitly before calling subgraph
+         next_state_update["hevy_results"] = None
+
+         # Ensure other subgraph inputs are cleared
+         next_state_update["research_topic"] = None
+         next_state_update["user_profile_str"] = None
+         next_state_update["final_report"] = None
+
+    else:
+        # Clear subgraph keys if routing elsewhere (important for clean state)
+        next_state_update["research_topic"] = None
+        next_state_update["user_profile_str"] = None
+        next_state_update["final_report"] = None
+        # Clear research needs from WM if not routing to research? Optional.
+        # working_memory["research_needs"] = None
+
     
     # Safety check - if assessment is incomplete and we're not routing to user_modeler,
     # force assessment to ensure we collect all required information
@@ -310,15 +449,15 @@ async def coordinator(state: AgentState) -> AgentState:
         required_fields = ["goals", "fitness_level", "available_equipment", "training_environment", "schedule", "constraints"]
         missing_fields = [field for field in required_fields if field not in user_model or not user_model.get(field)]
         
-        if missing_fields:
+        if missing_fields and selected_agent!= "assessment":
             # Force assessment if fields are missing
             selected_agent = "assessment"
             logger.info(f"Forcing assessment due to missing fields: {missing_fields}")
 
     # If research is selected, store research needs in working memory
-    if selected_agent == "research_agent" and research_needs:
-        working_memory["research_needs"] = research_needs
-        logger.info(f"Added research needs to working memory: {research_needs}")
+    # if selected_agent == "deep_research" and research_needs:
+    #     working_memory["research_needs"] = research_needs
+    #     logger.info(f"Added research needs to working memory: {research_needs}")
     
     if selected_agent == "assessment":
         agent_state["needs_human_input"] = True
@@ -335,7 +474,11 @@ async def coordinator(state: AgentState) -> AgentState:
         "working_memory": working_memory | {  # Merge with new working_memory data
             "internal_reasoning": internal_reasoning,
             "selected_agent": selected_agent
-        }
+        },
+        "research_topic": next_state_update['research_topic'] if 'research_topic' in next_state_update.keys() else None,
+        "user_profile_str": next_state_update['user_profile_str'] if 'user_profile_str' in next_state_update.keys() else None,
+        "final_report": next_state_update['final_report'] if 'final_report' in next_state_update.keys() else None,
+        "hevy_results": next_state_update['hevy_results'] if 'hevy_results' in next_state_update.keys() else None
     }
     
     logger.info(f"Coordinator Agent - Output State: {updated_state}")
@@ -395,7 +538,8 @@ async def research_agent(state: AgentState) -> AgentState:
                 research_results.append({
                     "query": query,
                     "result": result,
-                    "source": result.get("source", "Unknown")
+                    "source": "Pinecone RAG"
+                    # "source": result.get("source", "Unknown") # Add source field to pinecone metadata later for citations
                 })
         except Exception as e:
             research_results.append({
@@ -446,7 +590,7 @@ async def planning_agent(state: AgentState) -> AgentState:
     
     try:
         
-        fitness_plan = state.get("fitness_plan", {})
+        fitness_plan = state.get("hevy_payloads", {})
         fitness_plan["content"] = response.content
         
         fitness_plan["created_at"] = datetime.now().isoformat()
@@ -458,7 +602,7 @@ async def planning_agent(state: AgentState) -> AgentState:
         updated_state = {
             **state,
             "messages": state["messages"] + [AIMessage(content="PLANNERS OUTPUT:\n"+response.content)],
-            "fitness_plan": fitness_plan
+            "hevy_payloads": fitness_plan
         }
         logger.info(f"Planning Agent - Output State: {updated_state}")
         return updated_state
@@ -490,7 +634,7 @@ async def progress_analysis_agent(state: AgentState) -> AgentState:
 
     filled_prompt = analysis_prompt.format(
         user_profile = json.dumps(state.get("user_model", {})),
-        fitness_plan = json.dumps(state.get("fitness_plan", {})),
+        fitness_plan = json.dumps(state.get("hevy_payloads", {})),
         workout_logs = json.dumps(workout_logs)
     )
     
@@ -530,7 +674,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
     
     filled_prompt = adaptation_prompt.format(
         user_profile = json.dumps(state.get("user_model", {})),
-        fitness_plan = json.dumps(state.get("fitness_plan", {})),
+        fitness_plan = json.dumps(state.get("hevy_payloads", {})),
         progress_data = json.dumps(state.get("progress_data", {})),
         suggested_adjustments = json.dumps(state.get("progress_data", {})
                                                    .get("latest_analysis", {})
@@ -547,7 +691,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
     # Update routine in Hevy
     try:
         # Get current routine ID
-        routine_id = state.get("fitness_plan", {}).get("hevy_routine_id")
+        routine_id = state.get("hevy_payloads", {}).get("hevy_routine_id")
         
         if routine_id:
             # Convert to appropriate format for Hevy API
@@ -586,7 +730,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
             hevy_result = await tool_update_routine(routine_id, update_request)
             
             # Update fitness plan with modifications
-            fitness_plan = state.get("fitness_plan", {})
+            fitness_plan = state.get("hevy_payloads", {})
             fitness_plan["content"] = response.content
             fitness_plan["updated_at"] = datetime.now().isoformat()
             fitness_plan["version"] = fitness_plan.get("version", 0) + 1
@@ -595,7 +739,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
             updated_state = {
                 **state,
                 "messages": state["messages"] + [AIMessage(content=response.content)],
-                "fitness_plan": fitness_plan
+                "hevy_payloads": fitness_plan
             }
             logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
             return updated_state
@@ -656,5 +800,651 @@ async def end_conversation(state: AgentState) -> AgentState:
     state["conversation_complete"] = True
     logging.info(f"End Conversation. Output State: {state}")
     return state  # Return the modified state, not END
+
+
+
+##################################### Deep Research Agent ######################################
+async def plan_research_steps(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    """
+    Uses LLM to break down the research topic into sub-questions.
+    Initializes the internal state for the research loop, including limits.
+    """
+    logger.info("--- Deep Research: Planning Steps ---")
+    topic = state['research_topic']
+    user_profile = state['user_profile_str']
+
+    prompt = f"""Given the main research topic: '{topic}' for a user with this profile:
+<user_profile>
+{user_profile}
+</user_profile>
+
+Break this down into 3-5 specific, actionable sub-questions relevant to fitness science that can likely be answered using our internal knowledge base (RAG system). Focus on aspects like training principles, exercise selection, progression, nutrition timing, recovery, etc., as relevant to the topic.
+
+Output ONLY a JSON list of strings, where each string is a sub-question. Example:
+["What are the optimal rep ranges for muscle hypertrophy based on recent studies?", "How does protein timing affect muscle protein synthesis post-workout?", "What are common exercise modifications for individuals with lower back pain?"]
+"""
+    try:
+        response = await llm.ainvoke([SystemMessage(content=prompt)])
+        sub_questions_str = response.content.strip()
+        logger.debug(f"LLM response for planning: {sub_questions_str}")
+        # Basic parsing, consider adding more robust JSON cleaning if needed
+        sub_questions = json.loads(sub_questions_str)
+        if not isinstance(sub_questions, list) or not all(isinstance(q, str) for q in sub_questions):
+            raise ValueError("LLM did not return a valid JSON list of strings.")
+        logger.info(f"Planned sub-questions: {sub_questions}")
+
+    except Exception as e:
+        logger.error(f"Error planning research steps: {e}. Using topic as single question.")
+        sub_questions = [topic] # Fallback
+
+    # Initialize state, getting limits from config or using defaults
+    run_config = config.get("configurable", {}) if config else {}
+    max_iterations = run_config.get("max_iterations", 5)
+    max_queries_per_sub_q = run_config.get("max_queries_per_sub_question", 2) # Default to 2 queries/sub-question
+
+    return {
+        "sub_questions": sub_questions,
+        "accumulated_findings": f"Initial research topic: {topic}\nUser Profile Summary: {user_profile}\n\nStarting research...\n",
+        "iteration_count": 0,
+        "current_sub_question_idx": 0,
+        "reflections": [],
+        "research_complete": False,
+        "queries_this_sub_question": 0,
+        "sub_question_complete_flag": False, # Initialize flag
+        "max_iterations": max_iterations,
+        "max_queries_per_sub_question": max_queries_per_sub_q
+    }
+
+async def generate_rag_query_v2(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    """
+    Generates RAG query for the current sub-question and increments counters.
+    """
+    logger.info("--- Deep Research: Generating RAG Query (v2) ---")
+    # Increment overall iteration count
+    new_iteration_count = state.get('iteration_count', 0) + 1
+    # Increment per-sub-question query count
+    queries_count_this_sub_q = state.get('queries_this_sub_question', 0) + 1
+
+    if not state.get('sub_questions'):
+        logger.warning("No sub_questions found, cannot generate query.")
+        return {"current_rag_query": None, "iteration_count": new_iteration_count, "queries_this_sub_question": queries_count_this_sub_q}
+
+    current_idx = state['current_sub_question_idx']
+    if current_idx >= len(state['sub_questions']):
+         logger.info("All sub-questions processed based on index.")
+         # Should be caught by router, but handle defensively
+         return {"current_rag_query": None, "research_complete": True, "iteration_count": new_iteration_count, "queries_this_sub_question": queries_count_this_sub_q}
+
+    current_sub_question = state['sub_questions'][current_idx]
+    findings = state['accumulated_findings']
+    reflections_str = "\n".join(state.get('reflections', []))
+
+    prompt = f"""You are a research assistant formulating queries for an internal fitness science knowledge base (RAG system accessed via the `retrieve_data` function).
+
+Current Research Sub-Question: "{current_sub_question}"
+Query attempt number {queries_count_this_sub_q} for this sub-question.
+
+Accumulated Findings So Far:
+<findings>
+{findings}
+</findings>
+
+Previous Reflections on Progress:
+<reflections>
+{reflections_str}
+</reflections>
+
+Based on the *current sub-question* and the information gathered or reflected upon so far, formulate the single, most effective query string to retrieve the *next piece* of relevant scientific information from our fitness RAG system. Be specific and targeted. If previous attempts failed to yield useful info, try a different angle.
+
+Output *only* the query string itself, without any explanation or preamble.
+"""
+    try:
+        response = await llm.ainvoke([SystemMessage(content=prompt)])
+        query = response.content.strip()
+        # Basic check for empty query
+        if not query:
+            raise ValueError("LLM returned an empty query.")
+        logger.info(f"Generated RAG query: {query}")
+        query_to_run = query
+    except Exception as e:
+        logger.error(f"Error generating RAG query: {e}. Using fallback.")
+        query_to_run = f"Details about {current_sub_question}" # Fallback
+
+    return {
+        "current_rag_query": query_to_run,
+        "iteration_count": new_iteration_count, # Return updated overall count
+        "queries_this_sub_question": queries_count_this_sub_q # Return updated per-question count
+        }
+
+async def execute_rag_direct(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    """
+    Directly executes the retrieve_data function using the current_rag_query.
+    """
+    logger.info("--- Deep Research: Executing RAG Query ---")
+    query = state.get('current_rag_query')
+
+    if not query:
+        logger.warning("No RAG query provided in state. Skipping execution.")
+        return {"rag_results": "No query was provided."}
+
+    try:
+        # Directly call the imported async RAG function
+        logger.debug(f"Calling retrieve_data with query: {query}")
+        rag_output = await retrieve_data(query=query)
+
+        logger.info(f"RAG execution successful. Result length: {len(rag_output)}")
+        # Handle potential empty results from RAG
+        if not rag_output or rag_output.strip() == "":
+            logger.warning(f"RAG query '{query}' returned empty results.")
+            return {"rag_results": f"No information found in knowledge base for query: '{query}'"}
+
+        return {"rag_results": rag_output}
+    except Exception as e:
+        logger.error(f"Error executing RAG query '{query}': {e}", exc_info=True)
+        return {"rag_results": f"Error retrieving information for query '{query}': {str(e)}"}
+
+async def synthesize_rag_results(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    """
+    Uses LLM to integrate the latest RAG results into the accumulated findings.
+    """
+    logger.info("--- Deep Research: Synthesizing RAG Results ---")
+    rag_results = state.get('rag_results')
+    if not rag_results or "No query was provided" in rag_results or "No information found" in rag_results or "Error retrieving information" in rag_results:
+        logger.warning(f"Skipping synthesis due to missing or problematic RAG results: {rag_results}")
+        # Optionally add a marker about the failed query
+        error_marker = f"\n\n[Skipped synthesis for query: '{state.get('current_rag_query', 'N/A')}' due to RAG result: {rag_results}]\n"
+        return {"accumulated_findings": state['accumulated_findings'] + error_marker}
+
+    current_idx = state['current_sub_question_idx']
+    current_sub_question = state['sub_questions'][current_idx] if state.get('sub_questions') and current_idx < len(state['sub_questions']) else "the current topic"
+    findings = state['accumulated_findings']
+
+    prompt = f"""You are a research assistant synthesizing information for a fitness report.
+
+Current Research Sub-Question: "{current_sub_question}"
+
+Existing Accumulated Findings:
+<existing_findings>
+{findings}
+</existing_findings>
+
+Newly Retrieved Information from Knowledge Base (RAG):
+<new_info>
+{rag_results}
+</new_info>
+
+Task: Integrate the key points from the "Newly Retrieved Information" into the "Existing Accumulated Findings". Focus *only* on information directly relevant to the "Current Research Sub-Question". Update the findings concisely and maintain a logical flow. Avoid redundancy. If the new info isn't relevant or adds nothing substantially new, state that briefly within the updated findings.
+
+Output *only* the complete, updated accumulated findings text. Do not include headers like "Updated Findings".
+"""
+    try:
+        response = await llm.ainvoke([SystemMessage(content=prompt)])
+        updated_findings = response.content.strip()
+        logger.debug(f"Synthesized findings length: {len(updated_findings)}")
+        # Append a marker indicating which query produced this update
+        query_marker = f"\n\n[Synthesized info based on RAG query: '{state.get('current_rag_query', 'N/A')}']\n"
+        return {"accumulated_findings": updated_findings + query_marker}
+    except Exception as e:
+        logger.error(f"Error synthesizing RAG results: {e}")
+        # Append error message instead of synthesizing
+        error_marker = f"\n\n[Error synthesizing results for query: '{state.get('current_rag_query', 'N/A')}'. RAG Results: {rag_results}. Error: {e}]\n"
+        return {"accumulated_findings": findings + error_marker}
+
+
+async def reflect_on_progress_v2(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    """
+    Reflects on progress, decides if sub-question is complete (naturally or by force),
+    and updates the index and per-question query count accordingly.
+    """
+    logger.info("--- Deep Research: Reflecting on Progress (v2) ---")
+    current_idx = state['current_sub_question_idx']
+    sub_questions = state.get('sub_questions', [])
+
+    # Pre-check: If index is already out of bounds, something went wrong before, signal completion
+    if not sub_questions or current_idx >= len(sub_questions):
+        logger.warning("Cannot reflect, index out of bounds or no sub-questions.")
+        return {
+            "reflections": ["Reflection skipped: Index out of bounds."],
+            "sub_question_complete_flag": True,
+            "current_sub_question_idx": current_idx, # Keep index as is
+            "queries_this_sub_question": 0 # Reset counter
+            }
+
+    current_sub_question = sub_questions[current_idx]
+    findings = state['accumulated_findings']
+    queries_this_sub_q = state.get('queries_this_sub_question', 0)
+    max_queries_sub_q = state.get('max_queries_per_sub_question', 2)
+
+    # Check if the per-question limit is hit *before* asking the LLM
+    force_next_question = queries_this_sub_q >= max_queries_sub_q
+
+    prompt = f"""You are an expert research assistant evaluating the progress on a specific fitness research sub-question.
+
+Current Sub-Question: "{current_sub_question}"
+Number of queries made for this sub-question: {queries_this_sub_q} (Max recommended: {max_queries_sub_q})
+
+Accumulated Findings Gathered So Far:
+<findings>
+{findings}
+</findings>
+
+Task: Critically evaluate the findings related *specifically* to the current sub-question.
+1.  Assess Sufficiency: Is the sub-question adequately answered based on the findings?
+2.  Identify Gaps: What specific, crucial information related to this sub-question is still missing or unclear?
+3.  Suggest Next Step: Based on the gaps, should we:
+    a) Perform another RAG query for *this* sub-question? (If yes, briefly suggest *what* to query for).
+    b) Conclude this sub-question and move to the next?
+
+{"Note: Max queries for this sub-question reached. You should lean towards concluding unless a major, critical gap remains." if force_next_question else ""}
+
+Format your response clearly, addressing points 1, 2, and 3. Start your response with "CONCLUSION:" followed by either "CONTINUE_SUB_QUESTION" or "SUB_QUESTION_COMPLETE".
+
+Example 1 (Needs More):
+CONCLUSION: CONTINUE_SUB_QUESTION
+Sufficiency: Partially answered...
+Gaps: Need details on...
+Next Step: Perform another RAG query focusing on...
+
+Example 2 (Sufficient):
+CONCLUSION: SUB_QUESTION_COMPLETE
+Sufficiency: Yes, the findings cover the core aspects adequately.
+Gaps: Minor details could be explored, but not critical.
+Next Step: Conclude this sub-question.
+"""
+    try:
+        response = await llm.ainvoke([SystemMessage(content=prompt)])
+        reflection_text = response.content.strip()
+        logger.info(f"Reflection on '{current_sub_question}':\n{reflection_text}")
+
+        # Determine natural completion based on LLM response
+        natural_completion = "CONCLUSION: SUB_QUESTION_COMPLETE" in reflection_text.upper()
+
+        # Final decision: complete if natural OR if forced by limit
+        is_complete = natural_completion or force_next_question
+
+        if force_next_question and not natural_completion:
+             logger.warning(f"Forcing completion of sub-question {current_idx + 1} due to query limit ({max_queries_sub_q}).")
+             # Optionally add note to reflection
+             reflection_text += "\n\n[Note: Sub-question concluded due to query limit.]"
+
+        # Update index and reset counter *only* if moving to next question
+        next_idx = current_idx + 1 if is_complete else current_idx
+        queries_reset = 0 if is_complete else queries_this_sub_q # Reset only if index advances
+
+        return {
+            "reflections": [reflection_text], # Add new reflection
+            "sub_question_complete_flag": is_complete, # Use final decision
+            "current_sub_question_idx": next_idx,
+            "queries_this_sub_question": queries_reset
+            }
+    except Exception as e:
+        logger.error(f"Error reflecting on progress: {e}")
+        # Force completion on error to avoid loops
+        return {
+            "reflections": [f"Reflection Error: {e}. Assuming sub-question complete."],
+            "sub_question_complete_flag": True,
+            "current_sub_question_idx": current_idx + 1, # Advance index
+            "queries_this_sub_question": 0 # Reset counter
+            }
+
+
+async def finalize_research_report(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    """
+    Uses LLM to generate the final research report based on all findings.
+    """
+    logger.info("--- Deep Research: Finalizing Report ---")
+    topic = state['research_topic']
+    findings = state['accumulated_findings']
+    reflections = state.get('reflections', [])
+    sub_questions = state.get('sub_questions', [])
+
+    prompt = f"""You are a research assistant compiling a final report based *only* on information gathered from our internal fitness science knowledge base.
+
+Main Research Topic: "{topic}"
+
+Original Research Plan (Sub-questions):
+{json.dumps(sub_questions, indent=2)}
+
+Accumulated Findings (Synthesized from RAG results):
+<findings>
+{findings}
+</findings>
+
+Reflections During Research:
+<reflections>
+{json.dumps(reflections, indent=2)}
+</reflections>
+
+Task: Generate a comprehensive, well-structured research report addressing the main topic.
+- Use *only* the information presented in the "Accumulated Findings". Do not add external knowledge.
+- Structure the report logically, perhaps following the flow of the sub-questions, synthesizing related points.
+- Incorporate insights or limitations mentioned in the "Reflections" where appropriate (e.g., mention if a topic was concluded due to limits or lack of info).
+- Ensure the report is clear, concise, and scientifically grounded based *only* on the provided findings.
+- Start the report directly. Do not include a preamble like "Here is the final report".
+
+Output the final report text.
+"""
+    try:
+        response = await llm.ainvoke([SystemMessage(content=prompt)])
+        final_report = response.content.strip()
+        logger.info("Generated final research report.")
+
+        return {
+            "final_report": final_report,
+            "research_complete": True # Mark overall research as complete
+            }
+    except Exception as e:
+        logger.error(f"Error generating final report: {e}")
+        return {
+            "final_report": f"Error generating report: {e}\n\nRaw Findings:\n{findings}",
+            "research_complete": True # Mark complete even on error to exit loop
+            }
+
+
+
+
+##################################### Routine Planner and Creation Agent ######################################
+
+async def structured_planning_node(state: StreamlinedRoutineState) -> StreamlinedRoutineState:
+    """Generates the workout plan directly as a validated Pydantic object using with_structured_output."""
+    logger.info("--- Executing Structured Planning Node (using with_structured_output) ---")
+    # messages = state["messages"]
+    user_model_str = json.dumps(state.get("user_model", {}), indent=2)
+    research_findings_str = json.dumps(state.get("working_memory", {}).get("research_findings", {}), indent=2)
+    errors = state.get("errors", [])
+
+    # Prompt Template - Simplified: No explicit format instructions needed here usually
+    # Rely on the model descriptions and the structure passed via with_structured_output
+    PLANNING_PROMPT_TEMPLATE = """You are an expert personal trainer specializing in evidence-based workout programming.
+Based on the user profile and research findings provided below, create a detailed workout plan.
+
+**Critical Instructions:**
+1.  **Exercise Names:** For `exercise_name` in each exercise, use the MOST SPECIFIC name possible, including the equipment used (e.g., 'Bench Press (Barbell)', 'Squat (Barbell)', 'Lat Pulldown (Cable)', 'Arnold Press (Dumbbell)'). This is crucial for matching with the exercise database. Do NOT use generic names like 'Bench Press' or 'Row' without specifying equipment.
+2.  **Completeness:** Fill in all required fields based on the requested output structure. Provide reasonable defaults for optional fields if appropriate (e.g., rest times = 60s).
+3.  **Multiple Routines:** If the plan involves multiple workout days (e.g., Push/Pull/Legs), create a separate routine object within the `routines` list for each day.
+
+User Profile:
+{user_profile}
+
+Research Findings:
+{research_findings}
+
+Generate the workout plan adhering strictly to the required output structure based on the user profile and research findings.
+"""
+
+    prompt = PromptTemplate(
+        template=PLANNING_PROMPT_TEMPLATE,
+        input_variables=["user_profile", "research_findings"],
+        # No partial_variables for format_instructions needed here
+    )
+
+    prompt_str = prompt.format(user_profile=user_model_str, research_findings=research_findings_str)
+
+    # Prepare messages for the LLM
+    # Use the state's messages if you want history, or just the system prompt + human prompt
+    # For structured output, sometimes just the latest instruction is cleaner
+    current_messages_for_llm = [
+        SystemMessage(content=prompt_str),
+        # You might optionally include the initial human message from state['messages'][0]
+        # HumanMessage(content=state['messages'][0].content)
+    ]
+
+
+    try:
+        # *** Use with_structured_output ***
+        # Pass the desired Pydantic output model class
+        # Ensure your 'llm' instance supports this method and function/tool calling
+        structured_llm = llm.with_structured_output(PlannerOutputContainer)
+
+        # Ainvoke with the prepared messages
+        parsed_output_container = await structured_llm.ainvoke(current_messages_for_llm)
+
+        # Check the type just in case, although it should be the Pydantic object
+        if isinstance(parsed_output_container, PlannerOutputContainer):
+            planner_routines = parsed_output_container.routines
+            logger.info(f"Successfully received structured output with {len(planner_routines)} routine(s) via with_structured_output.")
+
+            structured_message_content = f"Planner generated {len(planner_routines)} routine(s) via structured output:\n" + \
+                                         "\n".join([f"- {r.title}" for r in planner_routines])
+            structured_message = AIMessage(content=structured_message_content) # Add summary to messages
+
+            return {
+                **state,
+                # "messages": messages + [structured_message], # Add summary to original messages
+                "planner_structured_output": planner_routines,
+                "errors": errors
+            }
+        else:
+            # This case should ideally not happen if with_structured_output works correctly
+            logger.error(f"llm.with_structured_output returned unexpected type: {type(parsed_output_container)}")
+            error_message = AIMessage(content="⚠️ Error: Planner returned an unexpected data type after requesting structured output.")
+            return {
+                **state,
+                # "messages": messages + [error_message],
+                "planner_structured_output": None,
+                "errors": errors + ["Structured Planning Node Failed: Unexpected return type from with_structured_output"]
+                }
+
+    # Catch potential errors during the LLM call or structuring process
+    except Exception as e:
+        logger.error(f"Error using llm.with_structured_output: {e}", exc_info=True)
+        # Check if the error message indicates a Pydantic schema issue (common if V1/V2 conflict)
+        error_detail = str(e)
+        if "model_json_schema" in error_detail or "schema_json" in error_detail:
+             error_detail += " (Possible Pydantic V1/V2 incompatibility with with_structured_output. Consider migrating models to standard Pydantic V2.)"
+
+        error_message = AIMessage(content=f"⚠️ Error: Failed to generate structured plan using with_structured_output.\nDetails: {error_detail}")
+        return {
+            **state,
+            # "messages": messages + [error_message],
+            "planner_structured_output": None,
+            "errors": errors + [f"Structured Planning Node Failed (with_structured_output): {error_detail}"]
+        }
+
+async def format_and_lookup_node(state: StreamlinedRoutineState) -> StreamlinedRoutineState:
+    """Looks up exercise IDs and formats routines for the Hevy API tool."""
+    logger.info("--- Executing Format & Lookup Node ---")
+    planner_routines: Optional[List[PlannerRoutineCreate]] = state.get("planner_structured_output")
+    # messages = state["messages"]
+    errors = state.get("errors", [])
+    hevy_payloads = []
+
+    if not planner_routines:
+        logger.warning("No structured planner output found to format.")
+        if not state.get("errors"): # Only add error if no previous error occurred
+             errors.append("Format/Lookup Node Error: No structured plan available from planner.")
+        return {**state, "hevy_payloads": [], "errors": errors}
+
+    routine_errors = []
+    processed_routine_count = 0
+    skipped_exercises = []
+
+    for planner_routine in planner_routines:
+        logger.info(f"Formatting routine: '{planner_routine.title}'")
+        hevy_exercises = []
+        superset_mapping = {}
+        next_superset_id_numeric = 0
+        exercise_skipped_in_this_routine = False
+
+        for planner_ex in planner_routine.exercises:
+            exercise_name = planner_ex.exercise_name # Name from Planner output
+            logger.debug(f"Processing exercise: '{exercise_name}'")
+
+            template_info = await get_exercise_template_by_title_fuzzy(exercise_name)
+
+            if not template_info or not template_info.get("id"):
+                err_msg = f"Exercise '{exercise_name}' in routine '{planner_routine.title}' could not be matched to a Hevy exercise template. Skipping exercise."
+                logger.warning(err_msg)
+                routine_errors.append(err_msg)
+                skipped_exercises.append(f"'{exercise_name}' (in routine '{planner_routine.title}')")
+                exercise_skipped_in_this_routine = True
+                continue
+
+            exercise_template_id = template_info["id"]
+            matched_title = template_info["title"] # Official Hevy title
+            logger.debug(f"Matched '{exercise_name}' to '{matched_title}' (ID: {exercise_template_id})")
+
+            # --- Handle Sets (Mapping PlannerSet -> SetRoutineCreate) ---
+            # ... (set handling code remains the same) ...
+            hevy_sets = []
+            for planner_set in planner_ex.sets:
+                 weight = planner_set.weight_kg if planner_set.weight_kg is not None else 0
+                 reps = planner_set.reps
+                 set_type = planner_set.type if planner_set.type is not None else "normal"
+                 hevy_sets.append(SetRoutineCreate(
+                     type=set_type,
+                     weight_kg=weight,
+                     reps=reps,
+                     distance_meters=planner_set.distance_meters,
+                     duration_seconds=planner_set.duration_seconds,
+                 ))
+            if not hevy_sets and planner_ex.sets:
+                 logger.warning(f"No valid sets created for exercise '{matched_title}' although sets were defined conceptually. Skipping exercise.")
+                 exercise_skipped_in_this_routine = True
+                 continue
+
+
+            # --- Handle Supersets ---
+            # ... (superset handling code remains the same) ...
+            hevy_superset_id = None
+            conceptual_superset_group = planner_ex.superset_id
+            if conceptual_superset_group is not None and str(conceptual_superset_group).strip():
+                group_key = str(conceptual_superset_group).strip()
+                if group_key not in superset_mapping:
+                    superset_mapping[group_key] = str(next_superset_id_numeric)
+                    next_superset_id_numeric += 1
+                hevy_superset_id = superset_mapping[group_key]
+                logger.debug(f"Assigning Hevy superset_id '{hevy_superset_id}' for planner group '{group_key}'")
+
+
+            # --- **** MODIFIED DEFAULT FOR NOTES **** ---
+            # If planner_ex.notes is None or empty, default to the matched_title
+            exercise_notes = planner_ex.notes or matched_title
+            # --- **** END OF MODIFICATION **** ---
+            # --- *** ADD DEFAULT HANDLING FOR REST SECONDS *** ---
+            rest_time = planner_ex.rest_seconds if planner_ex.rest_seconds is not None else 60 # Or use target default: ExerciseRoutineCreate.__fields__['rest_seconds'].default
+
+
+            # --- Create Hevy Exercise Object (ExerciseRoutineCreate) ---
+            hevy_exercises.append(ExerciseRoutineCreate(
+                exercise_template_id=exercise_template_id,
+                superset_id=hevy_superset_id,
+                rest_seconds=rest_time,
+                notes=exercise_notes, # Use the modified notes
+                sets=hevy_sets
+            ))
+
+        # --- Construct Final Routine Payload ---
+        # ... (rest of the node remains the same) ...
+        if hevy_exercises:
+            final_hevy_routine = RoutineCreate(
+                title=planner_routine.title,
+                notes=planner_routine.notes or "", # Routine notes can maybe be empty? Check API. Defaulting to ""
+                exercises=hevy_exercises
+            )
+            api_payload = HevyRoutineApiPayload(routine_data=final_hevy_routine)
+            hevy_payloads.append(api_payload.model_dump(exclude_none=True))
+            processed_routine_count += 1
+            logger.info(f"Successfully formatted routine '{planner_routine.title}' for Hevy API.")
+        elif planner_routine.exercises:
+             err_msg = f"Routine '{planner_routine.title}' had no valid/matched exercises after formatting. Skipping routine export."
+             logger.warning(err_msg)
+             routine_errors.append(err_msg)
+
+
+    final_errors = errors + routine_errors
+
+    
+    # Add summary message
+    summary_parts = []
+    if processed_routine_count > 0:
+        summary_parts.append(f"Successfully prepared {processed_routine_count} routine(s) for Hevy export.")
+    if skipped_exercises:
+         # Use set to avoid duplicate exercise names in summary
+         unique_skipped = sorted(list(set(skipped_exercises)))
+         summary_parts.append(f"Skipped exercises due to matching issues: {', '.join(unique_skipped)}.")
+    if planner_routines and len(planner_routines) > processed_routine_count:
+         num_skipped_routines = len(planner_routines) - processed_routine_count
+         summary_parts.append(f"{num_skipped_routines} routine(s) could not be fully prepared or were empty.")
+
+    summary_message = " ".join(summary_parts) if summary_parts else "Formatting complete. No routines to process or format."
+    
+    return {
+        **state,
+        # "messages": messages + [AIMessage(content=summary_message)],
+        "hevy_payloads": hevy_payloads,
+        "errors": final_errors
+    }
+
+
+async def tool_execution_node(state: StreamlinedRoutineState) -> StreamlinedRoutineState:
+    """Executes the tool_create_routine for each formatted payload."""
+    logger.info("--- Executing Tool Execution Node ---")
+    payloads = state.get("hevy_payloads", [])
+    # messages = state["messages"]
+    errors = state.get("errors", [])
+    hevy_results = []
+
+    if not payloads:
+        logger.info("No Hevy payloads to execute.")
+        return {**state, "hevy_results": []}
+
+    logger.info(f"Attempting to create {len(payloads)} routines in Hevy...")
+
+    # --- **** MODIFIED TASK CREATION **** ---
+    tasks = []
+    # Get the actual tool object (assuming it's globally accessible or passed appropriately)
+    # If tool_create_routine is defined globally as shown, this works.
+    # If it's part of a class, you'd need access to the instance.
+    hevy_tool = tool_create_routine 
+
+    for i, payload in enumerate(payloads):
+        routine_title = payload.get("routine_data", {}).get("title", f"Routine {i+1}")
+        logger.info(f"Scheduling tool_create_routine call for: '{routine_title}' using ainvoke")
+        # Explicitly use the tool's async invocation method
+        tasks.append(hevy_tool.ainvoke(input=payload)) 
+    # --- **** END OF MODIFIED TASK CREATION **** ---
+
+
+    # Gather results (same as before)
+    tool_outputs = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Process results (same as before)
+    for i, result in enumerate(tool_outputs):
+        routine_title = payloads[i].get("routine_data", {}).get("title", f"Routine {i+1}")
+        if isinstance(result, Exception):
+            # Handle exceptions (same logic)
+            logger.error(f"Error during tool ainvoke for '{routine_title}': {result}", exc_info=result)
+            error_detail = str(result)
+            # Add more specific exception handling if needed
+            if isinstance(result, NotImplementedError): # Specifically catch this if it persists
+                 error_detail += " (Sync invocation attempted on async tool?)"
+            elif hasattr(result, 'detail'):
+                 error_detail = f"{getattr(result, 'status_code', 'Unknown Status')}: {result.detail}"
+            
+            errors.append(f"Tool Execution Failed for '{routine_title}': {error_detail}")
+            hevy_results.append({"error": f"Tool Execution Failed: {error_detail}", "routine_title": routine_title, "status": "failed"})
+        else:
+            # Process successful calls or error dicts (same logic)
+            logger.info(f"Tool result for '{routine_title}': {result}")
+            hevy_results.append(result)
+            if isinstance(result, dict) and result.get("error"):
+                 error_msg = f"Hevy API Error for '{routine_title}': {result.get('error')} (Status: {result.get('status_code', 'N/A')})"
+                 logger.error(error_msg)
+                 errors.append(error_msg)
+                 if "status" not in result: result["status"] = "failed"
+
+    # Add summary message (same as before)
+    success_count = sum(1 for r in hevy_results if isinstance(r, dict) and "id" in r and not r.get("error"))
+    failure_count = len(hevy_results) - success_count
+    result_summary = f"Hevy Routine Creation Attempt Results: {success_count} succeeded, {failure_count} failed."
+    logger.info(result_summary)
+
+    return {
+        **state,
+        # "messages": messages + [AIMessage(content=result_summary)],
+        "hevy_results": hevy_results,
+        "errors": errors
+    }
 
 
