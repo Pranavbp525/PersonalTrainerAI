@@ -14,8 +14,20 @@ from fastapi import Request
 from agent.graph import build_fitness_trainer_graph, get_or_create_state, save_state
 from agent.personal_trainer_agent import end_conversation
 from agent.agent_models import AgentState
-from agent.prompts import push_all_prompts
+from agent.prompts import push_all_prompts, push_adaptation_prompt, push_analysis_prompt, push_coach_prompt, push_coordinator_prompt, push_memory_consolidation_prompt, push_planning_prompt, push_research_prompt, push_user_modeler_prompt
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
+
+import os
+
+load_dotenv()
+
+# Set environment variable
+os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API')
+os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
+os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
+
+
+
 # Define a Pydantic model for user creation
 class UserCreate(BaseModel):
     username: str
@@ -24,7 +36,7 @@ class SessionCreate(BaseModel):
     user_id: int
 
 
-load_dotenv()
+
 
 logging.basicConfig(level=config.LOGGING_LEVEL)
 log = logging.getLogger(__name__)
@@ -35,7 +47,8 @@ api_key = os.environ.get("OPENAI_API_KEY")
 # --- OpenAI API Setup ---
 client = openai.OpenAI(api_key=api_key)
 
-push_all_prompts()
+# push_coordinator_prompt()
+# push_all_prompts()
 
 agent_app = build_fitness_trainer_graph()
 
@@ -85,10 +98,11 @@ async def generate_response(session_id: str, db: Session) -> str:
         log.info(f"Prepared messages for agent: {messages_for_agent}")
 
         state = await get_or_create_state(session_id)
+        # log.info(f"AGENT STATE CREATED: {state}")
         state["messages"] = messages_for_agent
         log.info(f"Initial state: {state}")
 
-        config = {"configurable": {"thread_id": session_id}}
+        config = {"configurable": {"thread_id": session_id}, "recursion_limit": 100}
 
         result = await agent_app.ainvoke(state, config=config)
         log.info(f"Agent result: {result}")

@@ -1,5 +1,5 @@
 from langchain.tools import tool
-from agent.hevy_api import get_workouts, create_routine, update_routine, get_workout_count, get_routines
+from agent.hevy_api import get_workouts, create_routine, update_routine, get_workout_count, get_routines, update_workout
 from pydantic import BaseModel
 from pinecone import Pinecone, ServerlessSpec
 from fastapi import HTTPException
@@ -56,6 +56,22 @@ async def tool_get_workout_count():
     Tool to retrieve the user's workout count.
     """
     return await get_workout_count()
+
+@tool
+async def tool_update_workout(workout_id: str, update_data: dict):
+    """
+    Tool to update an existing workout.
+
+    :param workout_id: The ID of the workout to update.
+    :param update_data: A dictionary representing the workout update data.
+    """
+    try:
+        # Convert dict to Pydantic model
+        workout_update = WorkoutUpdate(**update_data)
+        update_request = WorkoutUpdateRequest(workout=workout_update)
+        return await update_workout(workout_id, update_request)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid workout data: {str(e)}")
 
 @tool
 async def tool_fetch_routines(page: int = 1, page_size: int = 5):
