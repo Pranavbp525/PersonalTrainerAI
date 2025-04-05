@@ -94,7 +94,7 @@ async def test_update_workout():
 async def main():
     # await test_fetch_workouts()
     # await test_get_workout_count()
-     await test_fetch_routines()
+    await test_fetch_routines()
 
     # routine_id = await test_create_routine()
     # if routine_id:
