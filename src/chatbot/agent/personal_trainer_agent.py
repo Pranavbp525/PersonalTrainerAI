@@ -109,7 +109,7 @@ llm_with_tools = llm.bind_tools([
 # User modeler for comprehensive user understanding
 async def user_modeler(state: AgentState) -> AgentState:
     """Builds and maintains a comprehensive model of the user."""
-    logger.info(f"User Modeler - Input State: {state}") #Log input state
+    logger.info(f"User Modeler : Updating the User Modeller") #Log input state
 
     parser = PydanticOutputParser(pydantic_object=UserProfile)
     format_instructions = parser.get_format_instructions()
@@ -194,12 +194,12 @@ async def user_modeler(state: AgentState) -> AgentState:
         "current_agent": "coordinator"  # Return to coordinator after updating
     }
     
-    logger.info(f"User Modeler - Output State: {updated_state}")  # Log output state
+    logger.info(f"User Modeler : Updated the User Modeller Successfully")  # Log output state
     return updated_state
 
 async def coordinator(state: AgentState) -> AgentState:
     """Central coordinator that manages the overall interaction flow, assessment, and memory."""
-    logger.info(f"Coordinator Agent - Input State: {state}")
+    # logger.info(f"Coordinator Agent - Input State: {state}")
 
     # --- <<<< ADD CHECK FOR RETURN FROM PROGRESS/ADAPTATION SUBGRAPH >>>> ---
     # Use the distinct state key names if you added them
@@ -268,7 +268,7 @@ async def coordinator(state: AgentState) -> AgentState:
         # Start with the current state
         next_state = {**state}
         # Update messages with the summary
-        next_state["messages"] = add_messages(state.get("messages", []), [AIMessage(content=f"<user>{user_facing_summary}</user>")])
+        next_state["messages"] = add_messages(state.get("messages", []), [AIMessage(content=f"{user_facing_summary}")])
         # Store the updated working memory
         next_state["working_memory"] = working_memory
         # Clear the subgraph output from the main state level
@@ -279,6 +279,7 @@ async def coordinator(state: AgentState) -> AgentState:
         next_state["current_agent"] = "end_conversation"
 
         logger.info("Coordinator Agent - Output State (After Planning Summary): Routing back to end-conversation to show results to user.")
+
         return next_state
 
 
@@ -286,28 +287,33 @@ async def coordinator(state: AgentState) -> AgentState:
     final_report = state.get("final_report")
     if final_report is not None: # Check specifically for non-None
         logger.info("Coordinator: Received final report from deep_research subgraph.")
-        # Integrate the report into working memory
         working_memory = state.get("working_memory", {})
-        research_findings = working_memory.get("research_findings", {}) # Get current findings dict
+        research_findings = working_memory.get("research_findings", {})
         research_findings["report"] = final_report
         research_findings["report_timestamp"] = datetime.now().isoformat()
-
         working_memory["research_findings"] = research_findings
-        working_memory["research_needs"] = None # Clear the needs trigger that started research
+        working_memory["research_needs"] = None
 
-        # Clean up subgraph communication keys from the main state
-        clean_state = {k: v for k, v in state.items() if k not in ['final_report', 'research_topic', 'user_profile_str']}
-        clean_state["working_memory"] = working_memory # Add updated WM back
+        # --- Prepare state update ---
+        next_state = {**state} # Start with the current state
 
-        logger.info("Coordinator: Integrated report, clearing subgraph keys.")
-
-        # Decide next step - likely planning now that research is done
+        # Add message to user
         ai_message = AIMessage(content="<user>Okay, I've completed the research based on your profile and needs. Now I can create a plan, or would you like to discuss the findings?</user>")
-        clean_state["messages"] = add_messages(clean_state.get("messages", []), [ai_message])
-        clean_state["current_agent"] = "planning_agent" # Route to planning
+        next_state["messages"] = add_messages(state.get("messages", []), [ai_message])
 
-        logger.info(f"Coordinator Agent - Output State (After Research): Routing to {clean_state['current_agent']}")
-        return clean_state # Return updated state
+        # Update working memory
+        next_state["working_memory"] = working_memory
+
+        # Explicitly clear subgraph communication keys IN THE RETURNED STATE
+        next_state["final_report"] = None # <<< FIX: Clear the field
+        next_state["research_topic"] = None
+        next_state["user_profile_str"] = None
+
+        # Set next agent
+        next_state["current_agent"] = "planning_agent"
+
+        logger.info("Coordinator: Integrated report, cleared subgraph keys. Routing to planning_agent.")
+        return next_state # Return the modified state dictionary
 
     
     logger.info("Coordinator: Detected nothing. Resuming Normal Flow.")
@@ -554,7 +560,7 @@ async def coordinator(state: AgentState) -> AgentState:
 
     }
     
-    logger.info(f"Coordinator Agent - Output State: {updated_state}")
+    # logger.info(f"Coordinator Agent - Output State: {updated_state}")
     return updated_state
 
 
@@ -868,10 +874,10 @@ async def coach_agent(state: AgentState) -> AgentState:
 async def end_conversation(state: AgentState) -> AgentState:
 
     """Marks the conversation as complete."""
-    logging.info(f"End Conversation. Input State: {state}")
+    # logging.info(f"End Conversation. Input State: {state}")
     state["agent_state"] = state.get("agent_state", {}) | {"status": "complete"}
     state["conversation_complete"] = True
-    logging.info(f"End Conversation. Output State: {state}")
+    # logging.info(f"End Conversation. Output State: {state}")
     return state  # Return the modified state, not END
 
 
@@ -1210,8 +1216,6 @@ Output the final report text.
             "final_report": f"Error generating report: {e}\n\nRaw Findings:\n{findings}",
             "research_complete": True # Mark complete even on error to exit loop
             }
-
-
 
 
 ##################################### Routine Planner and Creation Agent ######################################
@@ -1586,7 +1590,7 @@ async def identify_target_routines_node(state: ProgressAnalysisAdaptationStateV2
 
     routines_list = state.get("fetched_routines_list")
     logs = state.get("workout_logs")
-    user_model = state.get("user_model")
+    user_model = state.get("user_model", {})
     user_request = state.get("user_request_context", "")
 
     if not routines_list:
@@ -1601,7 +1605,7 @@ async def identify_target_routines_node(state: ProgressAnalysisAdaptationStateV2
         logs_json = json.dumps(logs[:10] if logs else [], indent=2) # Limit logs context
 
         filled_prompt = id_prompt_template.format(
-            user_profile=json.dumps(user_model.model_dump() if user_model else {}),
+            user_profile=json.dumps(user_model, indent=2),
             user_request_context=user_request,
             routines_list_json=routines_json,
             logs_list_json=logs_json
@@ -1660,7 +1664,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
         return {"processed_results": []} # Return empty list if no targets
 
     logs = state.get("workout_logs")
-    user_model = state.get("user_model")
+    user_model = state.get("user_model", {})
     processed_results: List[RoutineAdaptationResult] = []
     any_target_failed = False # Flag if any individual adaptation fails
 
@@ -1695,7 +1699,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
             analysis_error = None
             try:
                 analysis_filled_prompt = analysis_prompt_template.format(
-                    user_profile=json.dumps(user_model.model_dump() if user_model else {}),
+                    user_profile=json.dumps(user_model, indent=2),
                     target_routine_details=json.dumps(routine_data),
                     workout_logs=json.dumps(logs[:20] if logs else []), # Limit context
                     format_instructions=analysis_format_instructions
@@ -1725,7 +1729,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
             adaptation_rag_results = {}
             rag_error = None
             try:
-                user_profile_json = json.dumps(user_model.model_dump() if user_model else {})
+                user_profile_json = json.dumps(user_model, indent=2)
                 for area in analysis_findings.areas_for_potential_adjustment:
                     try:
                         query_gen_prompt = rag_query_prompt_template.format(
@@ -1762,7 +1766,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
             generation_error = None
             try:
                 mod_filled_prompt = modification_prompt_template.format( # Uses updated template
-                    user_profile=json.dumps(user_model.model_dump() if user_model else {}),
+                    user_profile=json.dumps(user_model, indent=2),
                     analysis_findings=json.dumps(analysis_findings.model_dump()),
                     adaptation_rag_results=json.dumps(adaptation_rag_results),
                     current_routine_json=json.dumps(routine_data, indent=2)
@@ -1931,7 +1935,7 @@ async def compile_final_report_node_v2(state: ProgressAnalysisAdaptationStateV2)
 
     processed_results = state.get("processed_results", [])
     initial_process_error = state.get("process_error") # Error from early stages (fetch, identify)
-    user_model = state.get("user_model")
+    user_model = state.get("user_model", {})
 
     # Determine overall status
     overall_status = "Failed" # Default
@@ -1985,7 +1989,7 @@ async def compile_final_report_node_v2(state: ProgressAnalysisAdaptationStateV2)
 
     # Generate the final user message using LLM
     final_report_prompt_template = get_final_cycle_report_template_v2()
-    user_name = user_model.name if user_model else "there"
+    user_name = user_model.get("name", "")
     final_message = overall_message # Fallback
 
     try:

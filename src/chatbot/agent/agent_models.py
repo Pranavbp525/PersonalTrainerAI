@@ -262,7 +262,7 @@ class ProgressAnalysisAdaptationStateV2(TypedDict):
     """State for subgraph V2 handling identification, analysis, and adaptation."""
 
     # --- Inputs (Required from parent graph) ---
-    user_model: UserModel
+    user_model: Dict[str, Any]
     user_request_context: Optional[str] # Specific user request, e.g., "Make my leg day harder"
 
     # --- Internal State (Managed by the subgraph nodes) ---
