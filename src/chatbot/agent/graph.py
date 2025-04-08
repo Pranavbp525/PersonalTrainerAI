@@ -45,6 +45,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+agent_checkpointer = MemorySaver()
+
 
 def check_completion_and_route_v2(state: DeepFitnessResearchState) -> Literal["generate_rag_query", "finalize_research_report"]:
     """
@@ -347,6 +349,6 @@ def build_fitness_trainer_graph():
     workflow.set_entry_point("coordinator")
     
     # Compile the graph
-    return workflow.compile(checkpointer=checkpointer)
+    return workflow.compile(checkpointer=agent_checkpointer)
 
 
