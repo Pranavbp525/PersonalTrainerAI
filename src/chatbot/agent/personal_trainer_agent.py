@@ -5,7 +5,7 @@ This implementation combines the strengths of the multi-agent system with
 specialized components for fitness training, RAG integration, and Hevy API usage.
 """
 
-from typing import Annotated, List, Dict, Any, Optional, Literal, Union, TypedDict
+from typing import Annotated, List, Dict, Any, Optional, Literal, Union, TypedDict, Tuple
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from langgraph.types import Command, interrupt
 from langchain_core.runnables import RunnableConfig
@@ -25,9 +25,11 @@ from pydantic import BaseModel, Field
 from agent.agent_models import (
     SetRoutineCreate, ExerciseRoutineCreate, RoutineCreate, RoutineCreateRequest,
     SetRoutineUpdate, ExerciseRoutineUpdate, RoutineUpdate, RoutineUpdateRequest,
-    PlannerExerciseRoutineCreate, PlannerRoutineCreate, PlannerSetRoutineCreate, PlannerOutputContainer, HevyRoutineApiPayload
+    PlannerExerciseRoutineCreate, PlannerRoutineCreate, PlannerSetRoutineCreate, PlannerOutputContainer, HevyRoutineApiPayload,
+    AnalysisFindings, IdentifiedRoutineTarget,
+    RoutineAdaptationResult
 )
-from agent.agent_models import AgentState, UserProfile, DeepFitnessResearchState, StreamlinedRoutineState
+from agent.agent_models import AgentState, UserProfile, DeepFitnessResearchState, StreamlinedRoutineState, ProgressAnalysisAdaptationStateV2
 from agent.utils import (extract_adherence_rate,
                    extract_adjustments,
                    extract_approaches,
@@ -39,7 +41,8 @@ from agent.utils import (extract_adherence_rate,
                    extract_routine_structure,
                    extract_routine_updates,
                    retrieve_data,
-                   get_exercise_template_by_title_fuzzy)
+                   get_exercise_template_by_title_fuzzy,
+                   validate_and_lookup_exercises)
 from agent.prompts import (
     get_adaptation_prompt,
     get_analysis_prompt,
@@ -49,7 +52,13 @@ from agent.prompts import (
     get_planning_prompt,
     get_research_prompt,
     get_user_modeler_prompt,
-    summarize_routine_prompt
+    summarize_routine_prompt,
+    get_analysis_v2_template,
+    get_final_cycle_report_template_v2,
+    get_reasoning_generation_template,
+    get_routine_identification_prompt,
+    get_routine_modification_template_v2,
+    get_targeted_rag_query_template
 )
 
 
@@ -192,8 +201,41 @@ async def coordinator(state: AgentState) -> AgentState:
     """Central coordinator that manages the overall interaction flow, assessment, and memory."""
     logger.info(f"Coordinator Agent - Input State: {state}")
 
-    # logger.info(f"Coordinator Agent - Input State (Partial): current_agent={state.get('current_agent')}, research_topic={state.get('research_topic')}")
+    # --- <<<< ADD CHECK FOR RETURN FROM PROGRESS/ADAPTATION SUBGRAPH >>>> ---
+    # Use the distinct state key names if you added them
+    progress_notification = state.get("final_report_and_notification") 
+    if progress_notification is not None:
+        logger.info("Coordinator: Detected return from progress_adaptation_subgraph.")
+        working_memory = state.get("working_memory", {})
+        processed_results = state.get("processed_results") # Optional details
+        success_status = state.get("cycle_completed_successfully") # Optional status
 
+        # Log the event in working memory
+        working_memory[f"progress_review_{datetime.now().strftime('%Y%m%d_%H%M%S')}"] = {
+            "status": "Success" if success_status else "Failed/Partial",
+            "notification_sent": progress_notification,
+            # Optionally include summary of processed_results here
+        }
+
+        # Prepare state update
+        next_state = {**state}
+        # Add notification message
+        next_state["messages"] = add_messages(state.get("messages", []), [AIMessage(content=f"<user>{progress_notification}</user>")])
+        # Update working memory
+        next_state["working_memory"] = working_memory
+        # Clean up subgraph outputs from state
+        next_state["final_report_and_notification"] = None
+        next_state["cycle_completed_successfully"] = None
+        next_state["processed_results"] = None
+        # next_state["process_error"] = None # Clear specific subgraph error too
+        # Clear the trigger context if it was set
+        next_state["user_request_context"] = None
+        # Route to end conversation to show the user
+        next_state["current_agent"] = "end_conversation"
+
+        logger.info("Coordinator: Processed progress subgraph return. Routing to end_conversation.")
+        return next_state
+    
     # --- Check if returning from Planning Subgraph ---
     # Detect return by checking if hevy_results exists and is not None
     # (It would be None otherwise or before the subgraph runs)
@@ -376,8 +418,7 @@ async def coordinator(state: AgentState) -> AgentState:
         "<Assessment>": "assessment",
         "<Research>": "deep_research",
         "<Planning>": "planning_agent",
-        "<Progress>": "progress_analysis_agent",
-        "<Adaptation>": "adaptation_agent",
+        "<Progress_and_Adaptation>": "progress_analysis_adaptation_agent",
         "<Coach>": "coach_agent",
         "<User Modeler>": "user_modeler",
         "<Complete>": "end_conversation"
@@ -432,11 +473,38 @@ async def coordinator(state: AgentState) -> AgentState:
          next_state_update["user_profile_str"] = None
          next_state_update["final_report"] = None
 
+    # --- <<<< ADD PREPARATION FOR PROGRESS/ADAPTATION SUBGRAPH >>>> ---
+    elif selected_agent == "progress_adaptation_agent":
+        logger.info("Coordinator: Preparing state for progress_adaptation_subgraph.")
+        # Extract context for the subgraph if available
+        last_message = state["messages"][-1]
+        request_context = None
+        if isinstance(last_message, HumanMessage):
+             # A simple approach - use the last human message as context
+             request_context = last_message.content
+             logger.debug(f"Using last human message as user_request_context: {request_context}")
+        elif working_memory.get("system_trigger_review"): # Check for external trigger flag
+             request_context = working_memory.pop("system_trigger_review") # Use and remove flag
+             logger.debug(f"Using system trigger as user_request_context: {request_context}")
+
+        next_state_update["user_request_context"] = request_context
+        # Clear outputs from other subgraphs
+        next_state_update["final_report"] = None
+        next_state_update["hevy_results"] = None
+        next_state_update["final_report_and_notification"] = None # Clear its own previous output
+
+
     else:
         # Clear subgraph keys if routing elsewhere (important for clean state)
         next_state_update["research_topic"] = None
         next_state_update["user_profile_str"] = None
         next_state_update["final_report"] = None
+        next_state_update["hevy_results"] = None
+        next_state_update["user_request_context"] = None
+        next_state_update["progress_report_and_notification"] = None # Typo
+        next_state_update["final_report_and_notification"] = None # Corrected key
+        next_state_update["cycle_completed_successfully"] = None # Clear progress output
+        next_state_update["processed_results"] = None # Clear progress output
         # Clear research needs from WM if not routing to research? Optional.
         # working_memory["research_needs"] = None
 
@@ -475,10 +543,15 @@ async def coordinator(state: AgentState) -> AgentState:
             "internal_reasoning": internal_reasoning,
             "selected_agent": selected_agent
         },
-        "research_topic": next_state_update['research_topic'] if 'research_topic' in next_state_update.keys() else None,
-        "user_profile_str": next_state_update['user_profile_str'] if 'user_profile_str' in next_state_update.keys() else None,
-        "final_report": next_state_update['final_report'] if 'final_report' in next_state_update.keys() else None,
-        "hevy_results": next_state_update['hevy_results'] if 'hevy_results' in next_state_update.keys() else None
+        "research_topic": next_state_update.get("research_topic"), # Use .get() which defaults to None
+        "user_profile_str": next_state_update.get("user_profile_str"),
+        "final_report": next_state_update.get("final_report"),
+        "hevy_results": next_state_update.get("hevy_results"),
+        "user_request_context": next_state_update.get("user_request_context"),
+        "final_report_and_notification": next_state_update.get("final_report_and_notification"),
+        "cycle_completed_successfully": next_state_update.get("cycle_completed_successfully"),
+        "processed_results": next_state_update.get("processed_results"),
+
     }
     
     logger.info(f"Coordinator Agent - Output State: {updated_state}")
@@ -990,7 +1063,6 @@ Output *only* the complete, updated accumulated findings text. Do not include he
         error_marker = f"\n\n[Error synthesizing results for query: '{state.get('current_rag_query', 'N/A')}'. RAG Results: {rag_results}. Error: {e}]\n"
         return {"accumulated_findings": findings + error_marker}
 
-
 async def reflect_on_progress_v2(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     """
     Reflects on progress, decides if sub-question is complete (naturally or by force),
@@ -1086,7 +1158,6 @@ Next Step: Conclude this sub-question.
             "current_sub_question_idx": current_idx + 1, # Advance index
             "queries_this_sub_question": 0 # Reset counter
             }
-
 
 async def finalize_research_report(state: DeepFitnessResearchState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     """
@@ -1376,7 +1447,6 @@ async def format_and_lookup_node(state: StreamlinedRoutineState) -> StreamlinedR
         "errors": final_errors
     }
 
-
 async def tool_execution_node(state: StreamlinedRoutineState) -> StreamlinedRoutineState:
     """Executes the tool_create_routine for each formatted payload."""
     logger.info("--- Executing Tool Execution Node ---")
@@ -1448,3 +1518,494 @@ async def tool_execution_node(state: StreamlinedRoutineState) -> StreamlinedRout
     }
 
 
+##################################### Progress Analysis and Adaptation Agent ###################################
+
+
+
+async def fetch_all_routines_node(state: ProgressAnalysisAdaptationStateV2) -> Dict[str, Any]:
+    """Fetches all available routines from Hevy."""
+    logger.info("--- Progress Cycle V2: Fetching All Routines ---")
+    all_routines = []
+    page = 1
+    page_size = 20 # Fetch in batches
+    try:
+        while True:
+            logger.debug(f"Fetching routines page {page}...")
+            result = await tool_fetch_routines.ainvoke({"page": page, "pageSize": page_size})
+            if isinstance(result, dict) and result.get("routines"):
+                fetched_page = result["routines"]
+                all_routines.extend(fetched_page)
+                # Check if this was the last page (Hevy API might indicate this,
+                # otherwise, stop if fewer routines than page_size were returned)
+                if len(fetched_page) < page_size:
+                    break
+                page += 1
+            elif isinstance(result, dict) and result.get("error"):
+                 raise Exception(f"Hevy API error fetching routines: {result.get('error')}")
+            else:
+                 # Assume empty list or unexpected format means no more routines
+                 break
+        logger.info(f"Successfully fetched {len(all_routines)} routines.")
+        return {"fetched_routines_list": all_routines, "process_error": None}
+    except Exception as e:
+        logger.error(f"Error fetching routines: {e}", exc_info=True)
+        return {"fetched_routines_list": None, "process_error": f"Failed to fetch routines: {e}"}
+
+async def fetch_logs_node(state: ProgressAnalysisAdaptationStateV2) -> Dict[str, Any]:
+    """Fetches workout logs from Hevy."""
+    if state.get("process_error"): return {} # Skip on prior error
+    logger.info("--- Progress Cycle V2: Fetching Logs ---")
+    try:
+        # Fetch a reasonable number of logs for context
+        workout_count_data = await tool_get_workout_count.ainvoke({})
+        total_workouts = workout_count_data.get('count', 20)
+        page_size = 30 # Increase slightly for better identification context?
+        logger.info(f"Fetching latest {page_size} workout logs (total: {total_workouts})...")
+        fetched_logs = await tool_fetch_workouts.ainvoke({"page": 1, "pageSize": page_size})
+        workout_logs_data = fetched_logs.get('workouts', [])
+
+        if not workout_logs_data:
+            logger.warning("No workout logs found.")
+            # Don't set process_error, identification might proceed without logs or fail gracefully
+            return {"workout_logs": []}
+        logger.info(f"Successfully fetched {len(workout_logs_data)} logs.")
+        return {"workout_logs": workout_logs_data, "process_error": None}
+    except Exception as e:
+        logger.error(f"Error fetching workout logs: {e}", exc_info=True)
+        # Treat log fetch failure as potentially recoverable, don't halt immediately
+        return {"workout_logs": None, "process_error": f"Warning: Failed to fetch logs: {e}"}
+
+
+async def identify_target_routines_node(state: ProgressAnalysisAdaptationStateV2) -> Dict[str, Any]:
+    """Identifies target routines based on logs, request, and available routines."""
+    if state.get("process_error") and "Failed to fetch routines" in state["process_error"]:
+        # Cannot proceed without routines
+        logger.error("Halting identification: Failed to fetch routines list.")
+        return {"process_error": state["process_error"]}
+    logger.info("--- Progress Cycle V2: Identifying Target Routines ---")
+
+    routines_list = state.get("fetched_routines_list")
+    logs = state.get("workout_logs")
+    user_model = state.get("user_model")
+    user_request = state.get("user_request_context", "")
+
+    if not routines_list:
+        logger.warning("No routines available to identify targets from.")
+        return {"identified_targets": [], "process_error": state.get("process_error")} # Return empty list, keep potential log error
+
+    # Prepare prompt
+    id_prompt_template = get_routine_identification_prompt()
+    try:
+        # Limit size of JSON passed to LLM if necessary
+        routines_json = json.dumps(routines_list[:10], indent=2) # Limit to first 10 routines?
+        logs_json = json.dumps(logs[:10] if logs else [], indent=2) # Limit logs context
+
+        filled_prompt = id_prompt_template.format(
+            user_profile=json.dumps(user_model.model_dump() if user_model else {}),
+            user_request_context=user_request,
+            routines_list_json=routines_json,
+            logs_list_json=logs_json
+        )
+    except Exception as e:
+         logger.error(f"Error formatting identification prompt: {e}")
+         return {"process_error": f"Internal error formatting identification prompt: {e}"}
+
+    # Call LLM
+    messages = [SystemMessage(content=filled_prompt)]
+    try:
+        response = await llm.ainvoke(messages)
+        output_str = response.content.strip()
+
+        # Parse the JSON list output
+        identified_targets_raw = json.loads(output_str)
+
+        # Validate the structure (basic check)
+        if not isinstance(identified_targets_raw, list):
+            raise ValueError("LLM did not return a JSON list.")
+
+        # Re-structure slightly to match IdentifiedRoutineTarget TypedDict if needed
+        # The prompt asks for {"routine_data": {...}, "reason": "..."} structure
+        # This already matches IdentifiedRoutineTarget
+        identified_targets: List[IdentifiedRoutineTarget] = identified_targets_raw
+
+        # Further validation can be added here if needed
+
+        logger.info(f"Identified {len(identified_targets)} target routine(s).")
+        # Filter targets to ensure 'routine_data' and 'id' exist
+        valid_targets = [
+            t for t in identified_targets
+            if isinstance(t, dict) and isinstance(t.get("routine_data"), dict) and t["routine_data"].get("id")
+        ]
+        if len(valid_targets) != len(identified_targets):
+             logger.warning("Some identified targets had invalid structure and were filtered.")
+
+        return {"identified_targets": valid_targets, "process_error": state.get("process_error")} # Keep potential log error
+
+    except json.JSONDecodeError as e:
+         logger.error(f"Error parsing identification JSON from LLM: {e}\nLLM Response:\n{output_str}", exc_info=True)
+         return {"process_error": f"Failed to parse valid JSON targets from LLM: {e}"}
+    except Exception as e:
+        logger.error(f"Error during routine identification LLM call: {e}\nLLM Response:\n{output_str if 'output_str' in locals() else 'N/A'}", exc_info=True)
+        return {"process_error": f"Error during routine identification: {e}"}
+
+
+async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict[str, Any]:
+    """Iterates through identified targets and attempts adaptation for each."""
+    if state.get("process_error"): return {} # Skip if critical error happened before
+    logger.info("--- Progress Cycle V2: Processing Identified Targets ---")
+
+    targets = state.get("identified_targets", [])
+    if not targets:
+        logger.info("No targets to process.")
+        return {"processed_results": []} # Return empty list if no targets
+
+    logs = state.get("workout_logs")
+    user_model = state.get("user_model")
+    processed_results: List[RoutineAdaptationResult] = []
+    any_target_failed = False # Flag if any individual adaptation fails
+
+    # --- Get Prompt Templates Once ---
+    analysis_prompt_template = get_analysis_v2_template()
+    rag_query_prompt_template = get_targeted_rag_query_template()
+    modification_prompt_template = get_routine_modification_template_v2()
+    reasoning_prompt_template = get_reasoning_generation_template()
+    analysis_parser = PydanticOutputParser(pydantic_object=AnalysisFindings)
+    analysis_format_instructions = analysis_parser.get_format_instructions()
+
+    # --- Loop Through Each Target ---
+    for target in targets:
+        routine_data = target["routine_data"]
+        routine_id = routine_data["id"]
+        original_title = routine_data.get("title", "Unknown Title")
+        logger.info(f"--- Processing Target: '{original_title}' (ID: {routine_id}) ---")
+
+        # Initialize result for this target
+        current_result = RoutineAdaptationResult(
+            routine_id=routine_id,
+            original_title=original_title,
+            status="Skipped (Error)", # Default to error
+            message="Processing started",
+            updated_routine_data=None
+        )
+
+        try:
+            # 1. Analyze Report for Target
+            logger.debug(f"Analyzing target '{original_title}'...")
+            analysis_findings: Optional[AnalysisFindings] = None
+            analysis_error = None
+            try:
+                analysis_filled_prompt = analysis_prompt_template.format(
+                    user_profile=json.dumps(user_model.model_dump() if user_model else {}),
+                    target_routine_details=json.dumps(routine_data),
+                    workout_logs=json.dumps(logs[:20] if logs else []), # Limit context
+                    format_instructions=analysis_format_instructions
+                )
+                analysis_response = await llm.ainvoke([SystemMessage(content=analysis_filled_prompt)])
+                analysis_findings = analysis_parser.parse(analysis_response.content)
+                logger.debug(f"Analysis successful for '{original_title}'. Areas found: {len(analysis_findings.areas_for_potential_adjustment)}")
+                logger.debug(f"Analysis for {original_title} are {analysis_findings}")
+            except Exception as e:
+                analysis_error = f"Failed analysis step: {e}"
+                logger.error(analysis_error, exc_info=True)
+                current_result["message"] = analysis_error
+                any_target_failed = True
+                processed_results.append(current_result)
+                continue # Skip to next target if analysis fails
+
+            # Check if adjustments are needed
+            if not analysis_findings or not analysis_findings.areas_for_potential_adjustment:
+                logger.info(f"No adjustment areas identified for '{original_title}'. Skipping further steps.")
+                current_result["status"] = "Skipped (No Changes)"
+                current_result["message"] = "Analysis completed, no modifications needed for this routine."
+                processed_results.append(current_result)
+                continue # Skip to next target
+
+            # 2. Research Gaps for Target
+            logger.debug(f"Researching gaps for '{original_title}'...")
+            adaptation_rag_results = {}
+            rag_error = None
+            try:
+                user_profile_json = json.dumps(user_model.model_dump() if user_model else {})
+                for area in analysis_findings.areas_for_potential_adjustment:
+                    try:
+                        query_gen_prompt = rag_query_prompt_template.format(
+                            user_profile=user_profile_json, area_for_adjustment=area,
+                            previous_query="N/A", previous_result="N/A"
+                        )
+                        query_response = await llm.ainvoke([SystemMessage(content=query_gen_prompt)])
+                        rag_query = query_response.content.strip()
+                        logger.debug(f"Querying RAG with generated query for {area}: {query_response}")
+                        if rag_query:
+                            rag_result = await retrieve_from_rag.ainvoke({"query": rag_query})
+                            logger.debug(f"Queried results for RAG with generated query for {area} with {query_response}: {rag_result}")
+                            adaptation_rag_results[area] = rag_result or "No specific info."
+                        else:
+                            adaptation_rag_results[area] = "Could not generate query."
+                    except Exception as inner_e:
+                         logger.warning(f"Failed RAG for area '{area}': {inner_e}")
+                         adaptation_rag_results[area] = f"Error: {inner_e}"
+                         rag_error = f"Partial RAG failure on area '{area}'" # Flag partial failure
+            except Exception as e:
+                 rag_error = f"Failed RAG step: {e}"
+                 logger.error(rag_error, exc_info=True)
+                 # Continue processing, but note the RAG failure
+
+            if rag_error and not current_result["message"].startswith("Failed"): # Don't overwrite analysis error
+                 current_result["message"] = rag_error # Report partial failure
+
+
+            # 3. Generate Modifications for Target
+            logger.debug(f"Generating modifications for '{original_title}'...")
+            proposed_mods_dict: Optional[Dict[str, Any]] = None
+            modification_reasoning = "N/A"
+            mod_output_str = "N/A" # Initialize for error logging
+            generation_error = None
+            try:
+                mod_filled_prompt = modification_prompt_template.format( # Uses updated template
+                    user_profile=json.dumps(user_model.model_dump() if user_model else {}),
+                    analysis_findings=json.dumps(analysis_findings.model_dump()),
+                    adaptation_rag_results=json.dumps(adaptation_rag_results),
+                    current_routine_json=json.dumps(routine_data, indent=2)
+                )
+                mod_response = await llm.ainvoke([SystemMessage(content=mod_filled_prompt)])
+                mod_output_str = mod_response.content.strip()
+                proposed_mods_dict = json.loads(mod_output_str)
+                logger.debug(f"Proposed Modifications are {proposed_mods_dict}")
+                if not isinstance(proposed_mods_dict, dict) or 'exercises' not in proposed_mods_dict:
+                    raise ValueError("LLM output was not a valid routine JSON dict.")
+
+                # Generate reasoning
+                try:
+                     reasoning_filled_prompt = reasoning_prompt_template.format(
+                         original_routine_snippet=json.dumps(routine_data.get('exercises', [])[:2], indent=2),
+                         modified_routine_snippet=json.dumps(proposed_mods_dict.get('exercises', [])[:2], indent=2),
+                         analysis_findings=json.dumps(analysis_findings.model_dump()),
+                         adaptation_rag_results=json.dumps(adaptation_rag_results)
+                     )
+                     reasoning_response = await llm.ainvoke([SystemMessage(content=reasoning_filled_prompt)])
+                     modification_reasoning = reasoning_response.content.strip()
+
+                     logger.debug(f"Modification reasoning for proposed modifications are : {modification_reasoning}")
+                except Exception as reason_e:
+                     logger.warning(f"Failed to generate reasoning: {reason_e}")
+                     modification_reasoning = "(Failed to generate reasoning)"
+
+                logger.debug(f"Modification generation successful for '{original_title}'.")
+
+            except Exception as e:
+                generation_error = f"Failed modification step: {e}"
+                logger.error(f"{generation_error}\nLLM Response:\n{mod_output_str if 'mod_output_str' in locals() else 'N/A'}", exc_info=True)
+                current_result["message"] = generation_error
+                any_target_failed = True
+                processed_results.append(current_result)
+                continue # Skip to next target
+
+            # --- *** NEW STEP: Validate and Lookup Exercises *** ---
+            logger.debug(f"Validating and looking up exercises for '{original_title}'...")
+            validated_routine_dict, validation_errors = await validate_and_lookup_exercises(
+                proposed_mods_dict,
+                original_title
+            )
+
+            if validation_errors:
+                # Log errors, decide if they are fatal for this routine
+                errors_string = "; ".join(validation_errors)
+                logger.warning(f"Validation issues found for routine '{original_title}': {errors_string}")
+                # If validation returned None, it's a fatal error for this routine
+                if validated_routine_dict is None:
+                    fatal_error_msg = f"Fatal validation error for '{original_title}', cannot update Hevy. Issues: {errors_string}"
+                    logger.error(fatal_error_msg)
+                    current_result["message"] = fatal_error_msg
+                    current_result["status"] = "Skipped (Error)" # Ensure status reflects failure
+                    any_target_failed = True
+                    processed_results.append(current_result)
+                    continue # Skip Hevy update for this target
+
+            # If validation passed (even with minor warnings), proceed with the validated data
+            logger.info(f"Validation successful for '{original_title}'. Proceeding to update Hevy.")
+
+            # --- *** ADD THIS LOGGING *** ---
+            logger.debug(f"Payload prepared for Hevy update (routine: '{original_title}', ID: {routine_id}):")
+            try:
+                # Pretty print the dictionary for readability in DEBUG logs
+                logger.debug(json.dumps(validated_routine_dict, indent=2, default=str))
+            except Exception as log_e:
+                logger.error(f"Failed to serialize validated_routine_dict for logging: {log_e}")
+                logger.debug(f"Raw validated_routine_dict: {validated_routine_dict}")
+            # --- *** END OF ADDED LOGGING *** ---
+            # 4. Update Hevy for Target
+            logger.debug(f"Updating Hevy for '{original_title}'...")
+            hevy_error = None
+            updated_data_from_hevy = None
+            try:
+                # *** USE THE VALIDATED DICTIONARY ***
+                hevy_result = await tool_update_routine.ainvoke({
+                    "routine_id": routine_id,
+                    "routine_data": validated_routine_dict # Send the validated/corrected dict
+                })
+
+                logger.info(f"Hevy API update result (raw type: {type(hevy_result)}): {hevy_result}") # Log type
+
+                # --- FIX V2: Check expected structures ---
+                updated_routine_dict = None
+                is_success = False
+
+                # Check if result is {'routine': [ {routine_dict} ] }
+                if isinstance(hevy_result, dict) and \
+                   isinstance(hevy_result.get("routine"), list) and \
+                   len(hevy_result["routine"]) > 0 and \
+                   isinstance(hevy_result["routine"][0], dict) and \
+                   hevy_result["routine"][0].get("id"):
+
+                    updated_routine_dict = hevy_result["routine"][0] # Extract from list
+                    is_success = True
+                    logger.info(f"Hevy routine '{original_title}' updated successfully (via dict wrapping list).")
+
+                # Check if result is { "routine": {routine_dict} } (Original expectation)
+                elif isinstance(hevy_result, dict) and \
+                     isinstance(hevy_result.get("routine"), dict) and \
+                     hevy_result["routine"].get("id"):
+
+                     updated_routine_dict = hevy_result["routine"] # Directly use the dict
+                     is_success = True
+                     logger.info(f"Hevy routine '{original_title}' updated successfully (via dict wrapping dict).")
+
+                # Check if result is [ {routine_dict} ] (Previous attempt's expectation)
+                elif isinstance(hevy_result, list) and \
+                     len(hevy_result) > 0 and \
+                     isinstance(hevy_result[0], dict) and \
+                     hevy_result[0].get("id"):
+
+                    updated_routine_dict = hevy_result[0] # Extract from list
+                    is_success = True
+                    logger.info(f"Hevy routine '{original_title}' updated successfully (via direct list).")
+
+                # --- End Fix V2 ---
+
+                if is_success:
+                    logger.info(f"Hevy routine '{original_title}' updated successfully.")
+                    current_result["status"] = "Success"
+                    current_result["message"] = f"Routine '{original_title}' updated successfully."
+                    current_result["updated_routine_data"] = hevy_result.get("routine")
+                    updated_data_from_hevy = hevy_result.get("routine")
+                else:
+                    hevy_error_detail = json.dumps(hevy_result.get("error", hevy_result) if isinstance(hevy_result, dict) else hevy_result)
+                    hevy_error = f"Hevy update failed for '{original_title}': {hevy_error_detail}"
+                    logger.error(hevy_error)
+                    current_result["message"] = hevy_error
+                    any_target_failed = True
+
+            except Exception as e:
+                hevy_error = f"Internal error during Hevy update for '{original_title}': {e}"
+                logger.error(hevy_error, exc_info=True)
+                current_result["message"] = hevy_error
+                current_result["status"] = "Skipped (Error)" # Ensure status reflects failure
+                any_target_failed = True
+
+            # Append result for this target
+            processed_results.append(current_result)
+
+        except Exception as outer_e:
+             # Catch unexpected errors in the loop logic itself
+            logger.error(f"Unexpected error processing target '{original_title}': {outer_e}", exc_info=True)
+            current_result["message"] = f"Unexpected error: {outer_e}"
+            current_result["status"] = "Skipped (Error)" # Ensure status reflects failure
+            any_target_failed = True
+            processed_results.append(current_result)
+            continue # Ensure loop continues
+
+    # --- Return Accumulated Results ---
+    final_state_update = {"processed_results": processed_results}
+    # If any individual target failed, propagate a general process error message
+    # but don't overwrite a more specific earlier error (like routine fetch failure)
+    if any_target_failed and not state.get("process_error"):
+         final_state_update["process_error"] = "One or more routines failed during the adaptation process."
+
+    logger.info(f"Finished processing all targets. Results count: {len(processed_results)}")
+    return final_state_update
+
+
+async def compile_final_report_node_v2(state: ProgressAnalysisAdaptationStateV2) -> Dict[str, Any]:
+    """Compiles the final user-facing report for potentially multiple routines."""
+    logger.info("--- Progress Cycle V2: Compiling Final Report ---")
+
+    processed_results = state.get("processed_results", [])
+    initial_process_error = state.get("process_error") # Error from early stages (fetch, identify)
+    user_model = state.get("user_model")
+
+    # Determine overall status
+    overall_status = "Failed" # Default
+    overall_message = initial_process_error or "An unknown error occurred." # Start with initial error if present
+    processed_summary_lines = []
+    success_count = 0
+    skipped_no_changes_count = 0
+    failure_count = 0
+    total_processed = len(processed_results)
+
+    if not initial_process_error:
+        if not state.get("identified_targets") and not processed_results:
+            overall_status = "Completed (No Targets)"
+            overall_message = "I looked at your routines and recent logs, but didn't identify any specific routines needing adaptation right now based on the analysis."
+            cycle_completed_successfully = True
+        elif processed_results:
+            for res in processed_results:
+                status_icon = "✅" if res["status"] == "Success" else ("⚠️" if res["status"] == "Skipped (No Changes)" else "❌")
+                processed_summary_lines.append(f"{status_icon} **{res['original_title']}**: {res['message']}")
+                if res["status"] == "Success": success_count += 1
+                if res["status"] == "Skipped (No Changes)": skipped_no_changes_count += 1
+                if res["status"] == "Failed" or res["status"] == "Skipped (Error)": failure_count += 1
+
+            if failure_count == 0 and success_count > 0:
+                overall_status = "Success"
+                overall_message = "I've finished analyzing your progress and successfully updated the relevant routines!"
+            elif failure_count == 0 and success_count == 0 and skipped_no_changes_count > 0:
+                overall_status = "Completed (No Changes)"
+                overall_message = "I've analyzed your progress for the relevant routines, and everything looks on track - no changes needed this time!"
+            elif success_count > 0 and failure_count > 0:
+                overall_status = "Partial Success"
+                overall_message = f"I analyzed your routines. I was able to update {success_count} routine(s), but encountered issues with {failure_count}."
+            else: # All failed or skipped with errors
+                overall_status = "Failed"
+                overall_message = "I tried to analyze and adapt your routines, but encountered errors during the process."
+
+            cycle_completed_successfully = failure_count == 0
+        else:
+             # This case shouldn't be reached if logic is right (targets identified but no results)
+             overall_message = "An unexpected state occurred after identifying targets."
+             cycle_completed_successfully = False
+    else:
+         # Initial process error occurred (e.g., fetch routines failed)
+         overall_status = "Failed"
+         overall_message = f"I couldn't complete the progress review due to an initial error: {initial_process_error}"
+         cycle_completed_successfully = False
+
+
+    # Format summary string
+    processed_results_summary = "\n".join(processed_summary_lines) if processed_summary_lines else "No routines were processed."
+
+    # Generate the final user message using LLM
+    final_report_prompt_template = get_final_cycle_report_template_v2()
+    user_name = user_model.name if user_model else "there"
+    final_message = overall_message # Fallback
+
+    try:
+         filled_prompt = final_report_prompt_template.format(
+             user_name=user_name,
+             processed_results_summary=processed_results_summary,
+             overall_status=overall_status,
+             overall_message=overall_message
+         )
+         response = await llm.ainvoke([SystemMessage(content=filled_prompt)])
+         final_message = response.content.strip()
+    except Exception as e:
+         logger.error(f"Error generating final report message: {e}", exc_info=True)
+         # Use the constructed message as fallback
+         final_message = f"Hi {user_name}, {overall_message}\n\nDetails:\n{processed_results_summary}"
+
+
+    logger.info(f"Final Cycle Report V2: Status={overall_status}, Successful={cycle_completed_successfully}")
+    return {
+        "final_report_and_notification": final_message,
+        "cycle_completed_successfully": cycle_completed_successfully,
+        "process_error": initial_process_error if initial_process_error else state.get("process_error") # Persist any error msg
+    }

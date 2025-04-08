@@ -1,5 +1,5 @@
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
-from agent.agent_models import AgentState, DeepFitnessResearchState, StreamlinedRoutineState
+from agent.agent_models import AgentState, DeepFitnessResearchState, StreamlinedRoutineState, ProgressAnalysisAdaptationStateV2
 from datetime import datetime, timedelta
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END, START
@@ -21,7 +21,12 @@ from agent.personal_trainer_agent import (coach_agent,
                                     finalize_research_report,
                                     structured_planning_node,
                                     format_and_lookup_node,
-                                    tool_execution_node
+                                    tool_execution_node,
+                                    fetch_logs_node,
+                                    process_targets_node,
+                                    fetch_all_routines_node,
+                                    compile_final_report_node_v2,
+                                    identify_target_routines_node
                                     )
 
 from typing import Literal
@@ -103,7 +108,7 @@ async def agent_selector(state: AgentState, reasoning_text: str = "") -> str:
     if state.get("fitness_plan") and state.get("working_memory", {}).get("last_analysis_date"):
         last_analysis = datetime.fromisoformat(state.get("working_memory", {}).get("last_analysis_date"))
         if (datetime.now() - last_analysis).days >= 7:  # Weekly analysis
-            return "progress_analysis_agent"
+            return "progress_analysis_adaptation_agent"
     
     # Use reasoning text to determine appropriate agent
     if reasoning_text:
@@ -114,9 +119,9 @@ async def agent_selector(state: AgentState, reasoning_text: str = "") -> str:
         elif "plan" in reasoning_text.lower() or "routine" in reasoning_text.lower():
             return "planning_agent"
         elif "progress" in reasoning_text.lower() or "analyze" in reasoning_text.lower():
-            return "progress_analysis_agent"
+            return "progress_analysis_adaptation_agent"
         elif "adjust" in reasoning_text.lower() or "modify" in reasoning_text.lower():
-            return "adaptation_agent"
+            return "progress_analysis_adaptation_agent"
         elif "motivate" in reasoning_text.lower() or "coach" in reasoning_text.lower():
             return "coach_agent"
     
@@ -143,7 +148,11 @@ async def get_or_create_state(session_id: str) -> AgentState:
         "user_profile_str": None,
         "final_report": None,
         "tool_calls": None,
-        "tool_results": None
+        "tool_results": None,
+        'user_request_context': None,
+        'final_report_and_notification': None,
+        'cycle_completed_successfully': None,
+        'processed_results': None
     }
 
 async def save_state(session_id: str, state: AgentState) -> None:
@@ -175,6 +184,47 @@ def agent_with_error_handling(agent_func):
             return state
     
     return wrapped_agent
+
+def _check_targets_found(state: ProgressAnalysisAdaptationStateV2) -> str:
+    # Paste the function body here
+    if state.get("process_error"):
+        logger.warning(f"Routing to compile_report due to process error: {state['process_error']}")
+        return "compile_report"
+    identified = state.get("identified_targets")
+    if isinstance(identified, list) and len(identified) > 0:
+        logger.info(f"Targets identified ({len(identified)}). Proceeding to process.")
+        return "process_targets"
+    else:
+        logger.info("No relevant targets identified for adaptation. Proceeding to compile report.")
+        return "compile_report"
+
+
+def build_progress_analysis_adaptation_graph_v2() -> StateGraph:
+    # Paste the function body here
+    workflow = StateGraph(ProgressAnalysisAdaptationStateV2)
+    # Add nodes...
+    workflow.add_node("fetch_routines", fetch_all_routines_node)
+    workflow.add_node("fetch_logs", fetch_logs_node)
+    workflow.add_node("identify_targets", identify_target_routines_node)
+    workflow.add_node("process_targets", process_targets_node)
+    workflow.add_node("compile_report", compile_final_report_node_v2)
+    # Define edges...
+    workflow.set_entry_point("fetch_routines")
+    workflow.add_edge("fetch_routines", "fetch_logs")
+    workflow.add_edge("fetch_logs", "identify_targets")
+    workflow.add_conditional_edges(
+        "identify_targets",
+        _check_targets_found,
+        {
+            "process_targets": "process_targets",
+            "compile_report": "compile_report"
+        }
+    )
+    workflow.add_edge("process_targets", "compile_report")
+    workflow.add_edge("compile_report", END)
+    logger.info("Progress Analysis & Adaptation subgraph built (V2 - Identification Inside).")
+    return workflow.compile()
+
 
 
 
@@ -241,6 +291,7 @@ def build_fitness_trainer_graph():
 
     deep_research_subgraph = build_deep_research_subgraph()
     planning_subgraph = build_streamlined_routine_graph()
+    progress_analysis_adaptation_subgraph = build_progress_analysis_adaptation_graph_v2()
     
     # Add nodes
     workflow.add_node("coordinator", agent_with_error_handling(coordinator))
@@ -249,8 +300,8 @@ def build_fitness_trainer_graph():
     workflow.add_node("deep_research", deep_research_subgraph)
     # workflow.add_node("planning_agent", agent_with_error_handling(planning_agent))
     workflow.add_node("planning_agent", planning_subgraph)
-    workflow.add_node("progress_analysis_agent", agent_with_error_handling(progress_analysis_agent))
-    workflow.add_node("adaptation_agent", agent_with_error_handling(adaptation_agent))
+    workflow.add_node("progress_analysis_adaptation_agent", progress_analysis_adaptation_subgraph)
+    # workflow.add_node("adaptation_agent", agent_with_error_handling(adaptation_agent))
     workflow.add_node("coach_agent", agent_with_error_handling(coach_agent))
     
     
@@ -274,8 +325,7 @@ def build_fitness_trainer_graph():
         {
             "deep_research": "deep_research",
             "planning_agent": "planning_agent",
-            "progress_analysis_agent": "progress_analysis_agent",
-            "adaptation_agent": "adaptation_agent",
+            "progress_analysis_adaptation_agent": "progress_analysis_adaptation_agent",
             "coach_agent": "coach_agent",
             "user_modeler": "user_modeler",
             "end_conversation": "end_conversation"
@@ -285,8 +335,8 @@ def build_fitness_trainer_graph():
     # Connect everything back to coordinator
     workflow.add_edge("deep_research", "coordinator")
     workflow.add_edge("planning_agent", "coordinator")
-    workflow.add_edge("progress_analysis_agent", "coordinator")
-    workflow.add_edge("adaptation_agent", "coordinator")
+    workflow.add_edge("progress_analysis_adaptation_agent", "coordinator")
+    # workflow.add_edge("adaptation_agent", "coordinator")
     workflow.add_edge("coach_agent", "coordinator")
     workflow.add_edge("user_modeler", "coordinator")
     
