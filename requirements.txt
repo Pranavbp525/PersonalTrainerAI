@@ -1,3 +1,29 @@
+# Core dependencies
+python-dotenv
+langchain
+langchain-openai
+langchain-community
+langchain-core
+openai
+pinecone # Changed from pinecone-client to pinecone
+sentence-transformers
+
+# Data processing
+numpy
+pandas
+
+# For Graph RAG
+networkx
+pyvis
+
+# For evaluation
+scikit-learn
+matplotlib
+tqdm
+
+# Utilities
+pydantic
+colorlog
 aiohappyeyeballs==2.4.6
 aiohttp==3.11.12
 aiosignal==1.3.2

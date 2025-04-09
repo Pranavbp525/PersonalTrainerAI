@@ -7,20 +7,23 @@ WORKDIR /app
 # Copy the requirements file into the container at /app
 COPY requirements.txt /app/
 
-# Install any needed packages specified in requirements.txt
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# ✅ Install PostgreSQL client
+RUN apt-get update && apt-get install -y postgresql-client
 
 # Copy the current directory contents into the container at /app
 COPY src/ /app/src/
-
-# Make port 8000 available to the world outside this container
-EXPOSE 8000
 
 # Copy entrypoint script
 COPY run_migrations.sh /app/
 
 # Set execute permissions on entrypoint script
 RUN chmod +x /app/run_migrations.sh
+
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
 
 # Define entrypoint
 ENTRYPOINT ["/app/run_migrations.sh"]
