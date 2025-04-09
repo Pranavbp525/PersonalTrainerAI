@@ -1,11 +1,11 @@
 # models.py
 import datetime
 import uuid
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, create_engine
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, create_engine, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-from sqlalchemy.dialects.postgresql import UUID  # Import UUID type
-from config import config # Import th config
+from sqlalchemy.dialects.postgresql import UUID, ARRAY  # Import UUID and ARRAY types
+from config import config # Import the config
 from pydantic import BaseModel, Field  # For data validation (optional)
 
 Base = declarative_base()
@@ -35,6 +35,18 @@ class Message(Base):
     content = Column(Text)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     session = relationship('Session', back_populates='messages')
+
+
+class ExerciseTemplate(Base):
+    __tablename__ = 'exercise_templates'
+    id = Column(String(50), primary_key=True)
+    title = Column(String(100), nullable=False)
+    type = Column(String(50), nullable=False)
+    equipment = Column(String(50), nullable=False)
+    primary_muscle_group = Column(String(50), nullable=False)
+    secondary_muscle_groups = Column(ARRAY(String(50)))
+    is_custom = Column(Boolean, default=False)
+
 
 # --- Pydantic Models (Optional, but recommended for validation) ---
 
