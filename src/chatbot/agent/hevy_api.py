@@ -132,4 +132,3 @@ async def create_routine(create_data: RoutineCreateRequest):
         raise HTTPException(status_code=response.status_code, detail=f"Error creating routine: {response.text}")
     
     return response.json()
-
