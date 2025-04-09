@@ -89,46 +89,46 @@ def coordinator_condition(state: AgentState):
     
 
 # Agent selector function
-async def agent_selector(state: AgentState, reasoning_text: str = "") -> str:
-    """Determines which agent should handle the current interaction."""
+# async def agent_selector(state: AgentState, reasoning_text: str = "") -> str:
+#     """Determines which agent should handle the current interaction."""
 
-    # For new users, ensure comprehensive assessment
-    if state.get("agent_state", {}).get("status") == "complete":
-        return "end_conversation"
+#     # For new users, ensure comprehensive assessment
+#     if state.get("agent_state", {}).get("status") == "complete":
+#         return "end_conversation"
 
-    if not state.get("user_model") or state.get("user_model", {}).get("assessment_complete") != True:
-        return "assessment_agent"
+#     if not state.get("user_model") or state.get("user_model", {}).get("assessment_complete") != True:
+#         return "assessment_agent"
     
-    # For users with assessment but no plan, prioritize research and planning
-    if state.get("user_model") and not state.get("fitness_plan"):
-        if not state.get("working_memory", {}).get("research_findings"):
-            return "deep_research"
-        else:
-            return "planning_agent"
+#     # For users with assessment but no plan, prioritize research and planning
+#     if state.get("user_model") and not state.get("fitness_plan"):
+#         if not state.get("working_memory", {}).get("research_findings"):
+#             return "deep_research"
+#         else:
+#             return "planning_agent"
     
-    # For users with existing plans, check if analysis is needed
-    if state.get("fitness_plan") and state.get("working_memory", {}).get("last_analysis_date"):
-        last_analysis = datetime.fromisoformat(state.get("working_memory", {}).get("last_analysis_date"))
-        if (datetime.now() - last_analysis).days >= 7:  # Weekly analysis
-            return "progress_analysis_adaptation_agent"
+#     # For users with existing plans, check if analysis is needed
+#     if state.get("fitness_plan") and state.get("working_memory", {}).get("last_analysis_date"):
+#         last_analysis = datetime.fromisoformat(state.get("working_memory", {}).get("last_analysis_date"))
+#         if (datetime.now() - last_analysis).days >= 7:  # Weekly analysis
+#             return "progress_analysis_adaptation_agent"
     
-    # Use reasoning text to determine appropriate agent
-    if reasoning_text:
-        if "assessment" in reasoning_text.lower() or "profile" in reasoning_text.lower():
-            return "assessment_agent"
-        elif "research" in reasoning_text.lower() or "knowledge" in reasoning_text.lower():
-            return "deep_research"
-        elif "plan" in reasoning_text.lower() or "routine" in reasoning_text.lower():
-            return "planning_agent"
-        elif "progress" in reasoning_text.lower() or "analyze" in reasoning_text.lower():
-            return "progress_analysis_adaptation_agent"
-        elif "adjust" in reasoning_text.lower() or "modify" in reasoning_text.lower():
-            return "progress_analysis_adaptation_agent"
-        elif "motivate" in reasoning_text.lower() or "coach" in reasoning_text.lower():
-            return "coach_agent"
+#     # Use reasoning text to determine appropriate agent
+#     if reasoning_text:
+#         if "assessment" in reasoning_text.lower() or "profile" in reasoning_text.lower():
+#             return "assessment_agent"
+#         elif "research" in reasoning_text.lower() or "knowledge" in reasoning_text.lower():
+#             return "deep_research"
+#         elif "plan" in reasoning_text.lower() or "routine" in reasoning_text.lower():
+#             return "planning_agent"
+#         elif "progress" in reasoning_text.lower() or "analyze" in reasoning_text.lower():
+#             return "progress_analysis_adaptation_agent"
+#         elif "adjust" in reasoning_text.lower() or "modify" in reasoning_text.lower():
+#             return "progress_analysis_adaptation_agent"
+#         elif "motivate" in reasoning_text.lower() or "coach" in reasoning_text.lower():
+#             return "coach_agent"
     
-    # Default to coordinator for general interactions
-    return "coordinator"
+#     # Default to coordinator for general interactions
+#     return "coordinator"
 
 # State management utilities
 async def get_or_create_state(session_id: str) -> AgentState:
