@@ -207,11 +207,6 @@ Recent Workout Logs (provide context for analysis):
 Output ONLY the JSON object conforming to the AnalysisFindings structure.
 """
 
-def get_analysis_v2_template(version=None):
-    return PromptTemplate(
-        input_variables=["user_profile", "target_routine_details", "workout_logs", "format_instructions"],
-        template=ANALYSIS_TEMPLATE_V2
-    )
 
 # Use TARGETED_RAG_QUERY_TEMPLATE content from previous messages
 TARGETED_RAG_QUERY_TEMPLATE = """Based on the user's profile and a specific area identified for potential adjustment in their fitness plan, generate a concise, targeted query for our fitness science RAG system (`retrieve_from_rag`).
@@ -226,11 +221,7 @@ Previous RAG Result (if any for this area): {previous_result}
 
 Generate the *next* best query string to get specific, actionable scientific information related to the adjustment area. Focus on principles, techniques, or evidence. Output ONLY the query string.
 """
-def get_targeted_rag_query_template(version=None):
-    return PromptTemplate(
-        input_variables=["user_profile", "area_for_adjustment", "previous_query", "previous_result"],
-        template=TARGETED_RAG_QUERY_TEMPLATE
-    )
+
 
 # Use ROUTINE_MODIFICATION_TEMPLATE_V2 content from previous messages
 ROUTINE_MODIFICATION_TEMPLATE_V2 = """You are an expert workout adaptation specialist. You are given the user's current workout routine as a JSON object and findings from their progress analysis and research for *this specific routine*. Your task is to **modify the provided JSON object** to incorporate necessary adjustments based on the findings and return the **entire, updated JSON object**.
@@ -270,11 +261,7 @@ Current Routine JSON (Modify this structure):
 Output only the complete, modified JSON object for the routine. Do not include ```json markdown delimiters or any other text.
 """
 
-def get_routine_modification_template_v2(version=None):
-    return PromptTemplate(
-    input_variables=["user_profile", "analysis_findings", "adaptation_rag_results", "current_routine_json"],
-    template=ROUTINE_MODIFICATION_TEMPLATE_V2
-    )
+
 
 REASONING_GENERATION_TEMPLATE = """Based on the changes made between the original routine and the modified routine, and considering the analysis/research findings, generate a concise user-facing explanation for the modifications made to this specific routine.
 
@@ -293,11 +280,7 @@ Relevant RAG Research Results (for this routine):
 Generate the reasoning text only.
 """
 
-def get_reasoning_generation_template(version=None):
-    return PromptTemplate(
-    input_variables=["original_routine_snippet", "modified_routine_snippet", "analysis_findings", "adaptation_rag_results"],
-    template=REASONING_GENERATION_TEMPLATE
-    )
+
 
 FINAL_CYCLE_REPORT_TEMPLATE_V2 = """You are an AI fitness coach summarizing the results of a potentially multi-routine progress analysis and adaptation cycle for the user.
 
@@ -321,11 +304,7 @@ Keep the tone supportive and action-oriented if failures occurred (e.g., "I coul
 
 Generate only the user-facing message.
 """
-def get_final_cycle_report_template_v2(version=None):
-    return PromptTemplate(
-    input_variables=["user_name", "processed_results_summary", "overall_status", "overall_message"],
-    template=FINAL_CYCLE_REPORT_TEMPLATE_V2
-    )
+
 
 ROUTINE_IDENTIFICATION_PROMPT = """You are an AI assistant analyzing a user's fitness routines and workout logs to identify which routine(s) should be targeted for adaptation.
 
@@ -384,6 +363,35 @@ def get_routine_identification_prompt(version=None):
     template=ROUTINE_IDENTIFICATION_PROMPT
     )
 
+def get_analysis_v2_template(version=None):
+    return PromptTemplate(
+        input_variables=["user_profile", "target_routine_details", "workout_logs", "format_instructions"],
+        template=ANALYSIS_TEMPLATE_V2
+    )
+
+def get_final_cycle_report_template_v2(version=None):
+    return PromptTemplate(
+    input_variables=["user_name", "processed_results_summary", "overall_status", "overall_message"],
+    template=FINAL_CYCLE_REPORT_TEMPLATE_V2
+    )
+
+def get_reasoning_generation_template(version=None):
+    return PromptTemplate(
+    input_variables=["original_routine_snippet", "modified_routine_snippet", "analysis_findings", "adaptation_rag_results"],
+    template=REASONING_GENERATION_TEMPLATE
+    )
+
+def get_routine_modification_template_v2(version=None):
+    return PromptTemplate(
+    input_variables=["user_profile", "analysis_findings", "adaptation_rag_results", "current_routine_json"],
+    template=ROUTINE_MODIFICATION_TEMPLATE_V2
+    )
+
+def get_targeted_rag_query_template(version=None):
+    return PromptTemplate(
+        input_variables=["user_profile", "area_for_adjustment", "previous_query", "previous_result"],
+        template=TARGETED_RAG_QUERY_TEMPLATE
+    )
 
 # Create the PromptTemplate object (add this with the others)
 summarize_routine_prompt = PromptTemplate(
