@@ -215,8 +215,13 @@ class MLflowRAGTracker:
         # Log the metrics
         self.log_metrics(metrics)
         
+        # Create a copy of results without non-serializable entries
+        results_for_logging = results.copy()
+        if "figures" in results_for_logging:
+            results_for_logging.pop("figures")
+
         # Log the full results as a JSON artifact
-        self.log_dict(results, "evaluation_results.json")
+        self.log_dict(results_for_logging, "evaluation_results.json")
         
         # Log any figures if available
         if "figures" in results:

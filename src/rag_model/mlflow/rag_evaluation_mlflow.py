@@ -15,8 +15,26 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # Add the project root to the Python path
-project_root = Path(__file__).resolve().parent.parent
-sys.path.append(str(project_root))
+import os
+import sys
+from pathlib import Path
+
+# Get the absolute path to the project root
+current_file = Path(__file__).resolve()
+project_root = None
+
+# Search for the project root (where the main directories like 'src' are located)
+for parent in [current_file.parent.parent.parent.parent, current_file.parent.parent.parent]:
+    if (parent / 'src').exists():
+        project_root = parent
+        break
+
+if project_root is None:
+    raise RuntimeError("Could not find project root directory")
+
+# Add to Python path if not already there
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Import MLflow tracker
 from mlflow_rag_tracker import MLflowRAGTracker, start_mlflow_server

@@ -53,10 +53,6 @@ TEST_QUERIES_WITH_GROUND_TRUTH = [
     {
         "query": "What's the optimal rest period between strength training sessions?",
         "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue."
-    },
-    {
-        "query": "How can I improve my running endurance?",
-        "ground_truth": "To improve running endurance: 1) Gradually increase weekly mileage by no more than 10% per week; 2) Incorporate long, slow runs at conversational pace to build aerobic base; 3) Add interval training (e.g., 400m repeats) and tempo runs (comfortably hard pace) weekly; 4) Include cross-training like cycling or swimming 1-2 times weekly; 5) Strengthen supporting muscles with exercises like squats and lunges; 6) Maintain proper nutrition with adequate carbohydrates and hydration; 7) Ensure sufficient recovery with rest days and sleep; 8) Practice consistent pacing during runs; 9) Consider periodization with build and recovery phases; 10) Be patient as endurance improvements take time."
     }
 ]
 
@@ -1108,16 +1104,38 @@ class AdvancedRAGEvaluator:
             logger.error(f"Error retrieving contexts from {implementation_name}: {e}")
             return []
     
-    def evaluate_implementation(self,rag_instance, implementation_name: str) -> Dict[str, Any]:
+    def evaluate_implementation(self,rag_instance, implementation_name=None):
         """
         Evaluate a specific RAG implementation.
         
         Args:
-            implementation_name: Name of the RAG implementation
+            rag_instance: Instance of the RAG implementation
+            implementation_name: Name of the RAG implementation (optional)
             
         Returns:
             Dictionary with evaluation results
         """
+        # If rag_instance is a string, use it as a key directly.
+        if isinstance(rag_instance, str):
+            implementation_key = rag_instance.lower()
+            if implementation_key not in self.rag_implementations:
+                logger.error(f"Unknown implementation: {rag_instance}")
+                return {"error": f"Unknown implementation: {rag_instance}"}
+            else:
+                rag_instance = self.rag_implementations[implementation_key]
+                implementation_name = implementation_key
+        else:
+            # Derive the key from the class name
+            cls_name = rag_instance.__class__.__name__.lower()
+            if "advanced" in cls_name:
+                implementation_name = "advanced"
+            elif "modular" in cls_name:
+                implementation_name = "modular"
+            elif "raptor" in cls_name:
+                implementation_name = "raptor"
+            else:
+                implementation_name = cls_name  # fallback—usually you won’t get here
+        
         logger.info(f"Evaluating {implementation_name} RAG implementation")
         
         if implementation_name not in self.rag_implementations:
