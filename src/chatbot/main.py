@@ -1,6 +1,6 @@
 import logging
 # --- ELK Logging Import ---
-from .elk_logging import setup_elk_logging, get_agent_logger
+from elk_logging import setup_elk_logging, get_agent_logger
 # --- End ELK Logging Import ---
 import time
 import os
@@ -17,6 +17,7 @@ from pydantic import BaseModel
 import json
 from datetime import datetime
 import re
+from sqlalchemy import desc
 
 # --- Agent Imports ---
 from agent.agent_models import AgentState, UserModel
@@ -76,13 +77,23 @@ except Exception as e:
 class UserCreate(BaseModel):
     username: str
 
+class UserResponse(BaseModel): # Add a response model for user data
+    id: int
+    username: str
+
+    class Config:
+        orm_mode = True
+
 class SessionCreate(BaseModel):
     user_id: int
 
-# --- (Optional) Vector Database Integration Placeholder ---
-def retrieve_context_from_vector_db(user_input: str) -> list[str]:
-    log.info("Placeholder: Retrieving Context from Vector DB") # Use configured logger
-    return []
+class SessionResponse(BaseModel): # Add a response model for session data
+    id: str
+    user_id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
 
 
 async def generate_response(session_id: str, latest_human_message_content: str, db: Session) -> str:
@@ -301,26 +312,26 @@ async def get_messages(session_id: str, request: Request, db: Session = Depends(
 
     if not messages:
         request_log.info("No messages found in PostgreSQL, checking Redis.") # Use request_log
-        try:
-            redis_messages = get_chat_history(session_id=session_id)
-            if not redis_messages:
-                request_log.warning("Messages not found in PostgreSQL or Redis.") # Use request_log
-                raise HTTPException(status_code=404, detail="Messages not found for this session")
-            else:
-                # Can't return MessageResponse from Redis strings easily
-                request_log.info("Messages found in Redis cache (returning empty list as format differs).") # Use request_log
-                # Consider if you want to parse redis strings back into MessageResponse objects
-                # For now, returning empty list as per original logic when only Redis hit
-                return []
-        except Exception as e:
-            request_log.error("Error checking Redis for messages.", exc_info=True) # Use request_log
-            # Raise 404 as we couldn't confirm history exists
-            raise HTTPException(status_code=404, detail="Messages not found (error checking cache)")
+        # try:
+        #     redis_messages = get_chat_history(session_id=session_id)
+        #     if not redis_messages:
+        #         request_log.warning("Messages not found in PostgreSQL or Redis.") # Use request_log
+        #         raise HTTPException(status_code=404, detail="Messages not found for this session")
+        #     else:
+        #         # Can't return MessageResponse from Redis strings easily
+        #         request_log.info("Messages found in Redis cache (returning empty list as format differs).") # Use request_log
+        #         # Consider if you want to parse redis strings back into MessageResponse objects
+        #         # For now, returning empty list as per original logic when only Redis hit
+        #         return []
+        # except Exception as e:
+        #     request_log.error("Error checking Redis for messages.", exc_info=True) # Use request_log
+        #     # Raise 404 as we couldn't confirm history exists
+        raise HTTPException(status_code=404, detail="Messages not found for this session in the primary database")
 
     request_log.info(f"Retrieved {len(messages)} messages from PostgreSQL.") # Use request_log
     return messages
 
-@app.post("/users/", response_model=dict)
+@app.post("/users/", response_model=UserResponse)
 async def create_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
     """Creates a new user."""
     # --- Create a logger with request context ---
@@ -356,9 +367,27 @@ async def create_user(user: UserCreate, request: Request, db: Session = Depends(
         db.rollback()
         request_log.error("Database error creating user.", exc_info=True) # Use request_log
         raise HTTPException(status_code=500, detail="Database error creating user")
+    
+# --- NEW: Endpoint to get user by username ---
+@app.get("/users/username/{username}", response_model=UserResponse)
+async def get_user_by_username(username: str, request: Request, db: Session = Depends(get_db)):
+    """Gets a user by their username."""
+    request_log = log.add_context(
+        request_path=request.url.path,
+        request_method=request.method,
+        username_query=username
+    )
+    request_log.info("Attempting to find user by username.")
+    user = db.query(User).filter(User.username == username).first()
+    if user:
+        request_log.info("User found.", extra={"user_id": user.id})
+        return user
+    else:
+        request_log.info("User not found.")
+        raise HTTPException(status_code=404, detail="User not found")
 
 
-@app.post("/sessions/", response_model=dict)
+@app.post("/sessions/", response_model=SessionResponse)
 async def create_session(session: SessionCreate, request: Request, db: Session = Depends(get_db)):
     """Creates a new session for a user."""
     # --- Create a logger with request context ---
@@ -390,11 +419,32 @@ async def create_session(session: SessionCreate, request: Request, db: Session =
         # Add the newly created session_id to the context for the final log message
         request_log.add_context(session_id=new_session.id)
         request_log.info(f"Session created successfully.") # Use request_log
-        return {"session_id": new_session.id, "user_id": new_session.user_id}
+        return new_session
     except Exception as e:
         db.rollback()
         request_log.error("Database error creating session.", exc_info=True) # Use request_log
         raise HTTPException(status_code=500, detail="Database error creating session")
+    
+# --- NEW: Endpoint to get the latest session for a user ---
+@app.get("/users/{user_id}/sessions/latest", response_model=SessionResponse)
+async def get_latest_session(user_id: int, request: Request, db: Session = Depends(get_db)):
+    """Gets the most recent session for a given user ID."""
+    request_log = log.add_context(
+        request_path=request.url.path,
+        request_method=request.method,
+        user_id_query=user_id
+    )
+    request_log.info("Attempting to find latest session for user.")
+
+    latest_session = db.query(DBSession).filter(DBSession.user_id == user_id)\
+                       .order_by(desc(DBSession.created_at)).first()
+
+    if latest_session:
+        request_log.info(f"Latest session found.", extra={"session_id": latest_session.id})
+        return latest_session
+    else:
+        request_log.info("No sessions found for this user.")
+        raise HTTPException(status_code=404, detail="No sessions found for this user")
 
 
 # --- Example Usage / Initialization ---
