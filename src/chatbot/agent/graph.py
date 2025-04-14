@@ -1,7 +1,9 @@
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from agent.agent_models import AgentState, DeepFitnessResearchState, StreamlinedRoutineState, ProgressAnalysisAdaptationStateV2
 from datetime import datetime, timedelta
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from config import config
+    
 
 from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -62,11 +64,16 @@ graph_build_log = setup_elk_logging("fitness-chatbot.graph_builder")
 # logger = logging.getLogger(__name__) # Remove module-level logger
 # ---
 
-# --- Checkpointer Initialization ---
-# Initialize MemorySaver (or your chosen checkpointer)
-agent_checkpointer = MemorySaver()
-graph_build_log.info("Initialized MemorySaver checkpointer.", extra={"checkpointer_type": type(agent_checkpointer).__name__})
-# ---
+# --- Store the Checkpointer CONTEXT MANAGER ---
+# agent_checkpointer_manager = None # Initialize to None
+# try:
+#     # Store the context manager object itself
+#     agent_checkpointer_manager = AsyncPostgresSaver.from_conn_string(config.DATABASE_URL)
+#     graph_build_log.info(f"Initialized AsyncPostgresSaver context manager. Connection: {config.DATABASE_URL.split('@')[-1]}")
+# except Exception as e:
+#     graph_build_log.critical("Failed to initialize AsyncPostgresSaver context manager!", exc_info=True)
+#     raise # Stop if manager fails to init
+
 
 # --- Helper function to get session_id from state (reusable) ---
 def _get_session_id_from_state_or_config(
@@ -402,7 +409,7 @@ def build_streamlined_routine_graph(): # Return type hint
 
 
 # --- Main Graph Builder with Logging ---
-def build_fitness_trainer_graph(): # Return type hint
+def build_fitness_trainer_graph(checkpointer: AsyncPostgresSaver): # Return type hint
     """Constructs the multi-agent graph for the fitness trainer."""
     # --- Logging Setup ---
     main_graph_log = graph_build_log.add_context(graph_name="fitness_trainer_main")
@@ -473,9 +480,15 @@ def build_fitness_trainer_graph(): # Return type hint
     workflow.set_entry_point("coordinator")
     main_graph_log.debug("Set graph entry point to 'coordinator'.")
 
-    # Compile the graph with the checkpointer
-    main_graph_log.info("Compiling main graph with checkpointer...")
-    compiled_app = workflow.compile(checkpointer=agent_checkpointer)
+    # Compile the graph with the PASSED checkpointer instance
+    main_graph_log.info("Compiling main graph with provided checkpointer instance...")
+    if checkpointer is None:
+         main_graph_log.critical("Checkpointer instance passed to build_fitness_trainer_graph is None!")
+         raise RuntimeError("Checkpointer cannot be None when compiling graph")
+
+    compiled_app = workflow.compile(checkpointer=checkpointer) # Use the passed instance
     main_graph_log.info("Main fitness trainer graph compiled successfully.")
 
     return compiled_app
+
+
