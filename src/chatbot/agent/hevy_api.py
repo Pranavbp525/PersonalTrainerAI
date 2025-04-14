@@ -25,7 +25,7 @@ try:
     # Assuming hevy_api.py is in the same directory level as elk_logging.py
     # Adjust the path '..' if hevy_api.py is inside a subdirectory like 'agent/'
     # from ..elk_logging import setup_elk_logging # If in subdirectory
-    from ..elk_logging import setup_elk_logging # If at same level
+    from elk_logging import setup_elk_logging # If at same level
 except ImportError:
     # Fallback for different execution contexts
     print("Could not import elk_logging, using standard print for Hevy API logs.")
