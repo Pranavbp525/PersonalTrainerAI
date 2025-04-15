@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile # Your FastAPI Dockerfile
+    container_name: chatbot-api-local
+    env_file:
+      - .env.local # Load environment variables
+    ports:
+      - "8000:8000"
+    networks:
+      - chatbot-net
+    command: ["/bin/sh", "-c", "cd /app/src/chatbot && exec uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --reload"] # Added --reload for dev
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend # Your Streamlit Dockerfile
+    container_name: chatbot-client-local
+    environment:
+      # Point to the 'api' service name within the docker network
+      API_BASE_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api # Ensures API starts before client (optional but good practice)
+    networks:
+      - chatbot-net
+
+networks:
+  chatbot-net:
+    driver: bridge
