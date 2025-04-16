@@ -1,0 +1,47 @@
+# Git files
+.git
+.gitignore
+
+# Virtual Env
+.venv
+venv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets / Local Config
+.env
+.env.*
+*.env
+
+# Docker Compose Files (usually not needed in image context)
+docker-compose*.yml
+
+# Test / Dev cache
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Data (unless specifically needed IN the image)
+data/
+# Logs (if generated locally)
+logs/
+
+# Node modules (if any JS involved outside container)
+node_modules/
