@@ -1,0 +1,60 @@
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Build Image
+    args: ['build', '-t', '${_IMAGE_URI}', '-f', 'Dockerfile', '.']
+
+  # Step 2: Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Push Image
+    args: ['push', '${_IMAGE_URI}']
+
+  # Step 3: Run unit tests
+  - name: 'python:3.11'
+    id: Run Tests
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install -r requirements.txt
+        pytest tests/
+
+  # Step 4: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: Deploy to Cloud Run
+    entrypoint: gcloud
+    args:
+      [
+        'run', 'deploy', 'rag-chatbot',
+        '--image', '${_IMAGE_URI}',
+        '--region', 'us-east1',
+        '--platform', 'managed',
+        '--allow-unauthenticated',
+        '--service-account', 'rag-chatbot-sa@ragllm-454718.iam.gserviceaccount.com',
+        '--add-cloudsql-instances', 'ragllm-454718:us-east1:rag-postgres',
+        '--set-env-vars',
+        'POSTGRES_USER=postgres,POSTGRES_PASSWORD=admin,POSTGRES_DB=ragdb,INSTANCE_CONNECTION_NAME=ragllm-454718:us-east1:rag-postgres'
+      ]
+
+  # Step 5: Run Alembic Migrations
+  - name: 'python:3.11'
+    id: Run Migrations
+    entrypoint: bash
+    env:
+      - 'POSTGRES_USER=postgres'
+      - 'POSTGRES_PASSWORD=admin'
+      - 'POSTGRES_DB=ragdb'
+      - 'INSTANCE_CONNECTION_NAME=ragllm-454718:us-east1:rag-postgres'
+    args:
+      - -c
+      - |
+        pip install -r requirements.txt
+        ./run_migrations.sh
+
+images:
+  - '${_IMAGE_URI}'
+
+substitutions:
+  _IMAGE_URI: us-east1-docker.pkg.dev/ragllm-454718/rag-chatbot-repo/chatbot-backend:$COMMIT_SHA
+
+timeout: 900s

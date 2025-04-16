@@ -1,3 +1,6 @@
+export DB_URL="postgresql+psycopg2://$POSTGRES_USER:$POSTGRES_PASSWORD@/$POSTGRES_DB?host=/cloudsql/$INSTANCE_CONNECTION_NAME"
+
+
 #!/bin/sh
 set -e
 
