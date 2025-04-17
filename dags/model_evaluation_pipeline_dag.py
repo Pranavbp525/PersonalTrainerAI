@@ -55,7 +55,7 @@ def run_rag_evaluation_task(**context):
         "LANGSMITH_API_KEY": os.getenv('LANGSMITH_API_KEY'),
         "LANGSMITH_PROJECT": os.getenv('LANGSMITH_PROJECT'),
         "OPENAI_API_KEY": os.getenv('OPENAI_API_KEY') # Switched check to OpenAI key
-        #"DEEPSEEK_API_KEY": os.getenv('DEEPSEEK_API_KEY') # Or your judge LLM key name
+        # "DEEPSEEK_API_KEY": os.getenv('DEEPSEEK_API_KEY') # Or your judge LLM key name
     }
     missing_vars = [k for k, v in required_vars.items() if not v]
     if missing_vars:

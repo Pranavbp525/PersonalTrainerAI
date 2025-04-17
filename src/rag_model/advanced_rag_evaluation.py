@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community import HuggingFaceEmbeddings
 from src.rag_model.mlflow.mlflow_rag_tracker import MLflowRAGTracker
 import inspect  # Import the inspect module
 import re
@@ -54,8 +55,8 @@ class AdvancedRAGEvaluator:
         self,
         output_dir: str = "results",
         test_queries: List[Dict[str, str]] = None,
-        evaluation_llm_model: str = "gpt-4",
-        embedding_model: str = "text-embedding-3-small"
+        evaluation_llm_model: str = "gpt-4o-mini",
+        embedding_model: str = "sentence-transformers/all-mpnet-base-v2"
     ):
         """
         Initialize the RAG evaluator.
@@ -70,9 +71,8 @@ class AdvancedRAGEvaluator:
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
 
-        self.embeddings = OpenAIEmbeddings(
+        self.embeddings = HuggingFaceEmbeddings(
             model=embedding_model,
-            openai_api_key=os.getenv("OPENAI_API_KEY")
         )
 
         self.rag_implementations = self._initialize_rag_implementations()
@@ -517,7 +517,7 @@ def main():
     """Main function to run the RAG evaluation."""
     parser = argparse.ArgumentParser(description="RAG Evaluation for PersonalTrainerAI")
     parser.add_argument("--output-dir", type=str, default="results", help="Directory to save results")
-    parser.add_argument("--evaluation-model", type=str, default="gpt-4", help="LLM model to use for evaluation")
+    parser.add_argument("--evaluation-model", type=str, default="gpt-4o-mini", help="LLM model to use for evaluation")
     parser.add_argument("--implementation", type=str, choices=["advanced", "modular", "raptor", "all"],
                         default="all", help="RAG implementation to evaluate")
     parser.add_argument("--num-queries", type=int, default=5,

@@ -37,7 +37,7 @@ class RaptorRAG:
     def __init__(
         self,
         embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2",
-        llm_model_name: str = "gpt-3.5-turbo",
+        llm_model_name: str = "gpt-4o-mini",
         temperature: float = 0.0,
         top_k: int = 8,
         reasoning_steps: int = 3
