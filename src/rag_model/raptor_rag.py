@@ -338,24 +338,23 @@ class RaptorRAG:
             If return_contexts is True: Tuple of (answer, contexts)
         """
         # Plan retrieval
-        retrieval_plan = self._plan_retrieval(query)
-        
+        retrieval_plan = self.plan_retrieval(query)  # Fixed method name
+
         # Retrieve documents
-        documents = self._retrieve_documents(query, retrieval_plan)
-        
+        documents = self.retrieve_documents(query, retrieval_plan)
+
         # Perform reasoning
-        reasoning = self._perform_reasoning(query, documents)
-        
+        reasoning = self.perform_multi_step_reasoning(query, "\n".join([doc["text"] for doc in documents]))
+
         # Synthesize answer
-        response = self._synthesize_answer(query, reasoning, documents)
-        
+        response = self.synthesize_answer(query, "\n".join([doc["text"] for doc in documents]), reasoning)
+
         if return_contexts:
             # Extract text from documents for evaluation
-            contexts = [doc.page_content for doc in documents]
+            contexts = [doc["text"] for doc in documents]
             return response, contexts
         else:
             return response
-
 
 
 if __name__ == "__main__":

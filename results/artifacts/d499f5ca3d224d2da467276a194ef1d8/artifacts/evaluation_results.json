@@ -1,0 +1,114 @@
+{
+  "implementation": "modular",
+  "results": [
+    {
+      "query": "How much protein should I consume daily for muscle growth?",
+      "response": "To support muscle growth, it is recommended to consume around 1.2 to 2.2 grams of protein per kilogram of body weight per day. This range can vary depending on individual factors such as activity level, age, and overall health goals.\n\nFor example, if you weigh 70 kilograms, you should aim to consume between 84 to 154 grams of protein per day. It is important to spread your protein intake throughout the day, including sources such as lean meats, poultry, fish, eggs, dairy products, legumes, nuts, and seeds.\n\nAdditionally, timing your protein intake around your workouts can also be beneficial for muscle growth and recovery. Consuming protein-rich foods or supplements before and after your workouts can help support muscle protein synthesis and repair.\n\nRemember to also stay hydrated and maintain a balanced diet that includes a variety of nutrients to support overall health and fitness goals. If you have specific dietary restrictions or health concerns, it is recommended to consult with a registered dietitian or nutritionist for personalized guidance.",
+      "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 5.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 5.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 5.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 5.0,
+        "overall": 1.625
+      },
+      "response_time": 4.42017674446106
+    },
+    {
+      "query": "What are the best exercises for core strength?",
+      "response": "Core strength is essential for overall fitness and functionality. Here are some of the best exercises to strengthen your core:\n\n1. Plank: The plank is a great exercise for strengthening the entire core, including the rectus abdominis, transverse abdominis, obliques, and lower back muscles. Hold the plank position for as long as you can while maintaining proper form.\n\n2. Russian twists: This exercise targets the obliques and helps improve rotational strength. Sit on the floor with your knees bent and feet lifted off the ground. Hold a weight or medicine ball and twist your torso from side to side.\n\n3. Bicycle crunches: Bicycle crunches are effective for targeting the rectus abdominis and obliques. Lie on your back with your hands behind your head, bring your knees towards your chest, and perform a pedaling motion while twisting your torso to touch your elbow to the opposite knee.\n\n4. Dead bug: The dead bug exercise is great for improving core stability and coordination. Lie on your back with your arms extended towards the ceiling and legs in a tabletop position. Slowly lower one arm and the opposite leg towards the floor while keeping your core engaged.\n\n5. Mountain climbers: Mountain climbers are a dynamic exercise that targets the entire core while also engaging the shoulders and legs. Start in a plank position and alternate bringing your knees towards your chest in a running motion.\n\n6. Bird dog: The bird dog exercise is excellent for improving core stability and balance. Start on your hands and knees, extend one arm and the opposite leg while keeping your core engaged. Hold for a few seconds before switching sides.\n\nRemember to perform these exercises with proper form and technique to avoid injury and maximize results. Incorporate a variety of core exercises into your workout routine for a well-rounded core strength training program.",
+      "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 5.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 5.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 5.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 5.0,
+        "overall": 1.625
+      },
+      "response_time": 7.043476104736328
+    },
+    {
+      "query": "How do I create a balanced workout routine for beginners?",
+      "response": "Creating a balanced workout routine for beginners is essential to ensure they build strength, endurance, and flexibility while avoiding injury. Here are some key components to consider when designing a workout routine for beginners:\n\n1. Start with a warm-up: Begin each workout with a 5-10 minute warm-up to increase blood flow to the muscles and prepare the body for exercise. This can include light cardio, dynamic stretches, and mobility exercises.\n\n2. Incorporate strength training: Include exercises that target major muscle groups such as squats, lunges, push-ups, and rows. Start with bodyweight exercises and gradually progress to using weights or resistance bands as the individual gets stronger.\n\n3. Include cardiovascular exercise: Incorporate activities like walking, jogging, cycling, or swimming to improve cardiovascular health and endurance. Aim for at least 30 minutes of moderate-intensity cardio most days of the week.\n\n4. Add flexibility and mobility work: Include stretching exercises to improve flexibility and range of motion. This can help prevent injuries and improve overall performance.\n\n5. Rest and recovery: Make sure to include rest days in the workout routine to allow the body to recover and adapt to the exercise. Overtraining can lead to burnout and injury, so it's important to listen to your body and take breaks when needed.\n\n6. Progress gradually: As the individual gets stronger and more comfortable with the exercises, gradually increase the intensity, duration, and frequency of the workouts. This will help prevent plateaus and keep the body challenged.\n\n7. Stay consistent: Consistency is key to seeing results and building a strong foundation of fitness. Encourage the individual to stick to their workout routine and make it a regular part of their lifestyle.\n\nBy following these guidelines and tailoring the workout routine to the individual's goals and fitness level, you can create a balanced and effective program for beginners. Remember to always prioritize safety, proper form, and gradual progression to help them achieve their fitness goals.",
+      "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 5.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 5.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 5.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 5.0,
+        "overall": 1.625
+      },
+      "response_time": 5.168225049972534
+    },
+    {
+      "query": "What's the optimal rest period between strength training sessions?",
+      "response": "The optimal rest period between strength training sessions can vary depending on a few factors such as your fitness level, the intensity of your workouts, and your overall recovery abilities. However, a general guideline to follow is to allow at least 48 hours of rest between training the same muscle groups.\n\nDuring strength training sessions, you are essentially breaking down muscle fibers, and it is during the rest period that these fibers repair and grow stronger. If you do not allow enough time for proper recovery, you may risk overtraining, which can lead to decreased performance, increased risk of injury, and hindered progress.\n\nIt is also important to listen to your body and pay attention to signs of fatigue, soreness, or decreased performance. If you are still feeling sore or fatigued from a previous workout, it may be best to wait until you feel fully recovered before engaging in another strength training session.\n\nIn addition to rest periods between strength training sessions, it is also important to prioritize other aspects of recovery such as adequate sleep, proper nutrition, hydration, and stress management. These factors play a crucial role in your body's ability to recover and adapt to the demands of strength training.\n\nOverall, the key is to find a balance that works for you and allows for optimal recovery and progress in your strength training journey. If you are unsure about the appropriate rest period for your specific needs, consider consulting with a fitness professional for personalized guidance.",
+      "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 5.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 5.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 5.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 5.0,
+        "overall": 1.625
+      },
+      "response_time": 5.812311887741089
+    }
+  ],
+  "average_scores": {
+    "faithfulness": 0.0,
+    "answer_relevancy": 5.0,
+    "context_relevancy": 0.0,
+    "context_precision": 0.0,
+    "fitness_domain_accuracy": 5.0,
+    "scientific_correctness": 0.0,
+    "practical_applicability": 5.0,
+    "safety_consideration": 0.0,
+    "retrieval_precision": 0.0,
+    "retrieval_recall": 0.0,
+    "answer_completeness": 0.0,
+    "answer_conciseness": 0.0,
+    "answer_helpfulness": 5.0,
+    "overall": 1.625
+  },
+  "average_response_time": 5.611047446727753
+}

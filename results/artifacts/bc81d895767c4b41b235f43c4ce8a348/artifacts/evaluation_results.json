@@ -1,0 +1,114 @@
+{
+  "implementation": "modular",
+  "results": [
+    {
+      "query": "How much protein should I consume daily for muscle growth?",
+      "response": "Error generating response",
+      "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 0.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 0.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 0.0,
+        "overall": 0.0
+      },
+      "response_time": 0.0002880096435546875
+    },
+    {
+      "query": "What are the best exercises for core strength?",
+      "response": "Error generating response",
+      "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 0.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 0.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 0.0,
+        "overall": 0.0
+      },
+      "response_time": 0.0007674694061279297
+    },
+    {
+      "query": "How do I create a balanced workout routine for beginners?",
+      "response": "Error generating response",
+      "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 0.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 0.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 0.0,
+        "overall": 0.0
+      },
+      "response_time": 0.0007169246673583984
+    },
+    {
+      "query": "What's the optimal rest period between strength training sessions?",
+      "response": "Error generating response",
+      "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 0.0,
+        "scientific_correctness": 0.0,
+        "practical_applicability": 0.0,
+        "safety_consideration": 0.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 0.0,
+        "answer_conciseness": 0.0,
+        "answer_helpfulness": 0.0,
+        "overall": 0.0
+      },
+      "response_time": 0.001039743423461914
+    }
+  ],
+  "average_scores": {
+    "faithfulness": 0.0,
+    "answer_relevancy": 0.0,
+    "context_relevancy": 0.0,
+    "context_precision": 0.0,
+    "fitness_domain_accuracy": 0.0,
+    "scientific_correctness": 0.0,
+    "practical_applicability": 0.0,
+    "safety_consideration": 0.0,
+    "retrieval_precision": 0.0,
+    "retrieval_recall": 0.0,
+    "answer_completeness": 0.0,
+    "answer_conciseness": 0.0,
+    "answer_helpfulness": 0.0,
+    "overall": 0.0
+  },
+  "average_response_time": 0.0007030367851257324
+}

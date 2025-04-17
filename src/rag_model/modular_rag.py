@@ -1,5 +1,5 @@
 """
-Fixed Modular RAG Implementation for PersonalTrainerAI
+ Modular RAG Implementation for PersonalTrainerAI
 
 This module implements a modular Retrieval-Augmented Generation (RAG) approach
 for fitness knowledge with query classification and specialized retrievers.
@@ -229,6 +229,43 @@ class ModularRAG:
         logger.info(f"Retrieved {len(documents)} documents")
         return documents
     
+    def _generate_response(self, query: str, documents: List[Dict[str, Any]], category: str) -> str:
+        """
+        Generate a response to the query using the provided documents and category.
+        If no documents are retrieved, fallback to directly querying the LLM.
+        
+        Args:
+            query: The original query
+            documents: List of retrieved documents
+            category: The query category
+        
+        Returns:
+            A string containing the generated response.
+        """
+        if not documents:
+            logger.warning("No documents retrieved. Falling back to direct LLM response.")
+            # Directly query the LLM with the original question
+            fallback_prompt = f"""
+            You are a knowledgeable fitness trainer assistant specializing in {category}.
+            The user has asked the following question:
+            
+            Question: {query}
+            
+            Provide a comprehensive, accurate, and helpful answer based on your expertise.
+            """
+            # Pass the fallback prompt as a string
+            response = self.llm.invoke(fallback_prompt)
+            return response.content.strip()  # Extract text from AIMessage and strip whitespace
+
+        # Combine document texts into a single context
+        context = "\n".join([doc["text"] for doc in documents])
+
+        # Generate response using the answer generation chain
+        logger.info("Generating response using retrieved documents")
+        response = self.answer_generation_chain.invoke({"context": context, "question": query, "category": category})
+
+        return response["text"].strip()
+            
     # In modular_rag.py
     def answer_question(self, query: str, return_contexts: bool = False):
         """
@@ -243,24 +280,23 @@ class ModularRAG:
             If return_contexts is True: Tuple of (answer, contexts)
         """
         # Classify query
-        category = self._classify_query(query)
-        
+        category = self.classify_query(query)
+
         # Specialize query for category
-        specialized_query = self._specialize_query(query, category)
-        
+        specialized_query = self.specialize_query(query, category)
+
         # Retrieve documents for category
-        documents = self._retrieve_documents(specialized_query, category)
-        
+        documents = self.retrieve_documents(specialized_query, category)
+
         # Generate response
         response = self._generate_response(query, documents, category)
-        
+
         if return_contexts:
             # Extract text from documents for evaluation
-            contexts = [doc.page_content for doc in documents]
+            contexts = [doc["text"] for doc in documents]
             return response, contexts
         else:
             return response
-
 
 if __name__ == "__main__":
     import argparse

@@ -234,41 +234,68 @@ class AdvancedRAG:
         
         logger.info(f"Reranked to {len(reranked_documents)} documents")
         return reranked_documents
+    def _generate_response(self, query: str, documents: List[Dict[str, Any]], category: str) -> str:
+        """
+        Generate a response to the query using the provided documents and category.
+        If no documents are retrieved, fallback to directly querying the LLM.
+        
+        Args:
+            query: The original query
+            documents: List of retrieved documents
+            category: The query category
+        
+        Returns:
+            A string containing the generated response.
+        """
+        if not documents:
+            logger.warning("No documents retrieved. Falling back to direct LLM response.")
+            # Directly query the LLM with the original question
+            fallback_prompt = f"""
+            You are a knowledgeable fitness trainer assistant specializing in {category}.
+            The user has asked the following question:
+            
+            Question: {query}
+            
+            Provide a comprehensive, accurate, and helpful answer based on your expertise.
+            """
+            # Pass the fallback prompt as a string
+            response = self.llm.invoke(fallback_prompt)
+            return response.content.strip()  # Extract text from AIMessage and strip whitespace
+
+        # Combine document texts into a single context
+        context = "\n".join([doc["text"] for doc in documents])
+
+        # Generate response using the answer generation chain
+        logger.info("Generating response using retrieved documents")
+        response = self.answer_generation_chain.invoke({"context": context, "question": query, "category": category})
+
+        return response["text"].strip()
     
     def answer_question(self, query: str, return_contexts: bool = False):
         """
         Answer a question using the advanced RAG approach.
-        
-        Args:
-            query: The question to answer
-            return_contexts: Whether to return retrieved contexts along with the answer
-            
-        Returns:
-            If return_contexts is False: The generated answer
-            If return_contexts is True: Tuple of (answer, contexts)
         """
         # Expand query
-        expanded_query = self._expand_query(query)
-        
+        expanded_query = self.expand_query(query)
+
         # Retrieve documents
-        documents = self._retrieve_documents(expanded_query)
-        
+        documents = self.retrieve_documents(expanded_query)
+
         # Re-rank documents
-        reranked_documents = self._rerank_documents(documents, query)
-        
-        # Process documents with sentence window
-        processed_documents = self._process_with_sentence_window(reranked_documents)
-        
+        reranked_documents = self.rerank_documents(query, documents)
+
+        # Skip sentence window processing (temporary fix)
+        processed_documents = reranked_documents  # Directly use reranked documents
+
         # Generate response
-        response = self._generate_response(query, processed_documents)
-        
+        category = "general"  # Default category if not explicitly defined
+        response = self._generate_response(query, processed_documents, category)
+
         if return_contexts:
-            # Extract text from documents for evaluation
-            contexts = [doc.page_content for doc in processed_documents]
+            contexts = [doc["text"] for doc in processed_documents]
             return response, contexts
         else:
             return response
-
 
 if __name__ == "__main__":
     import argparse
