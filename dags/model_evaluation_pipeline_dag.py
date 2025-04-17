@@ -1,13 +1,12 @@
 # dags/model_evaluation_pipeline_dag.py
 
 from __future__ import annotations
-
 import pendulum
 import os
 import logging
 import traceback
 from datetime import timedelta
-
+from airflow.utils.state import DagRunState
 from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.external_task import ExternalTaskSensor
@@ -212,14 +211,13 @@ with DAG(
     # Task 1: Wait for the Data_pipeline_dag to succeed
     wait_for_data_pipeline = ExternalTaskSensor(
         task_id='wait_for_data_pipeline_completion',
-        external_dag_id='Data_pipeline_dag', # *** MAKE SURE THIS MATCHES your data pipeline DAG ID ***
+        external_dag_id='Data_pipeline_dag', # *** MAKE SURE THIS MATCHES ***
         external_task_id=None, # Wait for the entire DAG run to succeed
-        allowed_states=['success'],
-        failed_states=['failed', 'skipped'],
+        allowed_states=[DagRunState.SUCCESS], # Use DagRunState enum
+        failed_states=[DagRunState.FAILED],    # Use DagRunState enum
         mode='poke',
-        timeout=60 * 60 * 3, # 3-hour timeout (adjust as needed)
-        poke_interval=120, # Check every 2 minutes
-        # execution_delta=timedelta(hours=1) # Optional: Look for a run within a specific time window
+        timeout=60 * 60 * 3,
+        poke_interval=120,
     )
 
     # Task 2: Run RAG Evaluation Comparison
