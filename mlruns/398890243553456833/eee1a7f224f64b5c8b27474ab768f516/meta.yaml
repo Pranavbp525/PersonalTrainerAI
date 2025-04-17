@@ -1,0 +1,15 @@
+artifact_uri: mlflow-artifacts:/398890243553456833/eee1a7f224f64b5c8b27474ab768f516/artifacts
+end_time: 1744911947136
+entry_point_name: ''
+experiment_id: '398890243553456833'
+lifecycle_stage: active
+run_id: eee1a7f224f64b5c8b27474ab768f516
+run_name: AgentEval_llm_run_quality_score_20250417_20250417_134542
+run_uuid: eee1a7f224f64b5c8b27474ab768f516
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1744911944754
+status: 3
+tags: []
+user_id: vinay
