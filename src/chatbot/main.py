@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
 
         # --- Setup Checkpointer Database Schema ---
         log.info("Running checkpointer database setup...")
-        await app.state.agent_checkpointer.setup() # Call setup on the instance
+        # await app.state.agent_checkpointer.setup() # Call setup on the instance
         log.info("AsyncPostgresSaver setup() executed successfully.")
 
         # --- Store Checkpointer Instance ---
