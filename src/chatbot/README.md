@@ -46,3 +46,32 @@
 - Ensure Redis and PostgreSQL services are running before starting the application
 - Check logs for any connection issues
 - Session management and chat history are handled automatically
+
+# RUNNING DOCKER
+(NOTE YOU NEED YOUR LOCAL ALEMBIC STRUCTURE TO BUILD CONTEXT FOR DOCKER IMAGE!)
+1. Repeat the step of creating alembic schema if you haven't already and configure alembic.ini and alembic/env.py
+   --- BEFORE PROCEEDING MAKE SURE YOU HAVE YOUR VERSIONS IN alembic/versions ---
+2. Configure .env.local in root.
+3. Bring the stack up in the background
+```
+docker compose -f docker-compose.merged.yml up -d
+```
+5. Generate a brand‑new “initial schema” migration inside the API container
+```
+docker compose -f docker-compose.merged.yml exec api `
+  /bin/sh -c "cd src/chatbot && alembic revision --autogenerate -m 'initial schema'"
+```
+6. Apply the migration
+```
+docker compose -f docker-compose.merged.yml exec api `
+  /bin/sh -c "cd src/chatbot && alembic upgrade head"
+```
+7. Restart the API service
+```
+docker compose -f docker-compose.merged.yml restart api
+```
+8. Verify the tables exist
+```
+docker compose -f docker-compose.merged.yml exec postgres `
+  psql -U postgres -d chatbot_db -c "\dt"
+```
