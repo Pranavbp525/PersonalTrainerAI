@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
         # --- Create DB Connection Pool ---
         log.info("Creating DB connection pool...")
         app.state.db_pool = AsyncConnectionPool(
-            conninfo=config.DATABASE_URL, min_size=1, max_size=10
+            conninfo=config.DATABASE_URL, min_size=1, max_size=10, kwargs={"autocommit": True}, # for concurrently bug
         )
         log.info("DB connection pool created.")
 
@@ -79,7 +79,8 @@ async def lifespan(app: FastAPI):
 
         # --- Setup Checkpointer Database Schema ---
         log.info("Running checkpointer database setup...")
-        await app.state.agent_checkpointer.setup() # Call setup on the instance
+        await app.state.agent_checkpointer.setup() # for concurrently bug
+        #await app.state.agent_checkpointer.setup(concurrently=False)
         log.info("AsyncPostgresSaver setup() executed successfully.")
 
         # --- Store Checkpointer Instance ---

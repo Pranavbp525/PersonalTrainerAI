@@ -1,0 +1,139 @@
+version: "3.9"
+
+############################
+#        SERVICES          #
+############################
+services:
+# ---------- Data stores ----------
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB:  chatbot_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+    networks: [ chatbot-net ]
+
+  redis:
+    image: redis:7
+    container_name: redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+    networks: [ chatbot-net ]
+
+# ---------- Application ----------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile           # FastAPI image
+    container_name: chatbot-api-local
+    env_file: .env.local               # keep values *without* quotes
+    environment:
+      # Override the hosts so they match the service names
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      LOGSTASH_HOST: logstash
+      DATABASE_URL: >-
+        postgresql://postgres:postgres123@postgres:5432/chatbot_db
+    command: >
+      /bin/sh -c "cd /app/src/chatbot && \
+        alembic upgrade head &&          # ← run migrations
+        uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --reload
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      logstash:
+        condition: service_started      # Logstash needn’t be healthy to start API
+    ports:
+      - "8000:8000"
+    networks: [ chatbot-net ]
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend   # Streamlit image
+    container_name: chatbot-client-local
+    environment:
+      API_BASE_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "8501:8501"
+    networks: [ chatbot-net ]
+
+# ---------- ELK stack ----------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    ports:
+      - "9200:9200"
+    networks: [ chatbot-net ]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: logstash
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      LOG_LEVEL: info
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml
+    command: [ "-f", "/usr/share/logstash/pipeline/fitness-chatbot.conf" ]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5044:5044/tcp"
+      - "5044:5044/udp"
+      - "9600:9600"
+    networks: [ chatbot-net ]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    networks: [ chatbot-net ]
+
+############################
+#         NETWORKS         #
+############################
+networks:
+  chatbot-net:
+    driver: bridge
+
+############################
+#         VOLUMES          #
+############################
+volumes:
+  pgdata:
+  elasticsearch-data:
