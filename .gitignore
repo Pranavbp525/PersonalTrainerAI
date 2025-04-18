@@ -7,3 +7,5 @@ gen-lang-client-0113635676-3ad57733ca8d.json
 .DS_Store
 src/chatbot/alembic
 src/chatbot/alembic.ini
+src/chatbot/__pycache__/*
+src/chatbot/agent/__pycache__

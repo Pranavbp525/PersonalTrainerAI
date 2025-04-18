@@ -29,8 +29,9 @@ RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy the rest of the application source code and necessary files
 COPY ./src ./src
-COPY ./alembic ./alembic
-COPY alembic.ini .
+COPY ./src/chatbot/alembic ./src/chatbot/alembic
+COPY ./src/chatbot/alembic.ini ./src/chatbot/alembic.ini
+
 
 # ---- Stage 2: Final Production Stage ----
 # Use a slim Python image for a smaller footprint
@@ -57,8 +58,9 @@ COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
 
 # Copy the application code and other necessary files from the builder stage
 COPY --from=builder --chown=appuser:appgroup /app/src ./src
-COPY --from=builder --chown=appuser:appgroup /app/alembic ./alembic
-COPY --from=builder --chown=appuser:appgroup /app/alembic.ini .
+COPY --from=builder --chown=appuser:appgroup /app/src/chatbot/alembic ./src/chatbot/alembic
+COPY --from=builder --chown=appuser:appgroup /app/src/chatbot/alembic.ini ./src/chatbot/alembic.ini
+
 
 # Create and set permissions for Hugging Face cache
 RUN mkdir /app/.cache && chown appuser:appgroup /app/.cache
