@@ -1,0 +1,132 @@
+{
+  "implementation": "advanced",
+  "average_scores": {
+    "faithfulness": 8.75,
+    "answer_relevancy": 9.125,
+    "context_relevancy": 8.331166596284659,
+    "context_precision": 9.5,
+    "fitness_domain_accuracy": 8.75,
+    "scientific_correctness": 8.75,
+    "practical_applicability": 8.0,
+    "safety_consideration": 7.0,
+    "retrieval_precision": 9.5,
+    "retrieval_recall": 6.5,
+    "answer_completeness": 7.0,
+    "answer_conciseness": 5.75,
+    "answer_helpfulness": 9.0,
+    "overall": 83.31087494721349
+  },
+  "average_response_time": 12.162914276123047,
+  "detailed_results": [
+    {
+      "query": "How much protein should I consume daily for muscle growth?",
+      "response": "To maximize muscle growth, it is generally recommended to consume between 0.7 to 1 gram of protein per pound of body weight per day. For example, if you weigh 180 pounds, you should aim for around 130 grams of protein daily. This amount is sufficient for most individuals to support muscle growth and maintenance.\n\nIf you are in a caloric deficit or looking to lose fat while preserving muscle, aiming for closer to 1 gram of protein per pound of body weight may provide additional benefits. This higher intake can help keep you satiated and minimize muscle loss during weight loss.\n\nFor those who weigh less, such as 165 pounds (approximately 75 kg), a protein intake of around 120 to 165 grams per day is advisable for general muscle building. Conversely, if you are on the heavier side, the recommendation remains at about 0.7 grams per pound, as going significantly higher may not yield additional benefits for muscle gains.\n\nIn summary, aim for 0.7 to 1 gram of protein per pound of body weight daily, adjusting based on your specific goals and body composition. If you have further questions or need personalized advice, consider consulting with a nutritionist or fitness professional.",
+      "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+      "contexts": [
+        ".73 grams of protein per pound of body weight is enough to maximize muscle growth and maintenance however I personally find that in taking a little more than this is beneficial when restricting calories since we know that protein is the most satiated macronutrient so it can better help keep you full throughout the day and it just acts as a buffer to help minimize any potential muscle loss now as",
+        ".73 G per pound of body weight per day fail to help build any additional muscle so for the average 180 lb individual this would come up to around 130 g of protein per day and remember this is to maximize growth even if youre below this youll definitely still be able to build muscle so dont get discouraged if that Target seems really high thats it in all the studies analyze subjects were eating at",
+        "whereas the lower protein groups failed to do so and instead lost muscle mass therefore what Id recommend is aim for a protein intake of around one gram per pound of your body weight with the possibility thats shooting even higher than this may in fact boost the likelihood of your ability to build muscle lose fat at the same time especially if youre on the leaner side and therefore the rest of",
+        ".7 to 1 gram per pound is a good Target for maximizing muscle gain for example if you weigh 165 lbs or 75 kilos youd want to be eating somewhere in the range of 120 to 165 g of protein per day for General muscle building now there may be some advantage in going a bit higher in certain Advanced situations but this is a sufficient range for most now if youre very high in body fat the grams per unit",
+        ".7 grams of protein per pound of body weight so if you weigh 175 pounds or 80 kilos 130 grams of protein per day will max out your gains and going beyond that as quote no further benefit on gains now if youre in a caloric deficit for fat loss or you want to be extra safe going as high as one gram per pound May provide some extra anabolic insurance but is probably Overkill and if youre overweight"
+      ],
+      "evaluation": {
+        "faithfulness": 5.0,
+        "answer_relevancy": 9.0,
+        "context_relevancy": 8.774069411834834,
+        "context_precision": 10.0,
+        "fitness_domain_accuracy": 8.0,
+        "scientific_correctness": 8.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 7.0,
+        "retrieval_precision": 10.0,
+        "retrieval_recall": 6.0,
+        "answer_completeness": 4.0,
+        "answer_conciseness": 6.0,
+        "answer_helpfulness": 9.0,
+        "overall": 75.58055205887611
+      },
+      "response_time": 9.489737749099731
+    },
+    {
+      "query": "What are the best exercises for core strength?",
+      "response": "The best exercises for core strength, based on the retrieved information, include a combination of various types of exercises that target different aspects of core stability and strength. Here are some key recommendations:\n\n1. **Weighted Spinal Flexion Exercises**: Incorporate exercises like crunches to develop core strength through spinal flexion.\n\n2. **Anti-Rotation Exercises**: The half kneeling Pallof press is an excellent choice for training the core to resist rotational forces, enhancing stability.\n\n3. **Anti-Extension Exercises**: Planks are highly effective for building core strength and stability. However, to maximize their effectiveness, consider using the RKC plank, which has been shown to elicit significantly greater activation of the upper and lower abs, as well as the obliques, compared to traditional planks.\n\n4. **Core Muscle Endurance**: Static core endurance exercises, such as the traditional prone plank, are beneficial for combating spinal instability and lower back pain. Focus on maintaining proper form to avoid sagging the lower back, which can shift the emphasis away from the core.\n\n5. **Core Stability Categories**:\n   - **Anterior Core Stability**: Exercises that train the body to resist excessive arching of the lower back.\n   - **Posterior Core Stability**: Exercises that train the body to resist excessive rounding of the lower back.\n   - **Lateral Core Stability**: Exercises that train the body to resist bending to one side.\n   - **Rotary Core Stability**: Exercises that train the body to resist excessive rotation.\n\nIncorporating a variety of these exercises into your routine will help develop a well-rounded core strength and stability, which is essential for improving performance in heavy compound lifts like squats and deadlifts, as well as for overall functional fitness.",
+      "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+      "contexts": [
+        "the improvements in core stability seen here will have a high degree of carryover to heavy compound lifts like squats and deadlifts also I think that for the best total core strength and development using a combination of weighted spinal flexion exercises such as crunches in both anti rotation exercises like the half kneeling pal off press and anti extension exercises like the plank is best also",
+        "extension exercises like the plank is best also several researchers have theorized that it is core muscle endurance rather than maximal core strength the best combats spinal instability and lower back pain so static core endurance exercises such as the traditional prone plank would be beneficial for this and even though it isnt usually thought of as a muscle building exercise planks can be very",
+        "most people end up sagging their lower back and feeling the movement more in their shoulders and other areas as opposed to their core a much better version for strengthening the core is something called the RKC plank which a 2013 paper by Schoenfeld and colleagues found elicited roughly four times greater upper and lower abs activation and three times greater obliques activation than the",
+        "four categories anterior core stability exercises where we train the body to resist excessively arching the lower back posterior core stability exercises where we train the body to resist excessively rounding the lower back lateral core stability exercises where we train the body to resist bending to one side and lastly rotary core stability exercises where we train the body to resist excessive"
+      ],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 9.0,
+        "context_relevancy": 8.268195642390053,
+        "context_precision": 8.0,
+        "fitness_domain_accuracy": 9.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 6.0,
+        "retrieval_precision": 8.0,
+        "retrieval_recall": 6.0,
+        "answer_completeness": 8.0,
+        "answer_conciseness": 4.0,
+        "answer_helpfulness": 9.0,
+        "overall": 81.95114673179253
+      },
+      "response_time": 16.107381343841553
+    },
+    {
+      "query": "How do I create a balanced workout routine for beginners?",
+      "response": "To create a balanced workout routine for beginners, you can follow these guidelines based on the retrieved information:\n\n1. **Start with a Low Volume**: Begin with a weekly set range of 10 to 20 sets. This lower volume is ideal for beginners to avoid overtraining and to allow your body to adapt to the new physical demands.\n\n2. **Choose a Full Body Workout Split**: Aim to work out two to three times per week. A full body workout split ensures that you engage all major muscle groups in each session, promoting balanced development.\n\n3. **Focus on Compound Exercises**: Incorporate mainly compound exercises into your routine. These exercises work multiple muscle groups at once and are effective for building strength and coordination. Examples include squats, deadlifts, bench presses, and rows.\n\n4. **Master the Main Movements**: As a beginner, your primary goal should be to master the fundamental movements. This will help improve your motor learning and coordination, which are crucial for progressing in your fitness journey.\n\n5. **Build a Base Level of Strength and Endurance**: Your initial workouts should focus on building a solid foundation of strength and endurance. This will prepare your body for more advanced training in the future.\n\n6. **Listen to Your Body**: Pay attention to how your body responds to the workouts. If you feel fatigued or experience discomfort, consider adjusting the volume or intensity of your workouts.\n\nBy following these steps, you can create a balanced and effective workout routine that sets you up for success as a beginner. Remember to stay consistent and gradually increase the intensity and volume as you become more comfortable with the exercises.",
+      "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+      "contexts": [
+        "video I am going to provide you guys with a free minimalist and optimal workout routine you can use with all the science and the sets they can care of for you but first we need to discuss how exactly to start applying all the research weve covered first off Id recommend starting off at the low end of the 10 to 20 weekly set range especially if youre a beginner you dont want to do higher volumes",
+        "in the gym then id recommend the full body workout split two to three times per week where within each workout you use mainly compound exercises to hit every muscle and the reason being is because as a beginner your primary goal should be to master the main movements in the gym by improving your motor learning coordination and building up a base level of strength and endurance without causing"
+      ],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 9.5,
+        "context_relevancy": 8.024615570199963,
+        "context_precision": 10.0,
+        "fitness_domain_accuracy": 9.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 8.0,
+        "retrieval_precision": 10.0,
+        "retrieval_recall": 6.0,
+        "answer_completeness": 8.0,
+        "answer_conciseness": 7.0,
+        "answer_helpfulness": 9.0,
+        "overall": 87.76846167764998
+      },
+      "response_time": 13.832968950271606
+    },
+    {
+      "query": "What's the optimal rest period between strength training sessions?",
+      "response": "The optimal rest period between strength training sessions is generally recommended to be between 48 to 72 hours. This timeframe allows for adequate recovery of the muscles, which is essential for strength and muscle adaptations. Research, including a study from 2016 involving trained men, supports this recommendation by showing that groups who trained with 48 to 72 hours of rest between sessions experienced better muscle and strength gains compared to those who trained with only 24 hours of rest.\n\nIt's important to note that the exact duration of recovery can be influenced by various training variables (such as intensity, volume, and type of exercise) as well as non-training related factors (like nutrition, sleep, and individual recovery rates). However, for most individuals following a typical training regimen, adhering to a 48 to 72-hour rest period between training the same muscle groups is advisable to optimize recovery and performance.",
+      "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+      "contexts": [
+        "show its essential to wait 48 to 72 hours until you train a muscle again for strength and muscle adaptations the second study is from 2016 out of Portugal 21 trained men were recruited and assigned to either a 24hour War 48 to 72 hour group both groups trained this threeday per week program for seven weeks the 48 Hours a 72hour group performed the three sessions with 48 to 72 hours of rest",
+        "we should wait for this duration until we train again otherwise we compromise muscle and strength gains an interesting way to study this is to have one group of subjects perform their workouts 48 to 72 hours apart while another group of subjects performs their workouts 24 hours apart and then compare strength and muscle gains between the groups two Studies have done this let us briefly review",
+        "foreign to the house of hypertrophy its commonly said muscles take 48 to 72 hours to recover from a workout of course the duration of your recovery will be impacted by the training variables you use and nontraining related factors but based on how most people tend to train is it accurate to say muscles recover within 48 to 72 hours and therefore we should wait for this duration until we train"
+      ],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 9.0,
+        "context_relevancy": 8.257785760713787,
+        "context_precision": 10.0,
+        "fitness_domain_accuracy": 9.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 7.0,
+        "retrieval_precision": 10.0,
+        "retrieval_recall": 8.0,
+        "answer_completeness": 8.0,
+        "answer_conciseness": 6.0,
+        "answer_helpfulness": 9.0,
+        "overall": 87.94333932053533
+      },
+      "response_time": 9.221569061279297
+    }
+  ]
+}

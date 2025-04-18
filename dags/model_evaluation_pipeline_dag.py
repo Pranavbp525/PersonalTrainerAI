@@ -66,7 +66,7 @@ def run_rag_evaluation_task(**context):
         task_log.error(f"Could not create output directory {EVAL_OUTPUT_DIR}: {e}")
         raise
     try:
-        from src.rag_model.advanced_rag_evaluation import AdvancedRAGEvaluator
+        from rag_model.advanced_rag_evaluation import AdvancedRAGEvaluator 
         task_log.info("Initializing AdvancedRAGEvaluator...")
         evaluator = AdvancedRAGEvaluator(output_dir=EVAL_OUTPUT_DIR)
         task_log.info("Running comparison of RAG implementations via evaluator.compare_implementations()...")
@@ -101,13 +101,17 @@ def run_agent_evaluation_task(**context):
         task_log.info(f".env file found at {env_path}, load_dotenv result: {loaded}")
         task_log.info(f"MLFLOW_TRACKING_URI from os.getenv: {os.getenv('MLFLOW_TRACKING_URI')}")
         task_log.info(f"LANGSMITH_API_KEY from os.getenv: {os.getenv('LANGSMITH_API_KEY')}")
+        task_log.info(f"LANGSMITH_TRACING from os.getenv: {os.getenv('LANGSMITH_TRACING')}")
         task_log.info(f"OPENAI_API_KEY from os.getenv: {os.getenv('OPENAI_API_KEY')}")
+        task_log.info(f"LANGSMITH_PROJECT from os.getenv: {os.getenv('LANGSMITH_PROJECT')}")
+
     else:
         task_log.warning(f".env file not found at {env_path}. Relying on pre-set environment variables.")
     # ... (rest of the function is unchanged) ...
     required_vars = {
         "MLFLOW_TRACKING_URI": os.getenv('MLFLOW_TRACKING_URI'),
         "LANGSMITH_API_KEY": os.getenv('LANGSMITH_API_KEY'),
+        "LANGSMITH_TRACING": os.getenv('LANGSMITH_TRACING'),
         "LANGSMITH_PROJECT": os.getenv('LANGSMITH_PROJECT'),
         "OPENAI_API_KEY": os.getenv('OPENAI_API_KEY')
     }
@@ -121,7 +125,7 @@ def run_agent_evaluation_task(**context):
         task_log.info(f"MLFLOW_TRACKING_URI detected: {required_vars['MLFLOW_TRACKING_URI']}")
         task_log.info(f"LANGSMITH_PROJECT detected: {required_vars['LANGSMITH_PROJECT']}")
     try:
-        from src.chatbot.agent_eval.eval import evaluate_agent
+        from chatbot.agent_eval.eval import evaluate_agent
         task_log.info("Running Agent evaluation via evaluate_agent()...")
         average_accuracy = evaluate_agent()
         if average_accuracy is not None:

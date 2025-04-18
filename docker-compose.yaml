@@ -70,6 +70,15 @@ x-airflow-common:
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone langchain langchain-openai langchain_community langchain_huggingface openai python-dotenv mlflow ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib}    # The following line can be used to set a custom config file, stored in the local config folder
+    # --- ADD Variables Needed by Tasks ---
+    OPENAI_API_KEY: ${OPENAI_API_KEY}
+    LANGSMITH_API_KEY: ${LANGSMITH_API_KEY} # Use correct name from .env
+    LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
+    LANGSMITH_TRACING: ${LANGSMITH_TRACING}
+    PINECONE_API_KEY: ${PINECONE_API_KEY}
+    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
+    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://host.docker.internal:5001} # Update default too if needed
+    HEVY_API_KEY: ${HEVY_API_KEY}
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
     # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
   volumes:

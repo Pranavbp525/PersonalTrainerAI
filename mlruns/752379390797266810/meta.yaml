@@ -1,0 +1,6 @@
+artifact_location: mlflow-artifacts:/752379390797266810
+creation_time: 1745013377219
+experiment_id: '752379390797266810'
+last_update_time: 1745013377219
+lifecycle_stage: active
+name: rag_evaluation

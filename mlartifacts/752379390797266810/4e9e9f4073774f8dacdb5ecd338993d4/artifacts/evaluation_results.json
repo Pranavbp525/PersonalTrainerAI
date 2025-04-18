@@ -1,0 +1,114 @@
+{
+  "implementation": "modular",
+  "average_scores": {
+    "faithfulness": 10.0,
+    "answer_relevancy": 9.625,
+    "context_relevancy": 0.0,
+    "context_precision": 0.0,
+    "fitness_domain_accuracy": 9.75,
+    "scientific_correctness": 9.0,
+    "practical_applicability": 8.5,
+    "safety_consideration": 7.75,
+    "retrieval_precision": 0.0,
+    "retrieval_recall": 0.0,
+    "answer_completeness": 8.75,
+    "answer_conciseness": 5.5,
+    "answer_helpfulness": 10.0,
+    "overall": 63.5
+  },
+  "average_response_time": 13.838555932044983,
+  "detailed_results": [
+    {
+      "query": "How much protein should I consume daily for muscle growth?",
+      "response": "To determine how much protein you should consume daily for muscle growth, several factors need to be considered, including your age, sex, weight, activity level, and overall fitness goals. Here\u2019s a comprehensive guide to help you understand your protein needs for muscle growth:\n\n### General Recommendations\n\n1. **Basic Protein Guidelines**:\n   - For general health, the Recommended Dietary Allowance (RDA) for protein is about **0.8 grams of protein per kilogram of body weight** (or about **0.36 grams per pound**).\n   - However, for those looking to build muscle, the requirements are higher.\n\n2. **Protein for Muscle Growth**:\n   - Most experts recommend a protein intake of **1.6 to 2.2 grams of protein per kilogram of body weight** (or about **0.73 to 1.0 grams per pound**) for individuals engaged in resistance training or looking to gain muscle mass.\n   - A common target for muscle growth is around **1.6 to 2.0 grams per kilogram** (or **0.73 to 0.91 grams per pound**).\n\n### Calculating Your Protein Needs\n\n1. **Determine Your Weight**:\n   - First, weigh yourself in kilograms (if you\u2019re using pounds, divide your weight by 2.2 to convert to kilograms).\n\n2. **Choose Your Protein Target**:\n   - If you are a beginner or have a lower activity level, aim for the lower end of the range (1.6 g/kg).\n   - If you are more advanced or training intensely, aim for the higher end (up to 2.2 g/kg).\n\n3. **Example Calculation**:\n   - If you weigh 70 kg (about 154 lbs):\n     - For muscle growth: 70 kg x 1.6 g/kg = **112 grams** of protein (lower end)\n     - For muscle growth: 70 kg x 2.0 g/kg = **140 grams** of protein (higher end)\n\n### Timing and Distribution\n\n- **Protein Timing**: It\u2019s beneficial to distribute your protein intake evenly throughout the day. Aim for **20-30 grams of protein** per meal, which can help maximize muscle protein synthesis.\n- **Post-Workout Nutrition**: Consuming protein after workouts can aid recovery and muscle growth. A protein-rich meal or snack within 30-60 minutes post-exercise is often recommended.\n\n### Sources of Protein\n\nIncorporate a variety of protein sources into your diet, including:\n- **Animal Sources**: Chicken, turkey, beef, fish, eggs, dairy products (milk, yogurt, cheese).\n- **Plant Sources**: Legumes (beans, lentils), tofu, tempeh, quinoa, nuts, seeds, and whole grains.\n\n### Additional Considerations\n\n- **Overall Diet**: Ensure that your diet is balanced with adequate carbohydrates and fats, as they are also important for muscle growth and recovery.\n- **Hydration**: Stay well-hydrated, as hydration plays a crucial role in overall performance and recovery.\n- **Consult a Professional**: If you have specific health conditions or dietary restrictions, consider consulting a registered dietitian or nutritionist for personalized advice.\n\n### Conclusion\n\nIn summary, for muscle growth, aim for **1.6 to 2.2 grams of protein per kilogram of body weight** daily, adjusting based on your activity level and goals. Distribute your protein intake throughout the day and focus on a variety of protein sources to meet your needs effectively.",
+      "ground_truth": "For muscle growth, consume 1.6-2.2g of protein per kg of bodyweight daily. Athletes and those in intense training may need up to 2.2g/kg. Spread protein intake throughout the day, with 20-40g per meal. Good sources include lean meats, dairy, eggs, and plant-based options like legumes and tofu. Timing protein around workouts (within 2 hours) can enhance muscle protein synthesis.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 10.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 10.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 8.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 9.0,
+        "answer_conciseness": 4.0,
+        "answer_helpfulness": 10.0,
+        "overall": 63.25
+      },
+      "response_time": 16.1306791305542
+    },
+    {
+      "query": "What are the best exercises for core strength?",
+      "response": "Core strength is essential for overall stability, balance, and functional movement. A strong core supports your spine, improves posture, and enhances performance in various physical activities. Here are some of the best exercises to build core strength:\n\n### 1. **Plank**\n- **How to do it:** Start in a push-up position with your arms straight and hands shoulder-width apart. Keep your body in a straight line from head to heels. Engage your core and hold the position.\n- **Duration:** Aim for 30 seconds to 1 minute, gradually increasing as you get stronger.\n\n### 2. **Side Plank**\n- **How to do it:** Lie on your side with your legs straight. Prop yourself up on one elbow, keeping your body in a straight line. Hold the position, engaging your obliques.\n- **Duration:** Hold for 20-30 seconds on each side, increasing as you progress.\n\n### 3. **Dead Bug**\n- **How to do it:** Lie on your back with your arms extended toward the ceiling and knees bent at 90 degrees. Slowly lower your right arm and left leg toward the floor while keeping your back flat. Return to the starting position and switch sides.\n- **Repetitions:** 10-15 reps per side.\n\n### 4. **Russian Twist**\n- **How to do it:** Sit on the floor with your knees bent and feet flat. Lean back slightly and lift your feet off the ground. Hold a weight or medicine ball with both hands and twist your torso to the right, then to the left.\n- **Repetitions:** 10-15 twists per side.\n\n### 5. **Bicycle Crunch**\n- **How to do it:** Lie on your back with your hands behind your head and legs lifted. Bring your right elbow to your left knee while straightening your right leg. Alternate sides in a pedaling motion.\n- **Repetitions:** 15-20 reps per side.\n\n### 6. **Mountain Climbers**\n- **How to do it:** Start in a plank position. Quickly bring one knee toward your chest, then switch legs in a running motion while keeping your core engaged.\n- **Duration:** 30 seconds to 1 minute.\n\n### 7. **Bird Dog**\n- **How to do it:** Start on all fours with your hands under your shoulders and knees under your hips. Extend your right arm forward and left leg back, keeping your hips level. Return to the starting position and switch sides.\n- **Repetitions:** 10-15 reps per side.\n\n### 8. **Hanging Leg Raises**\n- **How to do it:** Hang from a pull-up bar with your arms straight. Keeping your legs straight, raise them to a 90-degree angle or higher, then lower them back down.\n- **Repetitions:** 8-12 reps.\n\n### 9. **Kettlebell Swings**\n- **How to do it:** Stand with your feet shoulder-width apart, holding a kettlebell with both hands. Hinge at your hips to swing the kettlebell between your legs, then thrust your hips forward to swing it up to shoulder height.\n- **Repetitions:** 10-15 reps.\n\n### 10. **Medicine Ball Slams**\n- **How to do it:** Stand with your feet shoulder-width apart, holding a medicine ball overhead. Slam the ball down to the ground with force, engaging your core throughout the movement.\n- **Repetitions:** 10-15 reps.\n\n### Tips for Core Training:\n- **Focus on Form:** Proper technique is crucial to avoid injury and maximize effectiveness.\n- **Engage Your Core:** Always focus on tightening your core muscles during exercises.\n- **Progress Gradually:** Start with easier variations and increase difficulty as you build strength.\n- **Incorporate Variety:** Mix different exercises to target all areas of your core, including the rectus abdominis, obliques, and transverse abdominis.\n\n### Conclusion\nIncorporating these exercises into your workout routine can significantly enhance your core strength. Aim to perform core workouts 2-3 times a week, allowing for rest and recovery. As always, consult with a fitness professional if you're unsure about your form or how to integrate these exercises into your routine.",
+      "ground_truth": "The best exercises for core strength include compound movements like squats, deadlifts, and overhead presses that engage the entire core. Specific core exercises include planks (and variations), hollow holds, dead bugs, Russian twists, and cable rotations. Anti-extension exercises (ab rollouts), anti-rotation exercises (Pallof press), and anti-lateral flexion exercises (suitcase carries) target different aspects of core stability. Progressive overload and proper form are essential for developing functional core strength.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 10.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 10.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 9.0,
+        "safety_consideration": 7.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 8.0,
+        "answer_conciseness": 6.0,
+        "answer_helpfulness": 10.0,
+        "overall": 63.99999999999999
+      },
+      "response_time": 15.532582998275757
+    },
+    {
+      "query": "How do I create a balanced workout routine for beginners?",
+      "response": "Creating a balanced workout routine for beginners is essential for building a solid foundation in fitness while minimizing the risk of injury. A well-rounded routine should include a mix of cardiovascular exercise, strength training, flexibility work, and rest. Here\u2019s a step-by-step guide to help you create an effective workout plan:\n\n### 1. **Set Clear Goals**\n   - Determine what you want to achieve: weight loss, muscle gain, improved endurance, or overall health.\n   - Set SMART goals (Specific, Measurable, Achievable, Relevant, Time-bound).\n\n### 2. **Frequency**\n   - Aim for **3-5 days of exercise per week**. This can include a mix of cardio, strength training, and flexibility work.\n\n### 3. **Components of a Balanced Routine**\n   - **Cardiovascular Exercise (2-3 days/week)**: \n     - Activities: Walking, jogging, cycling, swimming, or group classes.\n     - Duration: Start with 20-30 minutes and gradually increase to 30-60 minutes.\n     - Intensity: Aim for moderate intensity (you can talk but not sing) or incorporate intervals.\n\n   - **Strength Training (2-3 days/week)**:\n     - Focus on major muscle groups: legs, back, chest, arms, and core.\n     - Exercises: Bodyweight exercises (squats, push-ups, lunges), resistance bands, or light weights.\n     - Sets and Reps: Start with 1-2 sets of 8-12 repetitions for each exercise.\n     - Rest: Allow at least 48 hours between strength training sessions for the same muscle group.\n\n   - **Flexibility and Mobility (Daily or as needed)**:\n     - Incorporate stretching or yoga to improve flexibility and prevent injury.\n     - Focus on major muscle groups and hold each stretch for 15-30 seconds.\n     - Consider a dedicated flexibility session or include stretches post-workout.\n\n### 4. **Sample Weekly Workout Plan**\nHere\u2019s a simple example of a balanced weekly routine for beginners:\n\n- **Monday**: \n  - 30 minutes of brisk walking or cycling\n  - 15 minutes of full-body strength training (bodyweight exercises)\n\n- **Tuesday**: \n  - 20 minutes of yoga or stretching\n\n- **Wednesday**: \n  - 30 minutes of jogging or swimming\n  - 15 minutes of upper body strength training (push-ups, dumbbell rows)\n\n- **Thursday**: \n  - Rest day or light activity (walking, leisure sports)\n\n- **Friday**: \n  - 30 minutes of interval training (e.g., alternating between walking and jogging)\n  - 15 minutes of lower body strength training (squats, lunges)\n\n- **Saturday**: \n  - 30 minutes of a fun activity (dance class, hiking, etc.)\n\n- **Sunday**: \n  - Rest day or gentle stretching\n\n### 5. **Listen to Your Body**\n   - Pay attention to how your body responds to workouts. If you feel pain (not to be confused with normal soreness), adjust your routine accordingly.\n   - Ensure you\u2019re getting enough rest and recovery.\n\n### 6. **Stay Hydrated and Nourished**\n   - Drink plenty of water before, during, and after workouts.\n   - Fuel your body with a balanced diet rich in whole foods, including fruits, vegetables, lean proteins, whole grains, and healthy fats.\n\n### 7. **Track Your Progress**\n   - Keep a workout journal or use fitness apps to log your workouts, track progress, and stay motivated.\n\n### 8. **Consider Professional Guidance**\n   - If possible, consult with a fitness professional or personal trainer to ensure proper form and technique, especially for strength training.\n\n### Conclusion\nCreating a balanced workout routine for beginners involves a thoughtful approach that incorporates various types of exercise while considering individual goals and preferences. Start slow, be consistent, and gradually increase the intensity and complexity of your workouts as you become more comfortable and confident. Enjoy the journey to better health and fitness!",
+      "ground_truth": "A balanced beginner workout routine should include 2-3 full-body strength sessions weekly, focusing on compound exercises (squats, pushups, rows, lunges). Start with bodyweight or light weights, 2-3 sets of 10-15 reps. Include 20-30 minutes of moderate cardio 2-3 times weekly (walking, cycling). Add 5-10 minutes of dynamic stretching before workouts and 5-10 minutes of static stretching after. Rest at least one day between strength sessions. Progress gradually by adding weight or reps every 1-2 weeks. The routine should be sustainable and enjoyable to build consistency.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 9.0,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 10.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 9.0,
+        "safety_consideration": 8.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 8.0,
+        "answer_conciseness": 6.0,
+        "answer_helpfulness": 10.0,
+        "overall": 63.50000000000001
+      },
+      "response_time": 12.154957294464111
+    },
+    {
+      "query": "What's the optimal rest period between strength training sessions?",
+      "response": "The optimal rest period between strength training sessions can vary based on several factors, including your training goals, the intensity of your workouts, your experience level, and the specific muscle groups being targeted. Here\u2019s a comprehensive breakdown:\n\n### General Guidelines\n\n1. **Muscle Recovery**: \n   - **48 to 72 Hours**: For most individuals, a rest period of 48 to 72 hours is recommended before training the same muscle group again. This allows for adequate recovery and muscle repair, which is essential for muscle growth and strength gains.\n\n2. **Training Goals**:\n   - **Hypertrophy (Muscle Growth)**: If your goal is to increase muscle size, training a muscle group 2-3 times per week with 48 hours of rest in between sessions is effective. This typically means you can train each muscle group every 3-4 days.\n   - **Strength**: For strength training, longer rest periods (up to 72 hours) may be beneficial, especially if you are lifting heavy weights (85% of your one-rep max or more). This allows for full recovery of the nervous system and muscle fibers.\n   - **Endurance**: If your focus is on muscular endurance, you may be able to train the same muscle groups more frequently, as the intensity is generally lower.\n\n3. **Split Training vs. Full Body**:\n   - **Split Training**: If you are following a split routine (e.g., upper/lower body split), you can train different muscle groups on consecutive days, allowing for more frequent training while still giving each muscle group adequate rest.\n   - **Full Body Workouts**: If you are doing full-body workouts, aim for 48 hours of rest before repeating the same workout.\n\n### Individual Factors\n\n1. **Experience Level**:\n   - **Beginners**: Newer lifters may require more recovery time as their bodies adapt to the stress of strength training. Starting with 48-72 hours of rest is advisable.\n   - **Advanced Lifters**: More experienced lifters may have better recovery capabilities and can sometimes train the same muscle groups more frequently, depending on their training volume and intensity.\n\n2. **Age and Recovery**: \n   - Older adults may require longer recovery periods due to slower muscle recovery rates. Adjusting rest periods based on individual recovery needs is important.\n\n3. **Nutrition and Sleep**: \n   - Adequate nutrition (especially protein intake) and quality sleep play crucial roles in recovery. Ensuring you are well-nourished and rested can help reduce the necessary rest period.\n\n### Signs of Inadequate Recovery\n\n- Persistent muscle soreness or fatigue\n- Decreased performance in subsequent workouts\n- Increased risk of injury\n- Lack of motivation or enthusiasm for workouts\n\n### Conclusion\n\nIn summary, the optimal rest period between strength training sessions generally falls within 48 to 72 hours, depending on your specific goals, training intensity, and individual recovery capacity. Listening to your body and adjusting your training schedule based on how you feel is key to achieving the best results while minimizing the risk of overtraining.",
+      "ground_truth": "The optimal rest period between strength training sessions targeting the same muscle groups is typically 48-72 hours to allow for proper recovery and muscle growth. Beginners may need closer to 72 hours, while advanced lifters might recover in 48 hours. For full-body workouts, allow 48+ hours between sessions. With split routines (different muscle groups on different days), you can train daily while still providing adequate rest for each muscle group. Factors affecting recovery include training intensity, volume, nutrition, sleep quality, age, and fitness level. Signs of inadequate recovery include persistent soreness, decreased performance, and fatigue.",
+      "contexts": [],
+      "evaluation": {
+        "faithfulness": 10.0,
+        "answer_relevancy": 9.5,
+        "context_relevancy": 0.0,
+        "context_precision": 0.0,
+        "fitness_domain_accuracy": 9.0,
+        "scientific_correctness": 9.0,
+        "practical_applicability": 8.0,
+        "safety_consideration": 8.0,
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "answer_completeness": 10.0,
+        "answer_conciseness": 6.0,
+        "answer_helpfulness": 10.0,
+        "overall": 63.25
+      },
+      "response_time": 11.536004304885864
+    }
+  ]
+}

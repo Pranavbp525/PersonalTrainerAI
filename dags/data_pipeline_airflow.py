@@ -114,6 +114,7 @@ with DAG(
     chunk_db_task = PythonOperator(
         task_id='chunk_db_task',
         python_callable=vectordb_pinecone,
+        execution_timeout=timedelta(hours=6), # Example: Increase timeout to 4 hours
     )
 
     # --- ADD TRIGGER DAG TASK ---

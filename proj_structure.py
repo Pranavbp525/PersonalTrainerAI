@@ -1,6 +1,7 @@
 import os
 import argparse
 from pathlib import Path
+from typing import Optional # <--- ADD THIS IMPORT
 
 # --- Configuration: Folders/Files to Exclude ---
 # Add any other specific folder or file names you want to ignore
@@ -22,11 +23,21 @@ DEFAULT_EXCLUDE_DIRS = {
     "htmlcov", # Coverage reports
     ".mypy_cache",
     ".ruff_cache",
+    # Add specific files/dirs from your project if needed
+    "logs", # Example: Exclude Airflow logs if they are in the root
 }
 
 DEFAULT_EXCLUDE_FILES = {
     ".DS_Store", # macOS specific
     "Thumbs.db", # Windows specific
+    ".env", # Common environment file
+    "docker-compose.yaml", # Often less relevant for code structure view
+    "docker-compose.yml",
+    "Dockerfile",
+    "setup.cfg",
+    "pyproject.toml", # Config files, sometimes hide them for pure structure
+    "requirements.txt",
+    "constraints.txt", # Airflow constraints file
 }
 # --- End Configuration ---
 
@@ -36,7 +47,7 @@ def print_tree(
     exclude_dirs: set = DEFAULT_EXCLUDE_DIRS,
     exclude_files: set = DEFAULT_EXCLUDE_FILES,
     level: int = -1, # -1 indicates root level, adjust print accordingly
-    limit_depth: int | None = None,
+    limit_depth: Optional[int] = None, # <--- CHANGE THIS LINE
     print_files: bool = True
 ):
     """
@@ -48,7 +59,7 @@ def print_tree(
         exclude_dirs (set): A set of directory names to exclude.
         exclude_files (set): A set of file names to exclude.
         level (int): Current recursion depth.
-        limit_depth (int | None): Maximum depth to traverse. None means no limit.
+        limit_depth (Optional[int]): Maximum depth to traverse. None means no limit. # <-- Docstring update
         print_files (bool): Whether to include files in the output.
     """
     if not directory.is_dir():
@@ -89,6 +100,10 @@ def print_tree(
     pointers = ["├── "] * (len(entries) - 1) + ["└── "]
 
     for pointer, entry in zip(pointers, entries):
+        # Skip printing the script itself if it's in the directory
+        if entry.name == Path(__file__).name:
+             continue
+
         if entry.is_dir():
             yield prefix + pointer + entry.name + "/"
             # Decide the extension for the recursive call's prefix
@@ -121,13 +136,13 @@ if __name__ == "__main__":
         "--exclude-dirs",
         nargs="+",
         default=list(DEFAULT_EXCLUDE_DIRS), # Use default list if not provided
-        help="Additional directory names to exclude.",
+        help=f"Additional directory names to exclude. Defaults: {', '.join(DEFAULT_EXCLUDE_DIRS)}",
     )
     parser.add_argument(
         "--exclude-files",
         nargs="+",
         default=list(DEFAULT_EXCLUDE_FILES), # Use default list if not provided
-        help="Additional file names to exclude.",
+        help=f"Additional file names to exclude. Defaults: {', '.join(DEFAULT_EXCLUDE_FILES)}",
     )
     parser.add_argument(
         "--depth",
@@ -151,6 +166,10 @@ if __name__ == "__main__":
         print(f"Error: Starting path '{args.start_path}' is not a valid directory.")
     else:
         # Use a generator and print line by line
+        # Also add the script's own name to the exclude list dynamically
+        script_filename = Path(__file__).name
+        exclude_files_set.add(script_filename)
+
         for line in print_tree(
             directory=start_directory,
             exclude_dirs=exclude_dirs_set,

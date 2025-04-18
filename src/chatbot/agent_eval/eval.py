@@ -20,7 +20,7 @@ try:
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
     # Now import the tracker
-    from src.rag_model.mlflow.mlflow_rag_tracker import MLflowRAGTracker
+    from rag_model.mlflow.mlflow_rag_tracker import MLflowRAGTracker 
     mlflow_imported = True
 except ImportError as import_err:
     logging.warning(f"Could not import MLflowRAGTracker. MLflow logging will be disabled. Error: {import_err}")
@@ -29,12 +29,12 @@ except ImportError as import_err:
 
 # --- Configuration ---
 load_dotenv()
-os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API')
+os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API_KEY')
 os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
 os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
 LANGSMITH_PROJECT_NAME = os.environ.get("LANGSMITH_PROJECT")
 
-JUDGE_LLM_MODEL = "deepseek-chat" # Or "gpt-4o", etc.
+JUDGE_LLM_MODEL = "gpt-4o-mini" # Or "deepseek-chat", etc.
 
 
 FETCH_RUNS_LIMIT = 100 # Start small to test again, increase later
@@ -57,8 +57,8 @@ try:
     logger.info("LangSmith client initialized.")
 
     # Initialize the correct client for your JUDGE_LLM_MODEL
-    oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"))
-    # oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("OPENAI_API_KEY")))
+    #oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"))
+    oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("OPENAI_API_KEY")))
 
 except Exception as e:
     logger.error(f"Error initializing clients: {e}", exc_info=True)
