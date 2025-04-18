@@ -53,6 +53,7 @@ def run_rag_evaluation_task(**context):
         "MLFLOW_TRACKING_URI": os.getenv('MLFLOW_TRACKING_URI'),
         "LANGSMITH_API_KEY": os.getenv('LANGSMITH_API_KEY'),
         "LANGSMITH_PROJECT": os.getenv('LANGSMITH_PROJECT'),
+        "PINECONE_API_KEY": os.getenv('PINECONE_API_KEY'),
         "OPENAI_API_KEY": os.getenv('OPENAI_API_KEY') # Switched check to OpenAI key
         # "DEEPSEEK_API_KEY": os.getenv('DEEPSEEK_API_KEY') # Or your judge LLM key name
     }
