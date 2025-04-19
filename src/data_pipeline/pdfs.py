@@ -1,5 +1,6 @@
 import os
 import json
+
 import PyPDF2
 import unicodedata
 import logging
@@ -75,6 +76,13 @@ def save_to_json(data, filename):
     """Save extracted data to a JSON file."""
     try:
         output_path = filename
+
+        # Make sure the directory exists
+        directory = os.path.dirname(output_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+            logger.info(f"Created directory: {directory}")
+
         with open(output_path, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=4, ensure_ascii=False)
         logger.info(f"Data saved to {output_path}")  # Log success
