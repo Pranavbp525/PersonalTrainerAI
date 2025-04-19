@@ -6,6 +6,9 @@ import logging
 from urllib.parse import urljoin
 import random
 import os
+import urllib.request
+import ssl
+
 # # Set up logging
 # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 # logger = logging.getLogger(__name__)
@@ -24,28 +27,37 @@ logger = logging.getLogger(__name__)  # Logger for each file
 class WorkoutScraper:
     def __init__(self, base_url):
         self.base_url = base_url
+        self.exercise_cache = {}
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.google.com",
         })
         self.rate_limit_delay = (1, 3)  # Balanced delay (No blocking)
 
     def fetch_html(self, url):
         """Fetch and parse HTML content with error handling."""
-        retries = 3  # Number of retries
+        retries = 3
+        proxy = 'http://brd-customer-hl_827d2605-zone-web_unlocker1:b8x1lfkhzss5@brd.superproxy.io:33335'
+
         for attempt in range(retries):
             try:
-                response = self.session.get(url, timeout=5)  # Faster timeout (5 sec)
-                response.raise_for_status()
-                return BeautifulSoup(response.text, "html.parser")
-            except requests.RequestException as e:
+                opener = urllib.request.build_opener(
+                    urllib.request.ProxyHandler({'https': proxy, 'http': proxy}),
+                    urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
+                )
+                response = opener.open(url).read().decode()
+                return BeautifulSoup(response, "html.parser")
+
+            except Exception as e:
                 logger.error(f"Error fetching {url} (Attempt {attempt + 1}/{retries}): {str(e)}")
-                if attempt < retries - 1:  # Only delay if there are more retries left
+                if attempt < retries - 1:
                     delay = random.uniform(*self.rate_limit_delay)
                     logger.info(f"Retrying after {delay:.2f} sec...")
                     time.sleep(delay)
-    
-        return None  # Return None if all retries fail
+
+        return None
 
     def extract_workout_links(self, soup):
         """Extracts workout links from the main page."""
@@ -132,7 +144,12 @@ class WorkoutScraper:
                 exercise_url = urljoin(self.base_url, link["href"])
                 
                 # Extract the description from the exercise page
-                exercise_description = self.extract_exercise_details(exercise_url)
+                if exercise_url in self.exercise_cache:
+                    logger.info(f"Using cached description for: {exercise_url}")
+                    exercise_description = self.exercise_cache[exercise_url]
+                else:
+                    exercise_description = self.extract_exercise_details(exercise_url)
+                    self.exercise_cache[exercise_url] = exercise_description
 
                 exercises.append({
                     "exercise": exercise_name,
@@ -217,6 +234,13 @@ class WorkoutScraper:
     def save_to_json(self, workouts, filename):
         """Save scraped data to JSON file."""
         try:
+            output_path = filename
+            # Make sure the directory exists
+            directory = os.path.dirname(output_path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory)
+                logger.info(f"Created directory: {directory}")
+
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump({
                     "metadata": {
@@ -242,3 +266,4 @@ def ms_scraper():
         scraper.save_to_json(workouts, output_file)
     except Exception as e:
         logger.error(f"Scraping failed: {str(e)}")
+# ms_scraper()
