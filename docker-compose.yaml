@@ -80,14 +80,20 @@ x-airflow-common:
     HEVY_API_KEY: ${HEVY_API_KEY}
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
     # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+
+  # --- MODIFIED VOLUMES SECTION ---
   volumes:
+    # Mount entire project directory to /opt/airflow/app
+    # This makes .dvc, .git, src, data, etc. available under /opt/airflow/app
+    - ${AIRFLOW_PROJ_DIR:-.}:/opt/airflow/app
+
+    # Keep specific mounts needed by Airflow itself
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
-    - ${AIRFLOW_PROJ_DIR:-.}/src:/opt/airflow/src
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
-    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
-    - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
-    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/.env
+    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/.env # Mount .env to standard location
+  # --- END MODIFIED VOLUMES SECTION ---
+
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -245,8 +251,13 @@ services:
           echo "   https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#before-you-begin"
           echo
         fi
+        # The /sources volume mount in airflow-init is different from the main services.
+        # We still need standard Airflow dirs created within /opt/airflow (where services run)
+        # But the chown needs to happen on the /sources mount point for the init container.
         mkdir -p /sources/logs /sources/dags /sources/plugins
         chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
+        # Also ensure standard Airflow directories exist where services expect them
+        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         exec /entrypoint airflow version
     # yamllint enable rule:line-length
     environment:
@@ -255,9 +266,10 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-Vinyas}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-Vinyas}
-      _PIP_ADDITIONAL_REQUIREMENTS: ''
-    user: "0:0"
+      _PIP_ADDITIONAL_REQUIREMENTS: '' # Don't install extra deps in init
+    user: "0:0" # Run init as root to create/chown directories
     volumes:
+      # airflow-init uses a different mount for source checking initially
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
 
   airflow-cli:

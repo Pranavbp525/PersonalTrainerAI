@@ -12,11 +12,14 @@ from airflow.operators.bash import BashOperator # Import BashOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # --- Add src directory to Python path ---
-# Ensure this path is correct relative to where Airflow executes DAGs (usually /opt/airflow/dags)
-SRC_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../src"))
+# Adjust path based on the new docker-compose mount point
+SRC_PATH = "/opt/airflow/app/src" # <<< UPDATED PATH
 if SRC_PATH not in sys.path:
     sys.path.append(SRC_PATH)
     logging.info(f"Appended {SRC_PATH} to sys.path")
+else:
+    logging.info(f"{SRC_PATH} already in sys.path")
+
 
 # --- Import refactored pipeline functions ---
 # It's good practice to handle potential import errors
@@ -28,6 +31,7 @@ try:
     from data_pipeline.ms_preprocess import run_ms_preprocess_pipeline
     from data_pipeline.vector_db import run_chunk_embed_store_pipeline
     IMPORT_SUCCESS = True
+    logging.info("Successfully imported pipeline functions.")
 except ImportError as e:
     logging.error(f"Failed to import pipeline functions: {e}", exc_info=True)
     IMPORT_SUCCESS = False
@@ -41,8 +45,6 @@ except ImportError as e:
 
 
 # --- DAG Definition ---
-# Check if PROJECT_ROOT_FOR_ENV is still needed - likely not if env vars are set in docker-compose
-# PROJECT_ROOT_FOR_ENV = "/opt/airflow"
 
 # Define DVC remote name used in configuration
 DVC_REMOTE_NAME = "gcs-remote" # Match the name used in `dvc remote add`
@@ -62,7 +64,7 @@ with DAG(
         dag_id="Data_pipeline_dag", # Ensure this ID is correct and unique
         default_args=default_args,
         description='Scrapes data, preprocesses, stores artifacts in GCS, optionally uses DVC, stores embeddings in Pinecone, triggers evaluation.',
-        schedule='@weekly', # Run manually or set a schedule e.g., '@daily'
+        schedule='@weekly', # Keep your schedule
         catchup=False,
         tags=["data_pipeline", "etl", "rag", "gcs", "pinecone", "dvc"],
 ) as dag:
@@ -71,7 +73,7 @@ with DAG(
         # If imports failed, create a single dummy task to indicate the error
         import_error_task = BashOperator(
             task_id='import_error',
-            bash_command='echo "CRITICAL: Failed to import pipeline functions. Check Airflow logs and src path." && exit 1',
+            bash_command='echo "CRITICAL: Failed to import pipeline functions. Check Airflow logs and sys.path configuration." && exit 1',
         )
     else:
         # --- Scraping Tasks ---
@@ -106,15 +108,11 @@ with DAG(
 
         # --- DVC Pull Task ---
         # Pulls the *preprocessed* data from GCS DVC remote to the worker's local filesystem
-        # This allows the chunking task to read locally, assuming it wasn't refactored to read GCS directly
-        # Ensure the dvc command runs in the correct directory within the container
-        # Assumes the project root is the working directory or dvc finds .dvc subdir
-        # The service account of the VM must have read access to the DVC GCS bucket
+        # Assumes the project root (containing .dvc) is mounted at /opt/airflow/app
         dvc_pull_processed_task = BashOperator(
             task_id='dvc_pull_processed_data',
-            # Ensure the path inside the container is correct. /opt/airflow is often the root mount.
-            # Use 'dvc pull data/preprocessed_json_data' to pull the whole directory tracked by DVC
-            bash_command=f'cd /opt/airflow && echo "Pulling processed data with DVC..." && dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force',            
+            # cd into the correct project root inside the container
+            bash_command=f'cd /opt/airflow/app && echo "Pulling processed data with DVC..." && dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force', # <<< UPDATED PATH
             doc_md="Pulls preprocessed data tracked by DVC from GCS remote storage.",
         )
 
