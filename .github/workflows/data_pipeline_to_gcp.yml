@@ -1,4 +1,4 @@
-name: Upload to GCS on Pipeline Code Change
+name: Upload to GCS on Data Pipeline Code Change
 
 on:
   push:
