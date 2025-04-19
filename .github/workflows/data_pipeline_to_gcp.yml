@@ -25,6 +25,6 @@ jobs:
 
       - name: Upload to GCS
         run: |
-          gsutil -m cp -r src/data_pipeline/* gs://project_files_rag/data_pipeline/
+          gsutil -m cp -r src/data_pipeline/* gs://project_files_rag/src/data_pipeline/
 
 
