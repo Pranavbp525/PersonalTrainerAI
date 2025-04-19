@@ -8,6 +8,9 @@ import random
 import os
 import urllib.request
 import ssl
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # # Set up logging
 # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -39,7 +42,8 @@ class WorkoutScraper:
     def fetch_html(self, url):
         """Fetch and parse HTML content with error handling."""
         retries = 3
-        proxy = 'http://brd-customer-hl_827d2605-zone-web_unlocker1:b8x1lfkhzss5@brd.superproxy.io:33335'
+        bright_data_api_key = os.getenv('bright_data_api_key')
+        proxy = f'http://brd-customer-hl_827d2605-zone-web_unlocker1:{bright_data_api_key}@brd.superproxy.io:33335'
 
         for attempt in range(retries):
             try:
