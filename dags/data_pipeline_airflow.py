@@ -114,7 +114,7 @@ with DAG(
             task_id='dvc_pull_processed_data',
             # Ensure the path inside the container is correct. /opt/airflow is often the root mount.
             # Use 'dvc pull data/preprocessed_json_data' to pull the whole directory tracked by DVC
-            bash_command=f'cd /opt/airflow && echo "Pulling processed data with DVC..." && dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force',
+            bash_command=f'cd /opt/airflow && echo "Pulling processed data with DVC..." && dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force',            
             doc_md="Pulls preprocessed data tracked by DVC from GCS remote storage.",
         )
 
