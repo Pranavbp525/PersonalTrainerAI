@@ -1,5 +1,5 @@
 # dags/data_pipeline_airflow.py
-
+import pendulum
 import sys
 import os
 import logging
@@ -49,7 +49,7 @@ DVC_REMOTE_NAME = "gcs-remote" # Match the name used in `dvc remote add`
 
 default_args = {
     'owner': 'vinyas', # Changed owner
-    'start_date': datetime(2024, 4, 18, tz='UTC'), # Use timezone-aware datetime
+    'start_date': pendulum.datetime(2024, 4, 18, tz="UTC"), # Use pendulum
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
     # Email config commented out, enable if your Airflow SMTP is configured
