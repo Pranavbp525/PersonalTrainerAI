@@ -6,18 +6,23 @@ from tqdm import tqdm
 from pinecone import Pinecone, ServerlessSpec
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
+import unicodedata
 
 # Load environment variables
 load_dotenv()
 
-logger = logging.getLogger(__name__)  # Inherit global logger
 
-if not logger.handlers:
-    # Ensure logs are written to 'scraper.log' from pdfs.py
-    file_handler = logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/vectordb.log")), mode='a')
-    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s - %(message)s"))
-    logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)
+#  Configure logging for each file, writing to the same file
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/vectordb.log"))),  # Logs go into the same file
+        logging.StreamHandler()  # Also print logs to the console
+    ]
+)
+
+logger = logging.getLogger(__name__)  # Logger for each file
 
 
 # Pinecone API key from .env
@@ -48,6 +53,8 @@ def load_json_data(file_path):
         logger.error(f"Error loading JSON file {file_path}: {e}")
         return None
 
+def normalize_text(text):
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
 
 # **Step 2: Split Text into Chunks**
 def split_text(data, chunk_size=400, chunk_overlap=50):
@@ -62,7 +69,7 @@ def split_text(data, chunk_size=400, chunk_overlap=50):
     for item in data:
         text = item.get("description", "")  # Use "description" field instead of "transcript"
         source = item.get("source", "")
-        title = item.get("title", "")
+        title = normalize_text(item.get("title", ""))
         url = item.get("url", "")
 
         # Split text into chunks
@@ -91,6 +98,12 @@ def generate_embeddings(chunked_data, model_name="sentence-transformers/all-mpne
         chunk["embedding"] = model.embed_documents([chunk["chunk"]])[0]
 
     logger.info("Chunked embeddings generated successfully!")
+    with open("list.json", "w") as file:
+        json.dump(chunked_data, file)
+
+    # with open("list.json", "r") as file:
+    #     chunked_data = json.load(file)
+
     return chunked_data, model
 
 
@@ -183,6 +196,4 @@ def chunk_to_db():
     else:
         logger.warning("No data was processed from JSON files.")
 
-# model_name="sentence-transformers/all-mpnet-base-v2"
-# model = HuggingFaceEmbeddings(model_name=model_name)
-# query_pinecone("How to improve pull-ups?", model)
+# chunk_to_db()

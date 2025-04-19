@@ -92,6 +92,11 @@ def ms_preprocessing():
 
     output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/preprocessed_json_data/ms_data.json"))
     try:
+        # Make sure the directory exists
+        directory = os.path.dirname(output_file)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+            logger.info(f"Created directory: {directory}")
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(processed_workouts, f, indent=4, ensure_ascii=False)
         logger.info(f"Successfully saved processed data to {output_file}")  # Log save success

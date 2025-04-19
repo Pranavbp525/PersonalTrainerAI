@@ -84,6 +84,7 @@ def preprocess_json_other_files():
                 entry['description'] = clean_text(original_text)
                 entries_cleaned += 1
 
+        data = remove_duplicates(data)
         # Save cleaned data to the new output directory
         try:
             with open(output_file_path, "w", encoding="utf-8") as f:
@@ -95,3 +96,18 @@ def preprocess_json_other_files():
     logger.info("Preprocessing completed!")
     print("Preprocessing completed.")
 
+
+def remove_duplicates(data):
+    unique_entries = []
+    seen = set()
+
+    for entry in data:
+        identifier = (entry["title"], entry["description"])  # Using tuple of title and description as unique identifier
+        if identifier not in seen:
+            seen.add(identifier)
+            unique_entries.append(entry)
+
+    # Output the filtered list
+    return unique_entries
+
+# preprocess_json_other_files()
