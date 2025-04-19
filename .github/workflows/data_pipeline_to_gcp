@@ -1,0 +1,28 @@
+name: Upload to GCS on Pipeline Code Change
+
+on:
+  push:
+    paths:
+      - 'src/data_pipeline/**'
+    branches:
+      - dev  # or your main branch
+
+jobs:
+  upload-to-gcs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_KEY }}
+          project_id: ragllm-454718
+
+      - name: Upload to GCS
+        run: |
+          gsutil -m cp -r src/data_pipeline/* gs://project_files_rag/data_pipeline/
+
+
