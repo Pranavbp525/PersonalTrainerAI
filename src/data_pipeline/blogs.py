@@ -128,10 +128,17 @@ def save_to_json(data, filename):
     Save extracted data to a JSON file.
     """
     try:
-        path = os.path.join(OUTPUT_DIR, filename)
-        with open(path, "w", encoding="utf-8") as f:
+        output_path = filename
+
+        # Make sure the directory exists
+        directory = os.path.dirname(output_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+            logger.info(f"Created directory: {directory}")
+
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-        logger.info(f"Data saved to {path}")
+        logger.info(f"Data saved to {output_path}")
     except Exception as e:
         logger.error(f"Error saving to {filename}: {e}", exc_info=True)
 
