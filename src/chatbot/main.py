@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 import json
 from datetime import datetime
-
+import redis
 import re
 from sqlalchemy import desc
 import asyncio # Import asyncio
@@ -33,8 +33,18 @@ from agent.prompts import (
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from langgraph.errors import GraphRecursionError
 
+from passlib.context import CryptContext
+from uuid import uuid4
+
 
 load_dotenv()
+
+_r = redis.Redis(
+    host=config.REDIS_HOST,
+    port=config.REDIS_PORT,
+    db=config.REDIS_DB,
+    decode_responses=True
+)
 
 # --- Environment Variables & Logging ---
 os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API')
@@ -55,6 +65,8 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 # --- End Logging Setup ---
 
+def delete_chat_history(session_id: str) -> None:
+    _r.delete(f"chat_history:{session_id}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -154,16 +166,23 @@ class MessageResponse(BaseModel):
         # orm_mode = True # OLD
         from_attributes = True # NEW (Pydantic v2)
 
+
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 class UserCreate(BaseModel):
     username: str
+    password: str = Field(..., min_length=8)
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
 class UserResponse(BaseModel):
     id: int
     username: str
-
+    thumbs_up: bool | None
     class Config:
-        # orm_mode = True # OLD
-        from_attributes = True # NEW (Pydantic v2)
+        from_attributes = True
 
 class SessionCreate(BaseModel):
     user_id: int
@@ -176,6 +195,22 @@ class SessionResponse(BaseModel):
     class Config:
         # orm_mode = True # OLD
         from_attributes = True # NEW (Pydantic v2)
+
+class LogoutRequest(BaseModel):
+    session_id: str
+
+class FeedbackRequest(BaseModel):
+    session_id: str
+    thumbs_up: bool
+
+
+def hash_password(plain: str) -> str:
+    return pwd_ctx.hash(plain)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_ctx.verify(plain, hashed)
+
+
 
 async def generate_response(session_id: str, latest_human_message_content: str, db: Session, request: Request) -> str: # Add request
     """
@@ -397,43 +432,6 @@ async def get_messages(session_id: str, request: Request, db: Session = Depends(
     request_log.info(f"Retrieved {len(messages)} messages from PostgreSQL.") # Use request_log
     return messages
 
-@app.post("/users/", response_model=UserResponse)
-async def create_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
-    """Creates a new user."""
-    # --- Create a logger with request context ---
-    request_log = log.add_context(
-        request_path=request.url.path,
-        request_method=request.method,
-        username_provided=user.username # Add context specific to this endpoint
-    )
-    # ---
-    try:
-        # Log the request body safely (if not too large or sensitive)
-        # request_body = await request.json() # Already read if using log.debug below
-        # request_log.debug(f"Received request body: {request_body}")
-        pass # Avoid logging raw body unless necessary and safe
-    except Exception:
-        request_log.warning("Could not read request body for logging.")
-
-    request_log.info(f"Attempting to create user.") # Use request_log
-
-    existing_user = db.query(User).filter(User.username == user.username).first()
-    if existing_user:
-        request_log.warning(f"Username already exists.") # Use request_log
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    new_user = User(username=user.username)
-    db.add(new_user)
-    try:
-        db.commit()
-        db.refresh(new_user)
-        request_log.info(f"User created successfully.", extra={"user_id": new_user.id}) # Use request_log
-        return new_user
-    except Exception as e:
-        db.rollback()
-        request_log.error("Database error creating user.", exc_info=True) # Use request_log
-        raise HTTPException(status_code=500, detail="Database error creating user")
-    
 # --- NEW: Endpoint to get user by username ---
 @app.get("/users/username/{username}", response_model=UserResponse)
 async def get_user_by_username(username: str, request: Request, db: Session = Depends(get_db)):
@@ -511,6 +509,60 @@ async def get_latest_session(user_id: int, request: Request, db: Session = Depen
     else:
         request_log.info("No sessions found for this user.")
         raise HTTPException(status_code=404, detail="No sessions found for this user")
+
+
+@app.post("/signup/", response_model=UserResponse, status_code=201)
+async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.username == user_data.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken.")
+    hashed_pw = pwd_ctx.hash(user_data.password)
+    db_user = User(username=user_data.username, password_hash=hashed_pw)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.post("/login/", response_model=SessionResponse)
+async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == user_data.username).first()
+    if not user or not pwd_ctx.verify(user_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    session_id = str(uuid4())
+    db_session = DBSession(id=session_id, user_id=user.id, created_at=datetime.utcnow())
+    db.add(db_session)
+    db.commit()
+    db.refresh(db_session)
+    return db_session
+
+@app.post("/feedback/", status_code=204)
+def give_feedback(req: FeedbackRequest, db: Session = Depends(get_db)):
+    # fetch the session and its user
+    sess = db.query(DBSession).get(req.session_id)
+    if not sess:
+        raise HTTPException(404, "Session not found")
+    user = sess.user
+    # only allow once
+    if user.thumbs_up is not None:
+        raise HTTPException(400, "Feedback already given")
+    user.thumbs_up = req.thumbs_up
+    db.commit()
+    return
+
+@app.post("/logout/", status_code=204)
+def logout(req: LogoutRequest, db: Session = Depends(get_db)):
+    sess = db.query(DBSession).get(req.session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if sess.user.thumbs_up is None:
+        raise HTTPException(status_code=400, detail="Feedback required before logout")
+
+    sess.logged_out_at = datetime.utcnow()
+    db.commit()
+
+    delete_chat_history(req.session_id)
+
+    return
 
 
 # --- Example Usage / Initialization ---

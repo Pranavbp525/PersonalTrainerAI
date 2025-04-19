@@ -14,15 +14,17 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    username = Column(String(50), unique=False, nullable=False)  # Removed unique=True
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(128), nullable=False)
+    thumbs_up = Column(Boolean, nullable=True, default=None)
     sessions = relationship('Session', back_populates='user')
-
 
 class Session(Base):
     __tablename__ = 'sessions'
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # Generate UUID
     user_id = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    logged_out_at = Column(DateTime, nullable=True)
     messages = relationship('Message', back_populates='session', cascade="all, delete-orphan") # Cascade delete
     user = relationship('User', back_populates='sessions')
 
