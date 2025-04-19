@@ -193,11 +193,12 @@ def run_pdf_pipeline(limit=None):
         # If saving was successful OR if there was no data to save
         logger.info("--- PDF Processing Pipeline (GCS) finished successfully! ---")
         print("PDF extraction and saving completed successfully!") # Keep user-facing print
-        return True # Indicate success for Airflow task
+        # return True # No longer just return True
     else:
         # If saving failed
         logger.error("--- PDF Processing Pipeline (GCS) failed during saving phase. ---")
-        return False # Indicate failure
+        # raise ValueError("Failed to save PDF data JSON to GCS.") # RAISE EXCEPTION
+        return False # Keep return False for now, let's fix permissions first. If permissions fix works, change this to raise ValueError.
 
 # This block allows running the script directly from command line for testing
 if __name__ == "__main__":

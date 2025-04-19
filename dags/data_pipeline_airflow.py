@@ -62,7 +62,7 @@ with DAG(
         dag_id="Data_pipeline_dag", # Ensure this ID is correct and unique
         default_args=default_args,
         description='Scrapes data, preprocesses, stores artifacts in GCS, optionally uses DVC, stores embeddings in Pinecone, triggers evaluation.',
-        schedule=None, # Run manually or set a schedule e.g., '@daily'
+        schedule='@weekly', # Run manually or set a schedule e.g., '@daily'
         catchup=False,
         tags=["data_pipeline", "etl", "rag", "gcs", "pinecone", "dvc"],
 ) as dag:
