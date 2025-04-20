@@ -120,10 +120,7 @@ services:
       # For production, a separate DB instance might be better.
       MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
       MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # Use variable from common env
-    volumes:
-      # Mount GCP key if using explicit credentials instead of attached SA
-      # - /path/on/vm/to/gcp_key.json:/etc/gcp/gcp_key.json:ro
-      pass # No other volumes needed if using Postgres + GCS
+    volumes: [] # <<< CORRECTED: Use an empty list if no volumes needed
     command: >
       bash -c "pip install mlflow psycopg2-binary google-cloud-storage &&
                echo 'Starting MLflow server...' &&
