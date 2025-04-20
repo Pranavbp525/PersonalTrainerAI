@@ -6,8 +6,6 @@ from pathlib import Path
 
 # sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
-# Now import the module
-# import src.data_pipeline.ms_preprocess as ms_module
 from src.data_pipeline.ms_preprocess import (
     clean_text,
     format_summary,
