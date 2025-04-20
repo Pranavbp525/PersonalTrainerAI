@@ -3,6 +3,9 @@ import sys
 # sys.path.append('../src')
 from src.data_pipeline.vector_db import split_text
 from unittest.mock import patch, MagicMock
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def test_split_text():
     """Test the split_text function."""
