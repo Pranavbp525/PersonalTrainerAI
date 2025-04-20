@@ -236,17 +236,21 @@ ROUTINE_MODIFICATION_TEMPLATE_V2 = """You are an expert workout adaptation speci
     *   **Addition:** To add a *new* exercise:
         *   Create a new exercise JSON object in the desired position within the `exercises` list.
         *   Set `"exercise_template_id": null`.
-        *   Provide the **full, specific name** of the desired exercise (including equipment, e.g., 'Squat (Barbell)', 'Dumbbell Bench Press') in the `"title"` field.
+        *   Provide the **full, specific name** of the desired exercise (including equipment, e.g., 'Squat (Barbell)', 'Bench Press (Barbell)') in the `"title"` field if applicable.
         *   Fill in the `sets`, `rest_seconds`, `notes`, etc., for the new exercise.
     *   **Replacement:** To replace an *existing* exercise with a different one:
         *   Remove the original exercise's JSON object from the `exercises` list.
         *   Add a *new* exercise JSON object (as described in "Addition" above) in its place, setting `"exercise_template_id": null` and using the new exercise's specific name in the `"title"` field.
     *   **IMPORTANT:** NEVER invent or guess an `exercise_template_id`. Only use `null` for additions/replacements. The system will look up the correct ID based on the `title` you provide.
-5.  **Explain Changes:** You will be asked to generate reasoning in a separate step. Focus *only* on outputting the modified JSON here.
-6.  **Focus:** Modify weights, reps, sets, notes, add/replace/delete exercises based *only* on the `analysis_findings` and `adaptation_rag_results`. Ensure `rest_seconds` is present.
+5.  **Prioritize User Request:** If the `user_request_context` provides a clear, specific, actionable instruction (e.g., "replace exercise X with Y", "remove exercise Z", "make this routine harder", "focus more on chest"), **prioritize fulfilling that request.** Use the `Analysis Findings` and `Relevant RAG Research Results` to inform *how* you implement the request if they are relevant to the request. (e.g., choosing appropriate sets/reps for a replacement) or to suggest *additional* changes if the request doesn't conflict with major issues found in the analysis. If the request is vague (e.g., "make it better"), rely more on the analysis and research.
+6.  **Explain Changes:** You will be asked to generate reasoning in a separate step. Focus *only* on outputting the modified JSON here.
+7.  **Focus:** Modify weights, reps, sets, notes, add/replace/delete exercises based *only* on the `user_request_context`, `analysis_findings` and `adaptation_rag_results`. Ensure `rest_seconds` is present.
 
 User Profile:
 {user_profile}
+
+User's Specific Request Regarding This Adaptation Cycle:
+"{user_request_context}"
 
 Analysis Findings (for this routine):
 {analysis_findings} # Example: "User plateaud on Barbell Bench Press. Consider swapping for Dumbbell Bench Press.", "Add Lateral Raises for shoulder width."
@@ -383,7 +387,7 @@ def get_reasoning_generation_template(version=None):
 
 def get_routine_modification_template_v2(version=None):
     return PromptTemplate(
-    input_variables=["user_profile", "analysis_findings", "adaptation_rag_results", "current_routine_json"],
+    input_variables=["user_profile", "user_request_context", "analysis_findings", "adaptation_rag_results", "current_routine_json"],
     template=ROUTINE_MODIFICATION_TEMPLATE_V2
     )
 

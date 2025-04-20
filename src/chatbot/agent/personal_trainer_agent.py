@@ -2229,6 +2229,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
     agent_log.info(f"Starting processing for {len(targets)} identified target(s).") # Added log
     logs = state.get("workout_logs")
     user_model = state.get("user_model", {})
+    user_request = state.get("user_request_context", "")
     processed_results: List[RoutineAdaptationResult] = []
     any_target_failed = False # Flag local errors
 
@@ -2364,6 +2365,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
             try:
                 mod_filled_prompt = modification_prompt_template.format(
                     user_profile=json.dumps(user_model, indent=2),
+                    user_request_context=user_request,
                     analysis_findings=json.dumps(analysis_findings.model_dump()), # Use model_dump for Pydantic V2
                     adaptation_rag_results=json.dumps(adaptation_rag_results),
                     current_routine_json=json.dumps(routine_data, indent=2)
