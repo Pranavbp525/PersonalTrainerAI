@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)  # Logger for each file
 
 def clean_text(text):
     """Normalize text encoding to remove special characters."""
-    return unicodedata.normalize("NFKD", text)
+    normalized = unicodedata.normalize("NFKD", text)
+    return ''.join(c for c in normalized if not unicodedata.combining(c))
 
 def format_summary(summary):
     """Formats the summary dictionary into a readable text format, excluding 'Workout PDF'."""

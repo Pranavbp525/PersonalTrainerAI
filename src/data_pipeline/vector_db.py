@@ -7,6 +7,7 @@ from pinecone import Pinecone, ServerlessSpec
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 import unicodedata
+import time
 
 # Load environment variables
 load_dotenv()
