@@ -31,7 +31,7 @@ COPY --chown=appuser:appgroup src/chatbot/chat_client.py .
 USER appuser
 
 # Expose the default Streamlit port
-EXPOSE 8501
+EXPOSE 8580
 
 # Define the command to run the Streamlit application
 # --server.address=0.0.0.0 makes it accessible outside the container
