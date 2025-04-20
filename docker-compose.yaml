@@ -53,7 +53,7 @@ x-airflow-common:
     LANGSMITH_TRACING: ${LANGSMITH_TRACING}
     PINECONE_API_KEY: ${PINECONE_API_KEY}
     PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME} # Made available to tasks if needed
-    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
+    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT} # Keep if pinecone client needs it
     HEVY_API_KEY: ${HEVY_API_KEY}
     MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000} # Tasks use this to find MLflow server
     MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # GCS bucket for artifacts
@@ -92,9 +92,7 @@ services:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 10s
-      retries: 5
-      start_period: 5s
+      interval: 10s; retries: 5; start_period: 5s
     restart: always
     networks: # Attach to the defined network
       - airflow_net
@@ -106,18 +104,16 @@ services:
       - 6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 30s
-      retries: 50
-      start_period: 30s
+      interval: 10s; timeout: 30s; retries: 50; start_period: 30s
     restart: always
     networks: # Attach to the defined network
       - airflow_net
 
   mlflow-server:
-    image: python:3.9-slim
+    image: python:3.9-slim # Using slim image
     container_name: personaltrainerai-mlflow-server-1
     environment:
+      # Uses same DB as Airflow, but separate tables within 'airflow' DB
       MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
       MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts}
       # Note: GCS access relies on VM service account credentials
@@ -138,7 +134,7 @@ services:
       - airflow_net
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy # Ensure DB is ready before MLflow starts
 
   airflow-webserver:
     <<: *airflow-common
@@ -199,28 +195,37 @@ services:
       airflow-init: { condition: service_completed_successfully }
       mlflow-server: { condition: service_started }
 
+  # --- AIRFLOW INIT SERVICE (Corrected Environment) ---
   airflow-init:
-    <<: *airflow-common
-    container_name: personaltrainerai-airflow-init-1 # Optional: explicit naming
+    # Inherit only image, volumes, network from common
+    image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2-python3.9}
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}:/sources:rw
+    networks:
+      - airflow_net
+    container_name: personaltrainerai-airflow-init-1
     entrypoint: /bin/bash
     command: # More explicit init steps
       - -c
       - |
         set -e
         echo "Airflow Init: Starting initialization..."
-        # Ensure directories exist (both for checks and runtime)
+        # Ensure directories exist
         mkdir -p /sources/logs /sources/dags /sources/plugins /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-        # Permissions - Ensure logs dir is writable
+        # Permissions
         chmod -R 777 /sources/logs || echo "WARN: Failed chmod /sources/logs"
-        # Optional: Chown if running as non-root (AIRFLOW_UID set)
+        # Optional: Chown
         if [[ -n "${AIRFLOW_UID}" && "${AIRFLOW_UID}" != "0" ]]; then
           echo "Changing ownership for AIRFLOW_UID=${AIRFLOW_UID}..."
           chown -R "${AIRFLOW_UID}:0" /sources/logs /sources/dags /sources/plugins || echo "WARN: Failed chown /sources"
         fi
+        # Install necessary package ONLY for init
+        echo "Installing psycopg2..."
+        pip install --no-cache-dir psycopg2-binary # Install DB driver
         # Run DB migration
         echo "Running Airflow DB migrate..."
         airflow db migrate
-        # Create Admin User (handle potential existing user error)
+        # Create Admin User
         echo "Creating Airflow Admin User (user: ${_AIRFLOW_WWW_USER_USERNAME:-admin})..."
         airflow users create \
             --username "${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
@@ -231,33 +236,32 @@ services:
             --email "${_AIRFLOW_WWW_USER_EMAIL:-admin@example.com}" || \
         echo "Admin user likely already exists."
         echo "Airflow Init: Initialization complete."
+    # Define environment explicitly for init - DOES NOT inherit from common
     environment:
-      <<: *airflow-common-env
-      # Override requirements - only need db driver for init
-      _PIP_ADDITIONAL_REQUIREMENTS: 'psycopg2-binary'
-      # Explicitly set desired admin user details here or via .env
+      # Define ONLY the variables needed by the 'command' script above
+      # DB connection string is crucial for 'db migrate' and 'users create'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      # Set admin user details directly or rely on defaults in the command script
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_WWW_USER_USERNAME:-Vinyas}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_WWW_USER_PASSWORD:-Vinyas}
-      # _AIRFLOW_WWW_USER_FIRSTNAME: # Optional
-      # _AIRFLOW_WWW_USER_LASTNAME: # Optional
-      # _AIRFLOW_WWW_USER_ROLE: # Optional (defaults to Admin)
-      # _AIRFLOW_WWW_USER_EMAIL: # Optional
-    user: "0:0" # Run init as root for permissions/setup
-    volumes:
-      - ${AIRFLOW_PROJ_DIR:-.}:/sources:rw # Need rw for potential checks/chown
-    # No network needed if it only interacts with DB via localhost mapped service name? Add if needed.
-    # networks:
-    #   - airflow_net
-    depends_on: # Only needs DB to be ready
+      _AIRFLOW_WWW_USER_FIRSTNAME: ${_AIRFLOW_WWW_USER_FIRSTNAME:-Vinyas}
+      _AIRFLOW_WWW_USER_LASTNAME: ${_AIRFLOW_WWW_USER_LASTNAME:-N}
+      _AIRFLOW_WWW_USER_ROLE: ${_AIRFLOW_WWW_USER_ROLE:-Admin}
+      _AIRFLOW_WWW_USER_EMAIL: ${_AIRFLOW_WWW_USER_EMAIL:-vinyas@example.com}
+      # Pass AIRFLOW_UID if set on host, needed for chown check inside script
+      AIRFLOW_UID: ${AIRFLOW_UID:-}
+    user: "0:0" # Run init as root to perform setup actions
+    depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_healthy } # Although not directly used, ensures broker is ready for later components
+      redis: { condition: service_healthy }
+  # --- END AIRFLOW INIT SERVICE ---
 
   airflow-cli:
     <<: *airflow-common
     container_name: personaltrainerai-airflow-cli-1 # Optional: explicit naming
     profiles: ["debug", "cli"] # Add cli profile
     environment:
-      <<: *airflow-common-env
+      <<: *airflow-common-env # Inherit common environment (uses BASE pip reqs)
       CONNECTION_CHECK_MAX_COUNT: "0"
     command: ["bash"] # Keep running
     tty: true
