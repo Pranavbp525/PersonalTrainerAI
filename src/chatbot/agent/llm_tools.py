@@ -51,7 +51,8 @@ load_dotenv()
 # --- Pinecone & Embeddings Initialization with Logging ---
 try:
     tools_log.info("Initializing Pinecone...")
-    pinecone_api_key = os.environ.get("PINECONE_API_KEY")
+    pinecone_api_key = os.environ.get("PINECONE_API_KEY", "not_found")
+    tools_log.info(f"Pinecode api : {pinecone_api_key}")
     if not pinecone_api_key:
         tools_log.error("PINECONE_API_KEY environment variable not set!")
         raise ValueError("PINECONE_API_KEY not found.")

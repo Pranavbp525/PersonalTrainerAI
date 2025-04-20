@@ -493,6 +493,7 @@ async def coordinator(state: AgentState) -> AgentState:
         user_response = user_match.group(1).strip()
         internal_reasoning = content.replace(f"<user>{user_response}</user>", "").strip()
         agent_log.debug("Extracted user-facing response.") # Added log
+        selected_agent = "end_conversation"
 
     research_needs_match = re.search(r'<research_needs>(.*?)</research_needs>', internal_reasoning, re.DOTALL)
     if research_needs_match:
@@ -713,7 +714,7 @@ async def research_agent(state: AgentState) -> AgentState:
 async def planning_agent(state: AgentState) -> AgentState:
     """Creates personalized workout routines and exports to Hevy."""
 
-    logger.info(f"Planning Agent - Input State: {state}") #Log input state
+    # logger.info(f"Planning Agent - Input State: {state}") #Log input state
     planning_prompt = get_planning_prompt()  # Latest version
     # Or for specific version: planning_prompt = get_planning_prompt("production") 
 
@@ -727,7 +728,7 @@ async def planning_agent(state: AgentState) -> AgentState:
     messages = state["messages"] + [SystemMessage(content=filled_prompt)]
     response = await llm.ainvoke(messages)
 
-    logger.info(f"\033[91m PLANNERS RESPONSE: {response} \033[0m")  # Red text in logs
+    # logger.info(f"\033[91m PLANNERS RESPONSE: {response} \033[0m")  # Red text in logs
     
     
     try:
@@ -737,7 +738,7 @@ async def planning_agent(state: AgentState) -> AgentState:
         
         fitness_plan["created_at"] = datetime.now().isoformat()
         fitness_plan["version"] = fitness_plan.get("version", 0) + 1
-        logger.info(f'Fitness Plan: {fitness_plan}')
+        # logger.info(f'Fitness Plan: {fitness_plan}')
         #
         
         # Return updated state
@@ -746,7 +747,7 @@ async def planning_agent(state: AgentState) -> AgentState:
             "messages": state["messages"] + [AIMessage(content="PLANNERS OUTPUT:\n"+response.content)],
             "hevy_payloads": fitness_plan
         }
-        logger.info(f"Planning Agent - Output State: {updated_state}")
+        # logger.info(f"Planning Agent - Output State: {updated_state}")
         return updated_state
     except Exception as e:
         # Handle errors gracefully
@@ -758,13 +759,13 @@ async def planning_agent(state: AgentState) -> AgentState:
             ]
         }
         error_message = f"Error creating routine in Hevy: {str(e)}"
-        logging.error(f"{error_message} in Planning Agent. Output State: {updated_state}")
+        # logging.error(f"{error_message} in Planning Agent. Output State: {updated_state}")
         return updated_state
 
 # Progress analysis agent for workout log analysis
 async def progress_analysis_agent(state: AgentState) -> AgentState:
     """Analyzes workout logs to track progress and suggest adjustments."""
-    logger.info(f"Progress Analysis Agent - Input State: {state}") #Log input state
+    # logger.info(f"Progress Analysis Agent - Input State: {state}") #Log input state
     analysis_prompt = get_analysis_prompt()
     
     # Fetch recent workout logs from Hevy API
@@ -804,13 +805,13 @@ async def progress_analysis_agent(state: AgentState) -> AgentState:
         "progress_data": state.get("progress_data", {}) | {"latest_analysis": analysis_results},
         "working_memory": working_memory
     }
-    logger.info(f"Progress Analysis Agent - Output State: {updated_state}") #Log input state
+    # logger.info(f"Progress Analysis Agent - Output State: {updated_state}") #Log input state
     return updated_state
 
 # Adaptation agent for routine modification
 async def adaptation_agent(state: AgentState) -> AgentState:
     """Modifies workout routines based on progress and feedback."""
-    logger.info(f"Adaptation Agent - Input State: {state}") #Log input state
+    # logger.info(f"Adaptation Agent - Input State: {state}") #Log input state
     adaptation_prompt = get_adaptation_prompt()
     
     
@@ -883,7 +884,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
                 "messages": state["messages"] + [AIMessage(content=response.content)],
                 "hevy_payloads": fitness_plan
             }
-            logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
+            # logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
             return updated_state
         else:
             # Handle missing routine ID
@@ -894,7 +895,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
                     AIMessage(content="I've designed these updates for your routine, but I couldn't find your existing routine in Hevy. Would you like me to create a new routine instead?")
                 ]
             }
-            logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
+            # logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
             return updated_state
     except Exception as e:
         # Handle errors gracefully
@@ -907,7 +908,7 @@ async def adaptation_agent(state: AgentState) -> AgentState:
                 AIMessage(content=f"I've designed these updates for your routine, but there was an issue saving them to Hevy: {str(e)}")
             ]
         }
-        logger.error(f"{error_message} in Adaptation Agent. Output State: {updated_state}") #Log input state
+        # logger.error(f"{error_message} in Adaptation Agent. Output State: {updated_state}") #Log input state
         return updated_state
 
 # --- Coach agent with ELK Logging Added ---
@@ -2228,6 +2229,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
     agent_log.info(f"Starting processing for {len(targets)} identified target(s).") # Added log
     logs = state.get("workout_logs")
     user_model = state.get("user_model", {})
+    user_request = state.get("user_request_context", "")
     processed_results: List[RoutineAdaptationResult] = []
     any_target_failed = False # Flag local errors
 
@@ -2363,6 +2365,7 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
             try:
                 mod_filled_prompt = modification_prompt_template.format(
                     user_profile=json.dumps(user_model, indent=2),
+                    user_request_context=user_request,
                     analysis_findings=json.dumps(analysis_findings.model_dump()), # Use model_dump for Pydantic V2
                     adaptation_rag_results=json.dumps(adaptation_rag_results),
                     current_routine_json=json.dumps(routine_data, indent=2)

@@ -1,0 +1,39 @@
+# Use a slim Python image matching the backend's version for consistency
+FROM python:3.9-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Create a non-root user and group for security
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
+# Install necessary packages - copy requirements file first for caching
+# Ensure this file exists and contains 'streamlit', 'requests', etc.
+COPY --chown=appuser:appgroup requirements.frontend.txt .
+
+# Upgrade pip and install dependencies
+# Using a virtual environment isn't strictly necessary here for a simple client,
+# but kept for consistency if preferred. Alternatively, install directly.
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.frontend.txt
+
+# Copy the Streamlit client application code
+# Adjust the source path if chat_client.py is located elsewhere
+COPY --chown=appuser:appgroup src/chatbot/chat_client.py .
+
+# Switch to the non-root user
+USER appuser
+
+# Expose the default Streamlit port
+EXPOSE 8501
+
+# Define the command to run the Streamlit application
+# --server.address=0.0.0.0 makes it accessible outside the container
+# --server.port matches the EXPOSE instruction
+CMD ["streamlit", "run", "chat_client.py", "--server.port=$PORT", "--server.address=0.0.0.0"]

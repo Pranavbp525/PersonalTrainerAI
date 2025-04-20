@@ -46,8 +46,8 @@ os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
 # Adjust console_level if you want less verbose console output (e.g., logging.INFO)
 log = setup_elk_logging(
     "fitness-chatbot.main",
-    console_level=logging.INFO, # Or config.LOGGING_LEVEL
-    logstash_level=logging.DEBUG # Send detailed logs to ELK
+    console_level_str="INFO",     # Use console_level_str="DEBUG" for more console verbosity
+    logstash_level_str="DEBUG"    # Send DEBUG and above to Logstash
 )
 # Keep quieting down noisy libraries if needed
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
 
         # --- Setup Checkpointer Database Schema ---
         log.info("Running checkpointer database setup...")
-        await app.state.agent_checkpointer.setup() # Call setup on the instance
+        # await app.state.agent_checkpointer.setup() # Call setup on the instance
         log.info("AsyncPostgresSaver setup() executed successfully.")
 
         # --- Store Checkpointer Instance ---
