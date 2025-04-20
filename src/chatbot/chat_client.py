@@ -89,10 +89,10 @@ def api_send_message(session_id: str, content: str):
         return None
     return resp.json().get("content")
 
-def api_feedback( message_id: int, thumbs_up: bool):
+def api_feedback(session_id: int, message_id: int, thumbs_up: bool):
     resp = requests.post(
         f"{BASE_URL}/feedback/",
-        json={"message_id": message_id, "thumbs_up": thumbs_up}
+        json={"session_id": session_id, "message_id": message_id, "thumbs_up": thumbs_up}
     )
     return handle_api_error(resp, "Submit feedback")
 
@@ -113,9 +113,9 @@ st.markdown("""
 
 # ── Session State Initialization ────────────────────────────────────────────────
 
-for k in ("username","password","user_id","session_id","chat_history","logging_out"):
+for k in ("username", "password", "user_id", "session_id", "chat_history", "logging_out", "feedback_given"):
     if k not in st.session_state:
-        st.session_state[k] = None
+        st.session_state[k] = {} if k == "feedback_given" else None
 
 if st.session_state.chat_history is None:
     st.session_state.chat_history = []

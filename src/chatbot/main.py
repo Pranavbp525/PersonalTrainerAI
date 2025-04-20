@@ -185,7 +185,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    thumbs_up: bool | None
+    
     class Config:
         from_attributes = True
 
