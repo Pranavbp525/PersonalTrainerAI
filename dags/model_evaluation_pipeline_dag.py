@@ -11,18 +11,17 @@ import sys # Keep sys import
 # Import necessary Airflow classes FIRST
 from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.empty import EmptyOperator # <<< IMPORT EmptyOperator
+# from airflow.operators.empty import EmptyOperator # No longer needed
 
 # --- Configuration ---
 # Use the project root defined by the docker-compose volume mount
 PROJECT_ROOT = "/opt/airflow/app" # <<< Correct project root inside container
 SRC_DIR = os.path.join(PROJECT_ROOT, "src")
-# Output directory inside container (optional, only needed if scripts write locally before GCS/MLflow)
-# EVAL_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "results", "airflow_eval_output")
 
 # --- Logging Setup ---
+# Use standard Airflow logging configuration provided by task handlers
+# You can still get a logger instance if needed inside functions
 log = logging.getLogger(__name__)
-# No need to setLevel here, Airflow task handler configures logging
 
 # --- Add src directory to Python path ---
 # Ensure this path is correct based on docker-compose volume mount
@@ -30,30 +29,24 @@ if SRC_DIR not in sys.path:
     log.info(f"Adding {SRC_DIR} to sys.path for DAG definition/worker.")
     sys.path.insert(0, SRC_DIR)
 
-# --- Import Task Functions ---
-# Import the main execution functions directly from the refactored scripts
-try:
-    # Import the class for RAG eval
-    from src.rag_model.advanced_rag_evaluation import AdvancedRAGEvaluator
-    # Import the function for Agent eval
-    from src.chatbot.agent_eval.eval import evaluate_agent
-    IMPORT_SUCCESS = True
-    log.info("Successfully imported evaluation functions/classes.")
-except ImportError as e:
-    log.error(f"Failed to import evaluation functions: {e}", exc_info=True)
-    IMPORT_SUCCESS = False
-    # Define dummy functions if import fails to allow DAG parsing
-    def run_rag_eval_wrapper(**kwargs): raise ImportError("advanced_rag_evaluation module/class not found")
-    def run_agent_eval_wrapper(**kwargs): raise ImportError("agent_eval.eval module/function not found")
+
+# --- REMOVED Top-Level Imports of Task Functions ---
+# REMOVED: try...except ImportError block
+# REMOVED: IMPORT_SUCCESS variable
+# REMOVED: Dummy function definitions
 
 
 # --- Wrapper function for RAG Evaluation Task ---
 def run_rag_eval_wrapper(**context):
     """
     Sets up and runs the Advanced RAG Evaluator.
+    Imports happen inside the task execution on the worker.
     Relies on environment variables being set via docker-compose (.env mount).
     """
-    task_log = logging.getLogger("airflow.task")
+    # Import necessary module INSIDE the function
+    from src.rag_model.advanced_rag_evaluation import AdvancedRAGEvaluator
+
+    task_log = logging.getLogger("airflow.task") # Get task logger
     task_log.info("--- Starting RAG Evaluation Task ---")
 
     # Check for essential environment variables needed by the evaluator or RAG models
@@ -74,15 +67,16 @@ def run_rag_eval_wrapper(**context):
         task_log.info(f"Ensured temp output directory exists: {temp_output_dir}")
 
         task_log.info("Initializing AdvancedRAGEvaluator...")
+        # Now the import works because this runs on the worker which has the dependencies
         evaluator = AdvancedRAGEvaluator(output_dir=temp_output_dir)
 
         task_log.info("Running comparison of RAG implementations...")
-        comparison_results = evaluator.compare_implementations() # This now handles MLflow logging and GCS saving
+        comparison_results = evaluator.compare_implementations() # This handles MLflow logging and GCS saving
         task_log.info("RAG Implementation Comparison Finished.")
 
         if not comparison_results or "error" in comparison_results:
              task_log.warning(f"RAG evaluation completed but reported an error or no results: {comparison_results}")
-             # raise RuntimeError("RAG Evaluation script reported an error or no results.")
+             # Consider if this should be a failure: raise RuntimeError("RAG Evaluation script reported an error or no results.")
 
         task_log.info("--- RAG Evaluation Task Completed ---")
 
@@ -94,9 +88,13 @@ def run_rag_eval_wrapper(**context):
 def run_agent_eval_wrapper(**context):
     """
     Runs the Agent evaluation script.
+    Imports happen inside the task execution on the worker.
     Relies on environment variables being set via docker-compose (.env mount).
     """
-    task_log = logging.getLogger("airflow.task")
+    # Import necessary module INSIDE the function
+    from src.chatbot.agent_eval.eval import evaluate_agent
+
+    task_log = logging.getLogger("airflow.task") # Get task logger
     task_log.info("--- Starting Agent Evaluation Task ---")
 
     # Check for essential environment variables
@@ -113,8 +111,8 @@ def run_agent_eval_wrapper(**context):
 
     try:
         task_log.info("Running Agent evaluation via evaluate_agent()...")
-        # Directly call the imported function
-        evaluate_agent() # The function now handles MLflow logging internally and raises errors
+        # Now the import works because this runs on the worker which has the dependencies
+        evaluate_agent() # The function handles MLflow logging internally and raises errors
         task_log.info("--- Agent Evaluation Task Completed ---")
 
     except Exception as e:
@@ -141,29 +139,22 @@ with DAG(
     template_searchpath=PROJECT_ROOT # Use updated PROJECT_ROOT
 ) as dag:
 
-    if not IMPORT_SUCCESS:
-        # If imports failed, create a single dummy task using EmptyOperator
-        import_error_task = EmptyOperator( # <<< CHANGED TO EmptyOperator
-            task_id='import_error',
-            # No bash_command needed
-        )
-    else:
-        # Task 1: Run RAG Evaluation Comparison
-        rag_evaluation_task = PythonOperator(
-            task_id='run_rag_evaluation',
-            python_callable=run_rag_eval_wrapper, # Call the wrapper
-            execution_timeout=timedelta(hours=1), # Add timeout for safety
-        )
+    # REMOVED: if not IMPORT_SUCCESS block and EmptyOperator
 
-        # Task 2: Run Agent Evaluation
-        agent_evaluation_task = PythonOperator(
-            task_id='run_agent_evaluation',
-            python_callable=run_agent_eval_wrapper, # Call the wrapper
-            execution_timeout=timedelta(hours=1), # Add timeout for safety
-        )
+    # Task 1: Run RAG Evaluation Comparison
+    rag_evaluation_task = PythonOperator(
+        task_id='run_rag_evaluation',
+        python_callable=run_rag_eval_wrapper, # Call the wrapper which handles import
+        execution_timeout=timedelta(hours=1), # Add timeout for safety
+    )
 
-        # Define task dependencies: Run evaluations in parallel
-        # If agent eval depends on RAG eval completing, set dependency:
-        # rag_evaluation_task >> agent_evaluation_task
-        # If they can run independently, no dependency line is needed between them.
-        # Assuming they can run in parallel for now.
+    # Task 2: Run Agent Evaluation
+    agent_evaluation_task = PythonOperator(
+        task_id='run_agent_evaluation',
+        python_callable=run_agent_eval_wrapper, # Call the wrapper which handles import
+        execution_timeout=timedelta(hours=1), # Add timeout for safety
+    )
+
+    # Define task dependencies: Run evaluations in parallel (assuming independence)
+    # If agent eval depends on RAG eval completing, uncomment the line below:
+    # rag_evaluation_task >> agent_evaluation_task
