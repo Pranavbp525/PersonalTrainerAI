@@ -1,7 +1,7 @@
 import pytest
 import sys
-sys.path.append('../src')
-from data_pipeline.vector_db import split_text
+# sys.path.append('../src')
+from src.data_pipeline.vector_db import split_text
 from unittest.mock import patch, MagicMock
 
 def test_split_text():
