@@ -4,8 +4,6 @@ import sys
 import json
 from pathlib import Path
 
-# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-
 from src.data_pipeline.ms_preprocess import (
     clean_text,
     format_summary,
