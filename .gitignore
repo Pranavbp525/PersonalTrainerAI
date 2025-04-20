@@ -48,3 +48,7 @@ gen-lang-client-*.json
 Thumbs.db
 .vscode/
 .idea/
+# Python cache files
+__pycache__/
+*.pyc
+
