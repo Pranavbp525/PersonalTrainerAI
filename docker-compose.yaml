@@ -108,19 +108,12 @@ services:
 
   # --- NEW MLFLOW SERVER SERVICE ---
   mlflow-server:
-    # Using a standard Python image. Could build custom if more OS deps needed.
     image: python:3.9-slim
     container_name: personaltrainerai-mlflow-server-1
     environment:
-      # Pass cloud credentials implicitly via attached service account (from host VM)
-      # Or explicitly mount a service account key if needed:
-      # GOOGLE_APPLICATION_CREDENTIALS: /etc/gcp/gcp_key.json
-      # Define backend and artifact root here (passed to mlflow server command)
-      # Note: Using the *same* Postgres DB as Airflow for simplicity here.
-      # For production, a separate DB instance might be better.
       MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # Use variable from common env
-    volumes: [] # <<< CORRECTED: Use an empty list if no volumes needed
+      MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts}
+    volumes: [] # Use empty list as no host volumes needed for this config
     command: >
       bash -c "pip install mlflow psycopg2-binary google-cloud-storage &&
                echo 'Starting MLflow server...' &&
@@ -130,10 +123,10 @@ services:
                 --backend-store-uri $$MLFLOW_BACKEND_STORE_URI \
                 --default-artifact-root $$MLFLOW_ARTIFACT_ROOT"
     ports:
-      - "5001:5000" # Map host port 5001 to container port 5000
+      - "5001:5000"
     restart: always
     depends_on:
-      postgres: # Depends on Postgres if using it for backend
+      postgres:
         condition: service_healthy
   # --- END MLFLOW SERVER SERVICE ---
 
@@ -153,8 +146,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-      mlflow-server: # Add dependency if webserver needs to talk to mlflow (optional)
-         condition: service_started # Or service_healthy if healthcheck added
+      mlflow-server:
+         condition: service_started
 
   airflow-scheduler:
     <<: *airflow-common
@@ -170,7 +163,7 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-      mlflow-server: # Add dependency
+      mlflow-server:
          condition: service_started
 
   airflow-worker:
@@ -192,7 +185,7 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-      mlflow-server: # Add dependency
+      mlflow-server:
          condition: service_started
 
   airflow-triggerer:
@@ -209,27 +202,55 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-      mlflow-server: # Add dependency
+      mlflow-server:
          condition: service_started
 
+  # --- MODIFIED AIRFLOW INIT SERVICE ---
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
     command:
       - -c
       - |
-        # [...] Keep existing checks and warnings
-        # --- Ensure required directories exist in /opt/airflow where services run ---
-        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-        # The /sources mount is only relevant for this init container's chown step
+        # [...] Keep existing resource checks and warnings [...]
+        if [[ -z "${AIRFLOW_UID}" ]]; then
+          echo
+          echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
+          echo "If you are on Linux, you SHOULD follow the instructions below to set "
+          echo "AIRFLOW_UID environment variable, otherwise files will be owned by root."
+          echo "For other operating systems you can get rid of the warning with manually created .env file:"
+          echo "    See: https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#setting-the-right-airflow-user"
+          echo
+        fi
+        # [...] Keep existing resource checks [...]
+
+        # Ensure the base /sources directories exist where host volume is mounted
         mkdir -p /sources/logs /sources/dags /sources/plugins
+
+        # --- ADDED: Attempt to make /sources/logs writable BEFORE chown ---
+        echo "Attempting to make /sources/logs writable..."
+        chmod -R 777 /sources/logs || echo "WARN: Failed to chmod /sources/logs"
+        # --- END ADDED ---
+
         # Ensure the mounted directories on host get correct permissions IF AIRFLOW_UID is set
+        # This chown is applied to the /sources mount point inside the init container
         if [[ -n "${AIRFLOW_UID}" ]]; then
           echo "Changing ownership of /sources/* to ${AIRFLOW_UID}:0"
           chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins} || echo "WARN: Failed to chown /sources"
         else
            echo "Skipping chown as AIRFLOW_UID is not set."
         fi
+
+        # Also ensure standard Airflow directories exist inside /opt/airflow where services run
+        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+
+        # --- Optional: Also attempt chmod on /opt/airflow/logs ---
+        # This might be redundant if the volume mount inherits host permissions effectively
+        # but can help if container user needs explicit rights inside the final path
+        # echo "Attempting to make /opt/airflow/logs writable..."
+        # chmod -R 777 /opt/airflow/logs || echo "WARN: Failed to chmod /opt/airflow/logs"
+        # --- End Optional ---
+
         # Continue with Airflow initialization checks
         exec /entrypoint airflow version
     environment:
@@ -239,10 +260,11 @@ services:
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-Vinyas}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-Vinyas}
       _PIP_ADDITIONAL_REQUIREMENTS: '' # Don't install extra deps in init
-    user: "0:0" # Run init as root to create/chown directories
+    user: "0:0" # Run init as root to create/chown/chmod directories
     volumes:
       # airflow-init uses a different mount for source checking initially
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
+  # --- END MODIFIED AIRFLOW INIT SERVICE ---
 
   airflow-cli:
     <<: *airflow-common
