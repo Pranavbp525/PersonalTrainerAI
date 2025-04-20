@@ -1,24 +1,50 @@
 # Licensed to the Apache Software Foundation (ASF) under one
-# ... (rest of license header) ...
----
-version: '3.8'
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
+# Airflow + MLflow Docker Compose Configuration
+# Uses CeleryExecutor, Redis, PostgreSQL
+# Deploys Airflow components and a dedicated MLflow Tracking Server
+---
+# Removed obsolete version: '3.8'
+
+# Common configuration reusable across Airflow services
 x-airflow-common:
   &airflow-common
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2-python3.9}
   environment:
     &airflow-common-env
+    # --- ADDED: Prevent Python from writing .pyc files ---
     PYTHONDONTWRITEBYTECODE: "1"
+
+    # --- Airflow Core Settings ---
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ''
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__FERNET_KEY: '' # NOTE: Set a fixed key for production consistency
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true' # Default behavior
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+
+    # --- BASE Python Dependencies (Scheduler, Webserver, Triggerer, Worker Base) ---
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn}
+
+    # --- Common Environment Variables (Available to all Airflow tasks) ---
     OPENAI_API_KEY: ${OPENAI_API_KEY}
     LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
     LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
@@ -184,34 +210,32 @@ services:
       mlflow-server:
         condition: service_started
 
-  # --- AIRFLOW INIT SERVICE (More Robust Command) ---
+  # --- AIRFLOW INIT SERVICE (Corrected Command with Escaped $$) ---
   airflow-init:
     image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2-python3.9}
     container_name: personaltrainerai-airflow-init-1
     entrypoint: /bin/bash
-    # --- UPDATED COMMAND ---
+    # --- UPDATED COMMAND with $$ for shell variables ---
     command:
       - -c
       - |
         set -e
         echo "Airflow Init: Starting..."
-        # Create dirs
         mkdir -p /sources/logs /sources/dags /sources/plugins /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-        # Set permissions (allow errors)
         chmod -R 777 /sources/logs || echo "WARN: chmod logs failed"
-        # Chown (allow errors)
-        if [[ -n "${AIRFLOW_UID}" && "${AIRFLOW_UID}" != "0" ]]; then
-          echo "Attempting chown for UID ${AIRFLOW_UID}..."
-          chown -R "${AIRFLOW_UID}:0" /sources/logs /sources/dags /sources/plugins || echo "WARN: chown failed"
+        # Use $$AIRFLOW_UID for shell variable access within the script
+        if [[ -n "$${AIRFLOW_UID}" && "$${AIRFLOW_UID}" != "0" ]]; then
+          echo "Attempting chown for UID $${AIRFLOW_UID}..."
+          chown -R "$${AIRFLOW_UID}:0" /sources/logs /sources/dags /sources/plugins || echo "WARN: chown failed"
         fi
 
-        # Install psycopg2 with retry
+        # Install psycopg2 with retry (Use $$ for shell variables attempt & max_attempts)
         attempt=1
         max_attempts=3
         until pip install --no-cache-dir psycopg2-binary || [ $$attempt -eq $$max_attempts ]
         do
-            echo "Attempt $$attempt/$max_attempts: pip install psycopg2 failed. Retrying in 5 seconds..."
-            attempt=$$(( attempt + 1 ))
+            echo "Attempt $$attempt/$$max_attempts: pip install psycopg2 failed. Retrying in 5 seconds..."
+            attempt=$$(( attempt + 1 )) # Use $$ for arithmetic expansion
             sleep 5
         done
         if ! command -v pip > /dev/null || ! pip show psycopg2-binary &> /dev/null; then
@@ -220,7 +244,7 @@ services:
         fi
         echo "psycopg2 installed successfully."
 
-        # Check DB connection before migrate (optional but good)
+        # Check DB connection
         echo "Checking DB connection..."
         airflow db check || { echo "ERROR: DB check failed!"; exit 1; }
         echo "DB check successful."
@@ -230,30 +254,32 @@ services:
         airflow db migrate || { echo "ERROR: DB migrate failed!"; exit 1; }
         echo "DB migrate successful."
 
-        # Create Admin User
-        echo "Creating/Verifying Airflow Admin User (user: ${_AIRFLOW_WWW_USER_USERNAME:-admin})..."
+        # Create Admin User (Use $$ for environment vars used inside the script)
+        echo "Creating/Verifying Airflow Admin User (user: $${_AIRFLOW_WWW_USER_USERNAME:-admin})..."
         airflow users create \
-            --username "${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
-            --password "${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
-            --firstname "${_AIRFLOW_WWW_USER_FIRSTNAME:-Default}" \
-            --lastname "${_AIRFLOW_WWW_USER_LASTNAME:-User}" \
-            --role "${_AIRFLOW_WWW_USER_ROLE:-Admin}" \
-            --email "${_AIRFLOW_WWW_USER_EMAIL:-admin@example.com}" || \
+            --username "$${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
+            --password "$${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
+            --firstname "$${_AIRFLOW_WWW_USER_FIRSTNAME:-Default}" \
+            --lastname "$${_AIRFLOW_WWW_USER_LASTNAME:-User}" \
+            --role "$${_AIRFLOW_WWW_USER_ROLE:-Admin}" \
+            --email "$${_AIRFLOW_WWW_USER_EMAIL:-admin@example.com}" || \
         echo "INFO: Admin user likely already exists or another error occurred (ignoring)."
 
         echo "Airflow Init: Initialization complete."
     # --- END UPDATED COMMAND ---
     environment:
-      # Explicit environment, does NOT inherit common env vars
+      # Environment variables passed TO the init container (use single $ here)
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      # Admin user details from host env or defaults
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_WWW_USER_USERNAME:-Vinyas}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_WWW_USER_PASSWORD:-Vinyas}
       _AIRFLOW_WWW_USER_FIRSTNAME: ${_AIRFLOW_WWW_USER_FIRSTNAME:-Vinyas}
       _AIRFLOW_WWW_USER_LASTNAME: ${_AIRFLOW_WWW_USER_LASTNAME:-N}
       _AIRFLOW_WWW_USER_ROLE: ${_AIRFLOW_WWW_USER_ROLE:-Admin}
       _AIRFLOW_WWW_USER_EMAIL: ${_AIRFLOW_WWW_USER_EMAIL:-vinyas@example.com}
+      # Pass host AIRFLOW_UID for chown check inside script
       AIRFLOW_UID: ${AIRFLOW_UID:-}
-    user: "0:0" # Run as root
+    user: "0:0" # Run init as root
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources:rw
     networks:
