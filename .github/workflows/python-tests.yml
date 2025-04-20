@@ -29,6 +29,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Write secrets to .env
+        run: |
+          echo "pinecone_api_key=${{ secrets.pinecone_api_key }}" >> .env
+
       - name: Run tests
         run: |
           PYTHONPATH=. python -m pytest tests/  # Or `python -m unittest discover tests`
