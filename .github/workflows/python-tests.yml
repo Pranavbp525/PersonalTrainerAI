@@ -31,4 +31,4 @@ jobs:
 
       - name: Run tests
         run: |
-          PYTHONPATH= . python -m pytest tests/  # Or `python -m unittest discover tests`
+          PYTHONPATH=. python -m pytest tests/  # Or `python -m unittest discover tests`
