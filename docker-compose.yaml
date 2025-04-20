@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
 
-# Basic Airflow cluster configuration for CeleryExecutor with Redis and PostgreSQL.
-# --- Includes MLflow Server ---
-#
-# WARNING: This configuration is for local development/testing. Do not use it in a production deployment without review.
-# [...] (Keep existing comments about variables)
+# Airflow + MLflow Docker Compose Configuration
+# Uses CeleryExecutor, Redis, PostgreSQL
+# Deploys Airflow components and a dedicated MLflow Tracking Server
 ---
+version: '3.8' # Added compose file version
+
+# Common configuration reusable across Airflow services
 x-airflow-common:
   &airflow-common
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2-python3.9}
@@ -35,39 +35,45 @@ x-airflow-common:
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ''
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true' # Default, specific DAGs can override
+    AIRFLOW__CORE__FERNET_KEY: '' # NOTE: Set a fixed key for production consistency
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true' # Default behavior
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
 
     # --- BASE Python Dependencies (Scheduler, Webserver, Triggerer, Worker Base) ---
-    # Lean list: Core providers, clients needed by most components
+    # Lean list: Core providers, common clients
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn}
 
-    # --- Environment Variables Passed to Tasks (from Host or .env file) ---
-    # These are loaded via .env mount and load_dotenv() in scripts OR inherited by tasks
+    # --- Common Environment Variables (Available to all Airflow tasks) ---
+    # These are loaded from .env file mounted into the container or host environment
     OPENAI_API_KEY: ${OPENAI_API_KEY}
     LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
     LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
     LANGSMITH_TRACING: ${LANGSMITH_TRACING}
     PINECONE_API_KEY: ${PINECONE_API_KEY}
-    PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME}
-    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT} # Keep if pinecone client needs it
+    PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME} # Made available to tasks if needed
+    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
     HEVY_API_KEY: ${HEVY_API_KEY}
-    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000} # For tasks to log to mlflow-server container
-    MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # For tasks & mlflow server
+    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000} # Tasks use this to find MLflow server
+    MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # GCS bucket for artifacts
 
   volumes:
-    - ${AIRFLOW_PROJ_DIR:-.}:/opt/airflow/app # Mount project code
-    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
-    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
-    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
-    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/app/.env # Mount .env file inside app dir
+    # Mount project root to /opt/airflow/app for access to src/, etc.
+    - ${AIRFLOW_PROJ_DIR:-.}:/opt/airflow/app:rw # Ensure read-write if needed
+    # Mount specific Airflow directories
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags:ro # Read-only recommended for DAGs
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs:rw # Needs read-write
+    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins:ro # Read-only recommended
+    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/app/.env:ro # Mount .env read-only
 
-  # user: "${AIRFLOW_UID:-50000}:0" # Keep commented out unless needed
+  # user: "${AIRFLOW_UID:-50000}:0" # Keep commented unless fixing permissions
 
-  depends_on:
+  # --- ADDED: Explicit Network Attachment ---
+  networks:
+    - airflow_net # All airflow-common services will attach to this network
+
+  depends_on: # Common dependencies for most Airflow services
     &airflow-common-depends-on
     redis:
       condition: service_healthy
@@ -77,10 +83,11 @@ x-airflow-common:
 services:
   postgres:
     image: postgres:13
+    container_name: personaltrainerai-postgres-1 # Optional: explicit naming
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_DB: airflow # Single DB for Airflow & MLflow metadata (dev only)
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
@@ -89,9 +96,12 @@ services:
       retries: 5
       start_period: 5s
     restart: always
+    networks: # Attach to the defined network
+      - airflow_net
 
   redis:
     image: redis:7.2-bookworm
+    container_name: personaltrainerai-redis-1 # Optional: explicit naming
     expose:
       - 6379
     healthcheck:
@@ -101,215 +111,178 @@ services:
       retries: 50
       start_period: 30s
     restart: always
+    networks: # Attach to the defined network
+      - airflow_net
 
-  # --- MLFLOW SERVER SERVICE (with pip install fix) ---
   mlflow-server:
-    image: python:3.9-slim # Using slim image
+    image: python:3.9-slim
     container_name: personaltrainerai-mlflow-server-1
     environment:
-      # Uses same DB as Airflow, but separate tables within 'airflow' DB
       MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
       MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts}
-      # Pass GCS credentials implicitly via VM service account
-    volumes: [] # No host volumes needed for this simple setup
+      # Note: GCS access relies on VM service account credentials
+    volumes: [] # No host volumes needed
     command: >
-      bash -c "echo 'Ensuring pip is installed...' &&
-               python3 -m ensurepip --upgrade && # <<< FIX: Install/upgrade pip
-               echo 'Installing MLflow dependencies...' &&
-               pip install --no-cache-dir mlflow psycopg2-binary google-cloud-storage && # Install necessary packages
-               echo 'Starting MLflow server...' &&
+      bash -c "echo 'Ensuring pip...' && python3 -m ensurepip --upgrade && \
+               echo 'Installing MLflow deps...' && pip install --no-cache-dir mlflow psycopg2-binary google-cloud-storage && \
+               echo 'Starting MLflow server...' && \
                mlflow server \
                 --host 0.0.0.0 \
                 --port 5000 \
                 --backend-store-uri $$MLFLOW_BACKEND_STORE_URI \
                 --default-artifact-root $$MLFLOW_ARTIFACT_ROOT"
     ports:
-      - "5001:5000" # Expose MLflow UI on host port 5001
+      - "5001:5000" # Expose on host 5001 -> container 5000
     restart: always
+    networks: # Attach to the defined network
+      - airflow_net
     depends_on:
       postgres:
-        condition: service_healthy # Ensure DB is ready before MLflow starts
-  # --- END MLFLOW SERVER SERVICE ---
+        condition: service_healthy
 
   airflow-webserver:
     <<: *airflow-common
-    # Uses BASE dependencies defined in x-airflow-common
+    container_name: personaltrainerai-airflow-webserver-1 # Optional: explicit naming
     command: webserver
     ports:
       - "8080:8080"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 30s; timeout: 10s; retries: 5; start_period: 30s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-      mlflow-server: # Wait for mlflow server to be started
-         condition: service_started
+      airflow-init: { condition: service_completed_successfully }
+      mlflow-server: { condition: service_started } # Wait for mlflow to start
 
   airflow-scheduler:
     <<: *airflow-common
-    # Uses BASE dependencies defined in x-airflow-common
+    container_name: personaltrainerai-airflow-scheduler-1 # Optional: explicit naming
     command: scheduler
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8973/health"] # Airflow 2.9+ scheduler health port
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      test: ["CMD", "curl", "--fail", "http://localhost:8973/health"] # Correct port for Airflow 2.9+
+      interval: 30s; timeout: 10s; retries: 5; start_period: 60s # Increased start period
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-      mlflow-server:
-         condition: service_started
+      airflow-init: { condition: service_completed_successfully }
+      mlflow-server: { condition: service_started }
 
   airflow-worker:
     <<: *airflow-common
+    container_name: personaltrainerai-airflow-worker-1 # Optional: explicit naming
     command: celery worker
     healthcheck:
       test: ["CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s # Give worker time to install potentially heavy deps
+      interval: 30s; timeout: 10s; retries: 5; start_period: 60s # Increased start period for dep install
     environment:
-      <<: *airflow-common-env # Inherit BASE env vars (DB, Redis, Core, etc.)
-      DUMB_INIT_SETSID: "0" # Specific worker setting
-      # --- OVERRIDE: Add worker-specific heavy requirements ---
-      # Concatenates BASE list (from common env) with WORKER-SPECIFIC list
-      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets"
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+      # --- OVERRIDE: Install BASE + WORKER-SPECIFIC dependencies ---
+      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets" # Append heavy libs
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-      mlflow-server:
-         condition: service_started
+      airflow-init: { condition: service_completed_successfully }
+      mlflow-server: { condition: service_started }
 
   airflow-triggerer:
     <<: *airflow-common
-    # Uses BASE dependencies defined in x-airflow-common
+    container_name: personaltrainerai-airflow-triggerer-1 # Optional: explicit naming
     command: triggerer
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 30s; timeout: 10s; retries: 5; start_period: 30s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-      mlflow-server:
-         condition: service_started
+      airflow-init: { condition: service_completed_successfully }
+      mlflow-server: { condition: service_started }
 
-  # --- AIRFLOW INIT SERVICE ---
-  # Runs once to init/migrate DB and check setup
   airflow-init:
     <<: *airflow-common
+    container_name: personaltrainerai-airflow-init-1 # Optional: explicit naming
     entrypoint: /bin/bash
-    command:
+    command: # More explicit init steps
       - -c
       - |
-        set -e # Exit immediately if a command exits with a non-zero status.
-        # Check resources (keep existing checks)
-        # ...
-
-        # Check .env permissions only if AIRFLOW_UID is set (for non-root execution)
+        set -e
+        echo "Airflow Init: Starting initialization..."
+        # Ensure directories exist (both for checks and runtime)
+        mkdir -p /sources/logs /sources/dags /sources/plugins /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+        # Permissions - Ensure logs dir is writable
+        chmod -R 777 /sources/logs || echo "WARN: Failed chmod /sources/logs"
+        # Optional: Chown if running as non-root (AIRFLOW_UID set)
         if [[ -n "${AIRFLOW_UID}" && "${AIRFLOW_UID}" != "0" ]]; then
-          # Add check for .env file readability by AIRFLOW_UID if needed
-          echo "Checking .env file permissions (if AIRFLOW_UID is set)..."
-          # Example check: test -r /sources/.env || { echo "ERROR: .env file not readable by AIRFLOW_UID=${AIRFLOW_UID}"; exit 1; }
+          echo "Changing ownership for AIRFLOW_UID=${AIRFLOW_UID}..."
+          chown -R "${AIRFLOW_UID}:0" /sources/logs /sources/dags /sources/plugins || echo "WARN: Failed chown /sources"
         fi
-
-        # Ensure directories exist where volumes are mounted on host check path (/sources)
-        mkdir -p /sources/logs /sources/dags /sources/plugins
-        echo "Attempting to make /sources/logs writable by all..."
-        chmod -R 777 /sources/logs || echo "WARN: Failed to chmod /sources/logs"
-
-        # Correct permissions on host mounts IF AIRFLOW_UID is set and non-root
-        if [[ -n "${AIRFLOW_UID}" && "${AIRFLOW_UID}" != "0" ]]; then
-          echo "Changing ownership of /sources/* to ${AIRFLOW_UID}:0..."
-          # Be careful with chown on the root of the mount if project has many files
-          chown -R "${AIRFLOW_UID}:0" /sources/logs /sources/dags /sources/plugins || echo "WARN: Failed to chown basic dirs in /sources"
-        else
-           echo "Running as root or AIRFLOW_UID not set, skipping chown."
-        fi
-
-        # Ensure standard Airflow directories exist inside the final container path
-        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-
-        # Check DB Migrations and User Creation
+        # Run DB migration
         echo "Running Airflow DB migrate..."
         airflow db migrate
-        echo "Creating Airflow Admin User..."
+        # Create Admin User (handle potential existing user error)
+        echo "Creating Airflow Admin User (user: ${_AIRFLOW_WWW_USER_USERNAME:-admin})..."
         airflow users create \
             --username "${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
             --password "${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
-            --firstname "${_AIRFLOW_WWW_USER_FIRSTNAME:-Admin}" \
+            --firstname "${_AIRFLOW_WWW_USER_FIRSTNAME:-Default}" \
             --lastname "${_AIRFLOW_WWW_USER_LASTNAME:-User}" \
             --role "${_AIRFLOW_WWW_USER_ROLE:-Admin}" \
             --email "${_AIRFLOW_WWW_USER_EMAIL:-admin@example.com}" || \
-        echo "Admin user already exists or failed to create."
-
-        echo "Airflow initialization checks complete."
-        # Note: Removed 'exec /entrypoint airflow version' as migrate/users create are sufficient checks
+        echo "Admin user likely already exists."
+        echo "Airflow Init: Initialization complete."
     environment:
       <<: *airflow-common-env
-      # Override _PIP_ADDITIONAL_REQUIREMENTS for init - only needs core airflow+db driver
+      # Override requirements - only need db driver for init
       _PIP_ADDITIONAL_REQUIREMENTS: 'psycopg2-binary'
-      _AIRFLOW_DB_MIGRATE: 'false' # Set to false, we run migrate explicitly
-      _AIRFLOW_WWW_USER_CREATE: 'false' # Set to false, we run users create explicitly
-      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-Vinyas} # Use your desired admin user
-      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-Vinyas} # Use your desired admin pass
-      _AIRFLOW_WWW_USER_FIRSTNAME: ${_AIRFLOW_WWW_USER_FIRSTNAME:-Vinyas}
-      _AIRFLOW_WWW_USER_LASTNAME: ${_AIRFLOW_WWW_USER_LASTNAME:-N}
-      _AIRFLOW_WWW_USER_ROLE: ${_AIRFLOW_WWW_USER_ROLE:-Admin}
-      _AIRFLOW_WWW_USER_EMAIL: ${_AIRFLOW_WWW_USER_EMAIL:-vinyas@example.com}
-    user: "0:0" # Run init as root to perform setup actions
+      # Explicitly set desired admin user details here or via .env
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_WWW_USER_USERNAME:-Vinyas}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_WWW_USER_PASSWORD:-Vinyas}
+      # _AIRFLOW_WWW_USER_FIRSTNAME: # Optional
+      # _AIRFLOW_WWW_USER_LASTNAME: # Optional
+      # _AIRFLOW_WWW_USER_ROLE: # Optional (defaults to Admin)
+      # _AIRFLOW_WWW_USER_EMAIL: # Optional
+    user: "0:0" # Run init as root for permissions/setup
     volumes:
-      # Mount project dir to /sources for init checks
-      - ${AIRFLOW_PROJ_DIR:-.}:/sources
-  # --- END AIRFLOW INIT SERVICE ---
+      - ${AIRFLOW_PROJ_DIR:-.}:/sources:rw # Need rw for potential checks/chown
+    # No network needed if it only interacts with DB via localhost mapped service name? Add if needed.
+    # networks:
+    #   - airflow_net
+    depends_on: # Only needs DB to be ready
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy } # Although not directly used, ensures broker is ready for later components
 
   airflow-cli:
     <<: *airflow-common
-    profiles:
-      - debug
+    container_name: personaltrainerai-airflow-cli-1 # Optional: explicit naming
+    profiles: ["debug", "cli"] # Add cli profile
     environment:
-      <<: *airflow-common-env # Uses BASE dependencies
+      <<: *airflow-common-env
       CONNECTION_CHECK_MAX_COUNT: "0"
-    command: ["bash"] # Keep container running for exec
-    tty: true # Allocate pseudo-TTY
+    command: ["bash"] # Keep running
+    tty: true
 
   flower:
     <<: *airflow-common
-    # Uses BASE dependencies
+    container_name: personaltrainerai-flower-1 # Optional: explicit naming
     command: celery flower
-    profiles:
-      - flower
+    profiles: ["flower"]
     ports:
       - "5555:5555"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 30s; timeout: 10s; retries: 5; start_period: 30s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-      mlflow-server:
-        condition: service_started
+      airflow-init: { condition: service_completed_successfully }
+      mlflow-server: { condition: service_started }
+
+
+# --- Define the network ---
+networks:
+  airflow_net: # Define the network name
+    driver: bridge # Use standard bridge driver
 
 volumes:
-  postgres-db-volume:
+  postgres-db-volume: # Define the named volume for Postgres data persistence
