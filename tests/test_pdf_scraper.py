@@ -1,7 +1,7 @@
 import pytest
 import sys
-sys.path.append('../src')
-from src.data_pipeline.pdfs import extract_text_from_pdf, clean_text
+sys.path.append('../src/data_pipeline')
+from pdfs import extract_text_from_pdf, clean_text
 from unittest.mock import patch, mock_open, MagicMock
 
 @patch("builtins.open", new_callable=mock_open, read_data=b"dummy data")
