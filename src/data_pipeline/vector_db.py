@@ -319,6 +319,7 @@ def run_chunk_embed_store_pipeline(**kwargs):
     # Phase 3: Store in Pinecone
     task_log.info("--- Phase 3: Storing in Pinecone ---")
     store_start = time.time()
+    print("target pinecone index", target_pinecone_index)
     store_success = store_in_pinecone(chunks_with_embeds, pc, target_pinecone_index)
     task_log.info(f"--- Phase 3 Finished ({time.time() - store_start:.2f}s). Success: {store_success} ---")
     if not store_success: task_log.error("Pinecone storage failed."); raise RuntimeError("Pinecone storage failed.")
