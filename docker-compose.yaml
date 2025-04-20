@@ -73,18 +73,12 @@ services:
     environment:
       MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
       MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts}
-    volumes: []
     command: >
-      sh -c "echo 'Ensuring pip is installed...' && \
-             python3 -m ensurepip --upgrade && \
-             echo 'Installing MLflow dependencies...' && \
-             pip install --no-cache-dir mlflow psycopg2-binary google-cloud-storage && \
-             echo 'Starting MLflow server...' && \
-             mlflow server \
-              --host 0.0.0.0 \
-              --port 5000 \
-              --backend-store-uri \$MLFLOW_BACKEND_STORE_URI \
-              --default-artifact-root \$MLFLOW_ARTIFACT_ROOT"
+      bash -c "python3 -m ensurepip --upgrade && \
+               pip install --no-cache-dir mlflow psycopg2-binary google-cloud-storage && \
+               mlflow server --host 0.0.0.0 --port 5000 \
+               --backend-store-uri ${MLFLOW_BACKEND_STORE_URI} \
+               --default-artifact-root ${MLFLOW_ARTIFACT_ROOT}"
     ports:
       - "5001:5000"
     restart: always
@@ -94,7 +88,7 @@ services:
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:5000/"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
 
   airflow-webserver:
