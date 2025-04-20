@@ -11,7 +11,7 @@ import sys # Keep sys import
 # Import necessary Airflow classes FIRST
 from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
-# from airflow.operators.bash import BashOperator # Removed if no bash needed
+from airflow.operators.empty import EmptyOperator # <<< IMPORT EmptyOperator
 
 # --- Configuration ---
 # Use the project root defined by the docker-compose volume mount
@@ -69,28 +69,22 @@ def run_rag_eval_wrapper(**context):
 
     try:
         # Define a temporary output directory inside the container if needed by evaluator internals
-        # Otherwise, this might not be needed if all output goes direct to GCS/MLflow
         temp_output_dir = "/tmp/rag_eval_output"
         os.makedirs(temp_output_dir, exist_ok=True)
         task_log.info(f"Ensured temp output directory exists: {temp_output_dir}")
 
         task_log.info("Initializing AdvancedRAGEvaluator...")
-        # Pass the temporary dir if the class needs it, otherwise remove output_dir arg
         evaluator = AdvancedRAGEvaluator(output_dir=temp_output_dir)
 
         task_log.info("Running comparison of RAG implementations...")
-        # The compare_implementations method now handles MLflow logging and GCS saving
-        comparison_results = evaluator.compare_implementations()
+        comparison_results = evaluator.compare_implementations() # This now handles MLflow logging and GCS saving
         task_log.info("RAG Implementation Comparison Finished.")
 
-        # Add a final check or summary log if needed
         if not comparison_results or "error" in comparison_results:
              task_log.warning(f"RAG evaluation completed but reported an error or no results: {comparison_results}")
-             # Decide if this should fail the task
              # raise RuntimeError("RAG Evaluation script reported an error or no results.")
 
         task_log.info("--- RAG Evaluation Task Completed ---")
-        # No return needed - success implied by lack of exceptions
 
     except Exception as e:
         task_log.error(f"An error occurred during RAG evaluation task: {e}", exc_info=True)
@@ -122,7 +116,6 @@ def run_agent_eval_wrapper(**context):
         # Directly call the imported function
         evaluate_agent() # The function now handles MLflow logging internally and raises errors
         task_log.info("--- Agent Evaluation Task Completed ---")
-        # No return needed - success implied by lack of exceptions
 
     except Exception as e:
         task_log.error(f"An error occurred during Agent evaluation task: {e}", exc_info=True)
@@ -149,10 +142,10 @@ with DAG(
 ) as dag:
 
     if not IMPORT_SUCCESS:
-        # If imports failed, create a single dummy task to indicate the error
-        import_error_task = BashOperator(
+        # If imports failed, create a single dummy task using EmptyOperator
+        import_error_task = EmptyOperator( # <<< CHANGED TO EmptyOperator
             task_id='import_error',
-            bash_command='echo "CRITICAL: Failed to import evaluation functions. Check Airflow logs and sys.path configuration." && exit 1',
+            # No bash_command needed
         )
     else:
         # Task 1: Run RAG Evaluation Comparison
