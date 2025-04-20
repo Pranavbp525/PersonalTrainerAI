@@ -231,9 +231,9 @@ def generate_embeddings_batched(chunked_data, model_name=EMBEDDING_MODEL_NAME, b
 
 
 # **Step 4: Store Chunks in Pinecone**
-def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: str):
+def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, INDEX_NAME: str):
     """Stores chunked data with embeddings in the specified Pinecone index."""
-    logger.info(f"Preparing to store {len(chunks_with_embeddings)} chunks with embeddings in Pinecone index '{index_name}'...")
+    logger.info(f"Preparing to store {len(chunks_with_embeddings)} chunks with embeddings in Pinecone index '{INDEX_NAME}'...")
     if not chunks_with_embeddings:
         logger.warning("No valid chunks with embeddings provided for storage.")
         return True # Nothing to store is not a failure
@@ -249,12 +249,12 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         logger.info(f"Existing Pinecone index names found: {existing_index_names}") # Log the actual list now
 
         # Check if the target index exists in the retrieved list
-        if index_name not in existing_index_names:
-            logger.error(f"Target Pinecone index '{index_name}' does not exist in the list: {existing_index_names}! Please create it first.")
+        if INDEX_NAME not in existing_index_names:
+            logger.error(f"Target Pinecone index '{INDEX_NAME}' does not exist in the list: {existing_index_names}! Please create it first.")
             return False # Fail if index doesn't exist
 
-        logger.info(f"Connecting to Pinecone index '{index_name}'...")
-        index: Index = pc_client.Index(index_name)
+        logger.info(f"Connecting to Pinecone index '{INDEX_NAME}'...")
+        index: Index = pc_client.Index(INDEX_NAME)
 
         # Verify connection by getting stats (Optional but good practice)
         try:
@@ -262,7 +262,7 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
              logger.info(f"Connected successfully. Index stats before upsert: {stats}")
         except Exception as desc_err:
              # Log warning but don't necessarily fail if stats check fails, proceed to upsert cautiously
-             logger.warning(f"Could not get stats for index '{index_name}'. Proceeding with upsert attempt... Error: {desc_err}")
+             logger.warning(f"Could not get stats for index '{INDEX_NAME}'. Proceeding with upsert attempt... Error: {desc_err}")
 
         # --- Prepare vectors for upsert ---
         vectors_to_upsert = []
@@ -315,7 +315,7 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         total_vectors = len(vectors_to_upsert)
         batch_size = PINECONE_UPSERT_BATCH_SIZE
         num_batches = math.ceil(total_vectors / batch_size)
-        logger.info(f"Upserting {total_vectors} vectors to index '{index_name}' in {num_batches} batches of size {batch_size}...")
+        logger.info(f"Upserting {total_vectors} vectors to index '{INDEX_NAME}' in {num_batches} batches of size {batch_size}...")
         total_upserted_count = 0
         storage_had_errors = False
 
@@ -360,7 +360,7 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 
 
 # **Step 5: Query Pinecone**
-def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
+def query_pinecone(query: str, model, pc_client: Pinecone, INDEX_NAME: str):
     """Queries the Pinecone index with the given text query."""
     if not model:
         logger.error("Cannot query: Embedding model is not available.")
@@ -372,7 +372,7 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
          logger.warning("Cannot query: Empty query string provided.")
          return None
 
-    logger.info(f"Attempting to query Pinecone index '{index_name}' with: '{query}'")
+    logger.info(f"Attempting to query Pinecone index '{INDEX_NAME}' with: '{query}'")
     try:
         logger.debug("Generating query embedding...")
         query_embedding = model.embed_query(query)
@@ -385,8 +385,8 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
         return None
 
     try:
-        logger.debug(f"Connecting to index '{index_name}' for query...")
-        index: Index = pc_client.Index(index_name) # Get index object
+        logger.debug(f"Connecting to index '{INDEX_NAME}' for query...")
+        index: Index = pc_client.Index(INDEX_NAME) # Get index object
         logger.debug(f"Querying index with top_k=3...")
 
         # Query the index
@@ -421,7 +421,7 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
         return result # Return the full result object
 
     except Exception as e:
-        logger.error(f"Error querying Pinecone index '{index_name}': {e}", exc_info=True)
+        logger.error(f"Error querying Pinecone index '{INDEX_NAME}': {e}", exc_info=True)
         return None
 
 
