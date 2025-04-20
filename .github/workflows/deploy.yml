@@ -82,8 +82,7 @@ jobs:
       # Note: Cloud SQL connections and other variables set via UI *not* listed in 'secrets' above
       # will be preserved by default.
 
-    - name: Output Backend URL
-      run: echo "Backend URL: ${{ steps.deploy-backend.outputs.url }}"
+
 
   # --- Frontend Job ---
   build-and-deploy-frontend:
@@ -134,5 +133,3 @@ jobs:
         # secrets: |
         #   BACKEND_API=${{ secrets.BACKEND_API }}
 
-    - name: Output Frontend URL
-      run: echo "Frontend URL: ${{ steps.deploy-frontend.outputs.url }}"
