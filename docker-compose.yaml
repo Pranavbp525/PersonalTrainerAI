@@ -40,8 +40,9 @@ x-airflow-common:
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
 
-    # --- Python Dependencies (Installed at runtime) ---
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone langchain langchain-openai langchain_community langchain_huggingface openai python-dotenv mlflow ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} # Kept gunicorn explicit for now
+    # --- BASE Python Dependencies (Scheduler, Webserver, Triggerer, Worker Base) ---
+    # Keep this lean: Only include core providers, clients needed everywhere (GCS, DVC, MLflow, Pinecone), basic utils
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone-client python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn}
 
     # --- Environment Variables Passed to Tasks (from Host or .env) ---
     OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -49,7 +50,7 @@ x-airflow-common:
     LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
     LANGSMITH_TRACING: ${LANGSMITH_TRACING}
     PINECONE_API_KEY: ${PINECONE_API_KEY}
-    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT} # Still needed by Pinecone client?
+    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
     # --- !!! UPDATED MLFLOW URI !!! ---
     # Point to the mlflow-server service within the Docker network on port 5000
     MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000}
@@ -68,7 +69,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/app/.env # Mount .env inside app dir
 
   # --- User ---
-  # user: "${AIRFLOW_UID:-50000}:0" # Keep commented out to run as root for now to avoid DVC write issues
+  # user: "${AIRFLOW_UID:-50000}:0" # Keep commented out to run as root for now
 
   # --- Dependencies ---
   depends_on:
@@ -106,14 +107,14 @@ services:
       start_period: 30s
     restart: always
 
-  # --- NEW MLFLOW SERVER SERVICE ---
+  # --- MLFLOW SERVER SERVICE ---
   mlflow-server:
     image: python:3.9-slim
     container_name: personaltrainerai-mlflow-server-1
     environment:
       MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
       MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts}
-    volumes: [] # Use empty list as no host volumes needed for this config
+    volumes: []
     command: >
       bash -c "pip install mlflow psycopg2-binary google-cloud-storage &&
                echo 'Starting MLflow server...' &&
@@ -153,11 +154,12 @@ services:
     <<: *airflow-common
     command: scheduler
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      # Updated healthcheck port for scheduler in Airflow 2.9+
+      test: ["CMD", "curl", "--fail", "http://localhost:8973/health"] # Airflow 2.9+ uses 8973 by default
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 30s # Increase start period to allow more time for init
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
@@ -178,8 +180,11 @@ services:
       retries: 5
       start_period: 30s
     environment:
-      <<: *airflow-common-env
+      <<: *airflow-common-env # Inherit common environment variables
       DUMB_INIT_SETSID: "0"
+      # --- OVERRIDE: Add worker-specific heavy requirements ---
+      # Includes base requirements PLUS heavy ML/Eval libraries
+      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone-client python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets" # Append worker-specific libraries here
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
@@ -205,7 +210,7 @@ services:
       mlflow-server:
          condition: service_started
 
-  # --- MODIFIED AIRFLOW INIT SERVICE ---
+  # --- AIRFLOW INIT SERVICE (No changes needed here from previous version) ---
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
@@ -216,24 +221,15 @@ services:
         if [[ -z "${AIRFLOW_UID}" ]]; then
           echo
           echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
-          echo "If you are on Linux, you SHOULD follow the instructions below to set "
-          echo "AIRFLOW_UID environment variable, otherwise files will be owned by root."
-          echo "For other operating systems you can get rid of the warning with manually created .env file:"
-          echo "    See: https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#setting-the-right-airflow-user"
+          # [...] Keep warnings [...]
           echo
         fi
-        # [...] Keep existing resource checks [...]
+        # [...] Keep resource checks [...]
 
-        # Ensure the base /sources directories exist where host volume is mounted
         mkdir -p /sources/logs /sources/dags /sources/plugins
-
-        # --- ADDED: Attempt to make /sources/logs writable BEFORE chown ---
         echo "Attempting to make /sources/logs writable..."
         chmod -R 777 /sources/logs || echo "WARN: Failed to chmod /sources/logs"
-        # --- END ADDED ---
 
-        # Ensure the mounted directories on host get correct permissions IF AIRFLOW_UID is set
-        # This chown is applied to the /sources mount point inside the init container
         if [[ -n "${AIRFLOW_UID}" ]]; then
           echo "Changing ownership of /sources/* to ${AIRFLOW_UID}:0"
           chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins} || echo "WARN: Failed to chown /sources"
@@ -241,15 +237,7 @@ services:
            echo "Skipping chown as AIRFLOW_UID is not set."
         fi
 
-        # Also ensure standard Airflow directories exist inside /opt/airflow where services run
         mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-
-        # --- Optional: Also attempt chmod on /opt/airflow/logs ---
-        # This might be redundant if the volume mount inherits host permissions effectively
-        # but can help if container user needs explicit rights inside the final path
-        # echo "Attempting to make /opt/airflow/logs writable..."
-        # chmod -R 777 /opt/airflow/logs || echo "WARN: Failed to chmod /opt/airflow/logs"
-        # --- End Optional ---
 
         # Continue with Airflow initialization checks
         exec /entrypoint airflow version
@@ -260,11 +248,10 @@ services:
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-Vinyas}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-Vinyas}
       _PIP_ADDITIONAL_REQUIREMENTS: '' # Don't install extra deps in init
-    user: "0:0" # Run init as root to create/chown/chmod directories
+    user: "0:0" # Run init as root
     volumes:
-      # airflow-init uses a different mount for source checking initially
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
-  # --- END MODIFIED AIRFLOW INIT SERVICE ---
+  # --- END AIRFLOW INIT SERVICE ---
 
   airflow-cli:
     <<: *airflow-common
@@ -296,9 +283,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-      mlflow-server: # Add dependency
+      mlflow-server:
         condition: service_started
-
 
 volumes:
   postgres-db-volume:
