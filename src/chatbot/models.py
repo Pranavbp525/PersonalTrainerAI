@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field  # For data validation (optional)
 
 Base = declarative_base()
 
-
+# frp1 --------------------- start
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
@@ -37,7 +37,7 @@ class Message(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     thumbs_up = Column(Boolean, nullable=True, default=None)
     session = relationship('Session', back_populates='messages')
-
+# -------------------------- frp1 - end
 
 class ExerciseTemplate(Base):
     __tablename__ = 'exercise_templates'

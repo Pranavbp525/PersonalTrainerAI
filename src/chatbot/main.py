@@ -33,13 +33,11 @@ from agent.prompts import (
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from langgraph.errors import GraphRecursionError
 
-# Password encryption
+# Password encryption frp1-start
 from passlib.context import CryptContext
 from uuid import uuid4
 
 from fastapi import status
-
-load_dotenv()
 
 _r = redis.Redis(
     host=config.REDIS_HOST,
@@ -48,6 +46,9 @@ _r = redis.Redis(
     decode_responses=True
 )
 
+# frp1-end
+
+load_dotenv()
 # --- Environment Variables & Logging ---
 os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API')
 os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
@@ -66,9 +67,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 # --- End Logging Setup ---
-
-def delete_chat_history(session_id: str) -> None:
-    _r.delete(f"chat_history:{session_id}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -150,6 +148,9 @@ client = openai.OpenAI(api_key=api_key)
 #     log.exception("Failed to build fitness trainer graph!") # Use log.exception to include traceback
 #     raise # Re-raise the exception to stop the app if graph build fails
 
+# frp1-start
+def delete_chat_history(session_id: str) -> None:
+    _r.delete(f"chat_history:{session_id}")
 
 # --- Pydantic Models ---
 class MessageCreate(BaseModel):
@@ -185,7 +186,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    
+
     class Config:
         from_attributes = True
 
@@ -203,6 +204,8 @@ class SessionResponse(BaseModel):
 
 class LogoutRequest(BaseModel):
     session_id: str
+
+# frp1-end
 
 async def generate_response(session_id: str, latest_human_message_content: str, db: Session, request: Request) -> str: # Add request
     """
@@ -318,6 +321,7 @@ async def generate_response(session_id: str, latest_human_message_content: str, 
         agent_log.critical(f"Critical error in generate_response", exc_info=True, extra={"total_duration_seconds": round(duration, 2), "error_type": type(e).__name__})
         raise HTTPException(status_code=500, detail=f"Internal server error: {type(e).__name__}")
 
+# frp1-start
 # password helpers
 def hash_password(plain: str) -> str:
     return pwd_ctx.hash(plain)
@@ -346,6 +350,7 @@ def delete_session(session_id: str, db: Session = Depends(get_db)):
 
     log.info(f"Deleted session {session_id} and its messages.")
 
+# frp1-end
 
 @app.post("/sessions/", response_model=SessionResponse)
 async def create_session(session: SessionCreate, request: Request, db: Session = Depends(get_db)):
@@ -384,6 +389,7 @@ async def create_session(session: SessionCreate, request: Request, db: Session =
         db.rollback()
         request_log.error("Database error creating session.", exc_info=True) # Use request_log
         raise HTTPException(status_code=500, detail="Database error creating session")
+
 
 # Message routes
 @app.post("/messages/", response_model=MessageResponse)
@@ -491,6 +497,7 @@ async def get_messages(session_id: str, request: Request, db: Session = Depends(
     request_log.info(f"Retrieved {len(messages)} messages from PostgreSQL.") # Use request_log
     return messages
 
+# frp1-start
 # User routes
 @app.get("/users/username/{username}", response_model=UserResponse)
 async def get_user_by_username(username: str, request: Request, db: Session = Depends(get_db)):
@@ -579,6 +586,9 @@ def logout(req: LogoutRequest, db: Session = Depends(get_db)):
     db.commit()
     delete_chat_history(req.session_id)
     return
+
+# frp1-end
+
 
 if __name__ == "__main__":
     # This part usually runs only when executing the file directly, not via uvicorn

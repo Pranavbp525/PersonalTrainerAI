@@ -217,20 +217,24 @@ else:
 
     user_input = st.chat_input("Type your message…")
     if user_input:
+        # Append user message and render it immediately
         st.session_state.chat_history.append(("user", user_input, None))
         with st.chat_message("user"):
-            st.write(user_input)
+            st.markdown(user_input)
 
-        reply = api_send_message(st.session_state.session_id, user_input)
-        if reply is not None:
-            messages = api_get_messages(st.session_state.session_id)
-            latest = next((m for m in reversed(messages) if m["role"] == "assistant" and m["content"] == reply), None)
-            msg_id = latest["id"] if latest else None
+        with st.spinner("Fit Bot is thinking..."):
+            # Send message to backend
+            reply = api_send_message(st.session_state.session_id, user_input)
 
-            st.session_state.chat_history.append(("assistant", reply, msg_id))
-            st.rerun()
-            with st.chat_message("assistant"):
-                st.write(reply)
+            if reply is not None:
+                messages = api_get_messages(st.session_state.session_id)
+                latest = next((m for m in reversed(messages)
+                            if m["role"] == "assistant" and m["content"] == reply), None)
+                msg_id = latest["id"] if latest else None
+
+                # Append assistant message and rerun to refresh view
+                st.session_state.chat_history.append(("assistant", reply, msg_id))
+                st.rerun()
 
     # — Logout & Feedback Flow —
     if st.button("Logout"):
