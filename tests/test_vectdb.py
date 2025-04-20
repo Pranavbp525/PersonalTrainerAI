@@ -1,20 +1,51 @@
 import pytest
 import sys
-sys.path.append('./src')
-from data_pipeline.vector_db import query_pinecone
+sys.path.append('../src')
+from data_pipeline.vector_db import split_text
 from unittest.mock import patch, MagicMock
 
-@patch("scripts.vectdb_pc.Pinecone")
-@patch("scripts.vectdb_pc.HuggingFaceEmbeddings")
-def test_query_pinecone(mock_embeddings, mock_pinecone):
-    """Test querying Pinecone for relevant chunks."""
-    mock_model = MagicMock()
-    mock_model.embed_query.return_value = [0.1, 0.2, 0.3]  # Mock embedding vector
+def test_split_text():
+    """Test the split_text function."""
+    # Mock input data
+    mock_data = [
+        {
+            "description": "This is a test description. It has multiple sentences. "
+                           "This is to test the splitting functionality.",
+            "source": "test_source",
+            "title": "Test Title",
+            "url": "http://example.com"
+        }
+    ]
 
-    mock_embeddings.return_value = mock_model
-    mock_pinecone.return_value.Index.return_value.query.return_value = {
-        "matches": [{"metadata": {"text": "Relevant text chunk"}}]
-    }
+    # Expected output
+    expected_output = [
+        {
+            "source": "test_source",
+            "title": "Test Title",
+            "url": "http://example.com",
+            "chunk_id": "Test Title_0",
+            "chunk": "This is a test description"
+        },
+        {
+            "source": "test_source",
+            "title": "Test Title",
+            "url": "http://example.com",
+            "chunk_id": "Test Title_1",
+            "chunk": ". It has multiple sentences"
+        },
+        {
+            "source": "test_source",
+            "title": "Test Title",
+            "url": "http://example.com",
+            "chunk_id": "Test Title_2",
+            "chunk": ". This is to test the splitting functionality."
+        }
+    ]
 
-    query_pinecone("How to do push-ups?")
-    mock_pinecone.return_value.Index.return_value.query.assert_called_once()
+    # Call the function
+    result = split_text(mock_data, chunk_size=50, chunk_overlap=0)
+
+    # Assertions
+    assert len(result) == len(expected_output)
+    for res, exp in zip(result, expected_output):
+        assert res == exp

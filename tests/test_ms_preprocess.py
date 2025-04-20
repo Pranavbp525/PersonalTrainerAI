@@ -1,28 +1,73 @@
 import pytest
+import os
 import sys
-sys.path.append('./src')
-from data_pipeline.ms_preprocess import clean_text, extract_relevant_workout_data
+import json
+from pathlib import Path
 
-def test_clean_text():
-    """Test cleaning text to remove special characters."""
-    assert clean_text("Hello, World! 123") == "Hello, World! 123"
-    assert clean_text("café") == "café"  # Ensure Unicode normalization works
+# Add the parent directory to sys.path to import preprocessing
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
-def test_extract_relevant_workout_data():
-    """Test extracting relevant workout data from JSON."""
-    json_data = {
+# Now import the module
+# import src.data_pipeline.ms_preprocess as ms_module
+from src.data_pipeline.ms_preprocess import (
+    clean_text,
+    format_summary,
+    extract_relevant_workout_data,
+)
+
+@pytest.fixture
+def mock_workout_data():
+    return {
         "workouts": [
             {
-                "source": "Test Source",
-                "title": "Test Workout",
-                "url": "https://test.com/workout",
-                "summary": {"Type": "Strength"},
-                "description": "Workout description.",
-                "exercises": [{"description": "Exercise details."}]
+                "source": "Muscle & Strength",
+                "title": "Beginner Workout",
+                "url": "https://example.com/workout1",
+                "summary": {
+                    "Type": "Full Body",
+                    "Duration": "45 mins",
+                    "Workout PDF": "https://example.com/pdf"
+                },
+                "description": "A great beginner routine.",
+                "exercises": [
+                    {
+                        "exercise": "Push Up",
+                        "description": "Do 3 sets of 10 reps."
+                    },
+                    {
+                        "exercise": "Squat",
+                        "description": "Bodyweight squats for 15 reps."
+                    }
+                ]
             }
         ]
     }
-    extracted = extract_relevant_workout_data(json_data)
+
+def test_clean_text():
+    dirty_text = "Café"
+    result = clean_text(dirty_text)
+    assert result == "Cafe"
+
+def test_format_summary():
+    summary = {
+        "Type": "Strength",
+        "Workout PDF": "ignore this",
+        "Duration": "30 mins"
+    }
+    formatted = format_summary(summary)
+    assert "Type: Strength" in formatted
+    assert "Duration: 30 mins" in formatted
+    assert "Workout PDF" not in formatted
+
+def test_extract_relevant_workout_data(mock_workout_data):
+    extracted = extract_relevant_workout_data(mock_workout_data)
+
     assert len(extracted) == 1
-    assert extracted[0]["source"] == "Test Source"
-    assert "Workout description" in extracted[0]["description"]
+    workout = extracted[0]
+    assert workout["source"] == "Muscle & Strength"
+    assert workout["title"] == "Beginner Workout"
+    assert workout["url"] == "https://example.com/workout1"
+    assert "Full Body" in workout["description"]
+    assert "A great beginner routine." in workout["description"]
+    assert "3 sets of 10 reps" in workout["description"]
+    assert "Bodyweight squats" in workout["description"]
