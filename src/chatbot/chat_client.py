@@ -107,7 +107,7 @@ st.set_page_config(page_title="Fitness Chatbot", layout="centered")
 st.markdown("""
 <div style="display: flex; align-items: center; gap: 10px;">
   <h1 style="margin: 0;">AI-thlete.</h1>
-  <span style="font-size: 18px; color: gray; margin-top: 10px; margin-left: -20px;">Prompting progress, one rep at a time.</span>
+  <span style="font-size: 18px; color: gray; margin-top: 22px; margin-left: -20px;">Prompting progress, one rep at a time.</span>
 </div>
 """, unsafe_allow_html=True)
 
