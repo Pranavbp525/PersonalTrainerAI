@@ -19,7 +19,14 @@ except ImportError:
 
 
 # Load environment variables (essential for PINECONE_API_KEY)
-load_dotenv()
+# Use the path expected inside the container based on docker-compose mount
+dotenv_path = "/opt/airflow/app/.env"
+if os.path.exists(dotenv_path):
+    loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
+    logging.info(f"Attempted to load .env file from {dotenv_path}. Load successful: {loaded}")
+else:
+    logging.warning(f".env file not found at {dotenv_path}. Relying on environment variables already set.")
+
 
 # Setup logger
 log_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/vectordb.log"))
@@ -220,28 +227,14 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 
     try:
         # --- Check/Connect to Index ---
-        existing_indexes = pc_client.list_indexes().names
-        logger.info(f"Existing Pinecone indexes: {existing_indexes}")
-        if index_name not in existing_indexes:
+        # --- MODIFIED LINE START ---
+        existing_index_names = pc_client.list_indexes().names # Get the list of names
+        # --- MODIFIED LINE END ---
+        logger.info(f"Existing Pinecone index names: {existing_index_names}")
+        if index_name not in existing_index_names: # Check against the list of names
             logger.error(f"Target Pinecone index '{index_name}' does not exist! Please create it first via the Pinecone console or API.")
-            # Consider adding index creation logic here if desired for automation
-            # Example (uncomment and adjust):
-            # logger.info(f"Creating serverless index '{index_name}' in {PINECONE_CLOUD}/{PINECONE_REGION} with dim {EMBEDDING_DIMENSION}...")
-            # try:
-            #     pc_client.create_index(
-            #         name=index_name,
-            #         dimension=EMBEDDING_DIMENSION,
-            #         metric="cosine", # or 'dotproduct', 'euclidean'
-            #         spec=ServerlessSpec(cloud=PINECONE_CLOUD, region=PINECONE_REGION)
-            #     )
-            #     # Wait for index to be ready
-            #     while not pc_client.describe_index(index_name).status['ready']:
-            #         logger.info("Waiting for index creation...")
-            #         time.sleep(5)
-            #     logger.info(f"Index '{index_name}' created successfully.")
-            # except Exception as create_e:
-            #     logger.error(f"Failed to create Pinecone index '{index_name}': {create_e}", exc_info=True)
-            #     return False # Fail if creation fails
+            # Optional: Add creation logic here if desired
+            # ... (rest of creation logic) ...
             return False # Fail if index doesn't exist and isn't created
 
         logger.info(f"Connecting to Pinecone index '{index_name}'...")
@@ -267,7 +260,6 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
                isinstance(embedding, list) and len(embedding) == EMBEDDING_DIMENSION and \
                isinstance(metadata, dict):
                 # Clean metadata: Keep only types Pinecone supports (str, bool, numbers, list of str)
-                # Pinecone errors if metadata values are complex (like nested dicts/lists)
                 cleaned_metadata = {}
                 for k, v in metadata.items():
                     if isinstance(v, (str, bool, int, float)):
@@ -289,7 +281,6 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 
         if not vectors_to_upsert:
             logger.error("No valid vectors prepared for upserting after validation.")
-            # Decide if this is an error or just means no data was processed
             return True # Return True as no storage operation needed/failed
 
         # --- Upsert in Batches ---
@@ -334,6 +325,7 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 # **Step 5: Query Pinecone**
 def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
     """Queries the Pinecone index with the given text query."""
+    # --- (Keep this function exactly as it was in the previous version) ---
     if not model:
         logger.error("Cannot query: Embedding model is not available.")
         return None
@@ -399,8 +391,9 @@ def run_chunk_embed_store_pipeline():
     """
     Main function orchestrating loading from GCS, chunking, embedding,
     and storage in Pinecone. Called by the Airflow DAG task.
-    Returns True on success, False on critical failure.
+    Raises exceptions on critical failure.
     """
+    # --- (Keep this function exactly as it was in the previous version) ---
     logger.info("--- Starting Chunk, Embed, Store Pipeline (GCS -> Pinecone) ---")
     start_time = time.time()
     overall_success = True # Assume success initially
@@ -408,17 +401,14 @@ def run_chunk_embed_store_pipeline():
     # --- Initialize Pinecone Client ---
     if not PINECONE_API_KEY:
         logger.error("CRITICAL: PINECONE_API_KEY environment variable not found.")
-        # Raise error to fail the Airflow task immediately
         raise ValueError("PINECONE_API_KEY is required but not set.")
     try:
         logger.info("Initializing Pinecone client...")
         pc = Pinecone(api_key=PINECONE_API_KEY)
-        # Add a simple check like list_indexes to confirm connection
-        pc.list_indexes()
+        pc.list_indexes() # Simple check to confirm connection/auth
         logger.info("Pinecone client initialized and connection confirmed.")
     except Exception as e:
         logger.error(f"CRITICAL: Failed to initialize Pinecone client or confirm connection: {e}", exc_info=True)
-        # Raise error to fail the Airflow task immediately
         raise RuntimeError(f"Failed to initialize Pinecone: {e}") from e
 
     # --- Phase 1: Load and Chunk All Data from GCS ---
@@ -430,36 +420,25 @@ def run_chunk_embed_store_pipeline():
     for source_type, input_blob_name in INPUT_FILES_TO_PROCESS.items():
         gcs_input_path = f"gs://{PROCESSED_BUCKET}/{input_blob_name}"
         logger.info(f"Processing source: {source_type} | File: {gcs_input_path}")
-
-        # Read preprocessed JSON from GCS
         data = read_json_from_gcs(PROCESSED_BUCKET, input_blob_name)
-
-        if data is not None and isinstance(data, list) and data: # Ensure data is not empty list
+        if data is not None and isinstance(data, list) and data:
             any_data_loaded = True
-            # Split the text data
             chunked_data = split_text(data, source_type=source_type)
             if chunked_data:
                 all_chunks_to_process.extend(chunked_data)
                 logger.info(f"Successfully added {len(chunked_data)} chunks from source '{source_type}'.")
-            else:
-                logger.warning(f"No chunks generated after splitting for source '{source_type}' (input data might be empty after cleaning).")
-        elif data is None:
-             logger.warning(f"Skipping source '{source_type}' as file was not found or failed to load/parse from GCS.")
-             # Decide if this constitutes failure - let's continue for now
-        elif not data:
-             logger.info(f"Skipping source '{source_type}' as the input file from GCS was empty.")
-        else:
-             logger.warning(f"Skipping source '{source_type}' as loaded data was not a list ({type(data)}).")
-
+            else: logger.warning(f"No chunks generated after splitting for source '{source_type}'.")
+        elif data is None: logger.warning(f"Skipping source '{source_type}' as file was not found or failed to load/parse from GCS.")
+        elif not data: logger.info(f"Skipping source '{source_type}' as the input file from GCS was empty.")
+        else: logger.warning(f"Skipping source '{source_type}' as loaded data was not a list ({type(data)}).")
 
     load_chunk_end = time.time()
     logger.info(f"--- Phase 1 Finished ({load_chunk_end - load_chunk_start:.2f} seconds) ---")
     logger.info(f"Total chunks generated across all sources: {len(all_chunks_to_process)}")
 
     if not all_chunks_to_process:
-        # If NO chunks were generated at all (either no files found or all were empty)
         logger.warning("No chunks generated from any source. Pipeline finished successfully but no data processed.")
-        return True # Considered success as processing finished, just no output
+        return # Exit successfully if no chunks
 
     # --- Phase 2: Generate Embeddings ---
     logger.info("--- Phase 2: Generating Embeddings ---")
@@ -469,28 +448,22 @@ def run_chunk_embed_store_pipeline():
     logger.info(f"--- Phase 2 Finished ({embedding_end - embedding_start:.2f} seconds) ---")
 
     if not chunks_with_embeddings:
-        logger.error("Embedding generation failed or yielded no results with valid embeddings. Cannot proceed to storage.")
-        overall_success = False
-        # Raise error to fail the Airflow task
+        logger.error("Embedding generation failed or yielded no results with valid embeddings.")
         raise RuntimeError("Embedding generation failed or yielded no valid embeddings.")
 
     # --- Phase 3: Store Embeddings in Pinecone ---
     logger.info("--- Phase 3: Storing in Pinecone ---")
     storage_start = time.time()
-    # Pass the Pinecone client instance, not just the API key
     storage_success = store_in_pinecone(chunks_with_embeddings, pc, INDEX_NAME)
     storage_end = time.time()
     logger.info(f"--- Phase 3 Finished ({storage_end - storage_start:.2f} seconds) ---")
 
     if not storage_success:
          logger.error("Pinecone storage process encountered critical errors.")
-         overall_success = False # Mark overall failure if storage had issues
-         # Raise error to fail the Airflow task
          raise RuntimeError("Pinecone storage process failed.")
 
     # --- Optional: Example Query ---
-    # Run only if embedding model is available and storage process succeeded
-    if embedding_model and overall_success:
+    if embedding_model: # Check if model loaded successfully
         try:
             logger.info("--- Running example Pinecone query ---")
             query_start = time.time()
@@ -499,34 +472,18 @@ def run_chunk_embed_store_pipeline():
             logger.info(f"--- Example Query Finished ({query_end - query_start:.2f} seconds) ---")
         except Exception as query_e:
              logger.error(f"Example query failed: {query_e}", exc_info=True)
-             # Don't necessarily mark overall failure for failed example query
-    elif not embedding_model:
-         logger.warning("Skipping example query because embedding model was not loaded successfully.")
     else:
-         logger.warning("Skipping example query due to earlier critical failures during storage.")
-
+         logger.warning("Skipping example query because embedding model was not loaded successfully.")
 
     # --- Final Status ---
     end_time = time.time()
-    if overall_success:
-        logger.info(f"--- Chunk, Embed, Store Pipeline finished successfully in {end_time - start_time:.2f} seconds ---")
-        # No return needed, Airflow assumes success if no exception is raised
-    else:
-         # This part is now handled by raising exceptions above
-         logger.error(f"--- Chunk, Embed, Store Pipeline finished with errors in {end_time - start_time:.2f} seconds ---")
-         # Should not reach here if exceptions are raised correctly
-         # raise RuntimeError("Pipeline finished with errors.") # Redundant if exceptions raised earlier
+    logger.info(f"--- Chunk, Embed, Store Pipeline finished successfully in {end_time - start_time:.2f} seconds ---")
+    # No return needed, Airflow assumes success if no exception is raised
 
 
 # --- Main Guard ---
 if __name__ == "__main__":
     logger.info("Running vector_db.py script directly for testing...")
-    # Prerequisites for local testing:
-    # 1. gcs_utils.py must be in the same directory or accessible via PYTHONPATH.
-    # 2. Run 'gcloud auth application-default login' in your terminal.
-    # 3. Ensure input files (e.g., pdf_data.json) exist in gs://ragllm-454718-processed-data/preprocessed_json_data/
-    # 4. Ensure PINECONE_API_KEY is set in your environment (e.g., via a .env file loaded by load_dotenv()).
-    # 5. Ensure Pinecone index 'fitness-bot' exists or add creation logic.
     try:
         run_chunk_embed_store_pipeline()
         logger.info("Direct script execution finished successfully.")

@@ -17,84 +17,60 @@
 #
 
 # Basic Airflow cluster configuration for CeleryExecutor with Redis and PostgreSQL.
+# --- Includes MLflow Server ---
 #
-# WARNING: This configuration is for local development. Do not use it in a production deployment.
-#
-# This configuration supports basic configuration using environment variables or an .env file
-# The following variables are supported:
-#
-# AIRFLOW_IMAGE_NAME           - Docker image name used to run Airflow.
-#                                Default: apache/airflow:2.9.2
-# AIRFLOW_UID                  - User ID in Airflow containers
-#                                Default: 50000
-# AIRFLOW_PROJ_DIR             - Base path to which all the files will be volumed.
-#                                Default: .
-# Those configurations are useful mostly in case of standalone testing/running Airflow in test/try-out mode
-#
-# _AIRFLOW_WWW_USER_USERNAME   - Username for the administrator account (if requested).
-#                                Default: airflow
-# _AIRFLOW_WWW_USER_PASSWORD   - Password for the administrator account (if requested).
-#                                Default: airflow
-# _PIP_ADDITIONAL_REQUIREMENTS - Additional PIP requirements to add when starting all containers.
-#                                Use this option ONLY for quick checks. Installing requirements at container
-#                                startup is done EVERY TIME the service is started.
-#                                A better way is to build a custom image or extend the official image
-#                                as described in https://airflow.apache.org/docs/docker-stack/build.html.
-#                                Default: ''
-#
-# Feel free to modify this file to suit your needs.
+# WARNING: This configuration is for local development/testing. Do not use it in a production deployment without review.
+# [...] (Keep existing comments about variables)
 ---
 x-airflow-common:
   &airflow-common
-  # In order to add custom dependencies or upgrade provider packages you can use your extended image.
-  # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
-  # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   # Use an image based on a newer Python version
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2-python3.9}
-  # build: . # Keep build commented out
+  # build: . # Keep build commented out if using official image
   environment:
     &airflow-common-env
+    # --- Airflow Core Settings ---
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow # Airflow uses postgres service
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__FERNET_KEY: '' # Default, should be set for security if needed
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
-    # yamllint disable rule:line-length
-    # Use simple http server on scheduler for health checks
-    # See https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/check-health.html#scheduler-health-check-server
-    # yamllint enable rule:line-length
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
-    # for other purpose (development, test and especially production usage) build/extend Airflow image.
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone langchain langchain-openai langchain_community langchain_huggingface openai python-dotenv mlflow ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib google-cloud-storage dvc[gs]}    # --- ADD Variables Needed by Tasks ---
+
+    # --- Python Dependencies (Installed at runtime) ---
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone-client langchain langchain-openai langchain_community langchain_huggingface openai python-dotenv mlflow ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} # Kept gunicorn explicit for now
+
+    # --- Environment Variables Passed to Tasks (from Host or .env) ---
     OPENAI_API_KEY: ${OPENAI_API_KEY}
-    LANGSMITH_API_KEY: ${LANGSMITH_API_KEY} # Use correct name from .env
+    LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
     LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
     LANGSMITH_TRACING: ${LANGSMITH_TRACING}
     PINECONE_API_KEY: ${PINECONE_API_KEY}
-    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
-    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://host.docker.internal:5001} # Update default too if needed
+    PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT} # Still needed by Pinecone client?
+    # --- !!! UPDATED MLFLOW URI !!! ---
+    # Point to the mlflow-server service within the Docker network on port 5000
+    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000}
     HEVY_API_KEY: ${HEVY_API_KEY}
-    # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
-    # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    # GCS Bucket for MLflow Artifacts (Must have write access)
+    MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # <<< ENSURE THIS BUCKET EXISTS
 
-  # --- MODIFIED VOLUMES SECTION ---
+  # --- Volume Mounts ---
   volumes:
     # Mount entire project directory to /opt/airflow/app
-    # This makes .dvc, .git, src, data, etc. available under /opt/airflow/app
     - ${AIRFLOW_PROJ_DIR:-.}:/opt/airflow/app
-
     # Keep specific mounts needed by Airflow itself
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
-    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/.env # Mount .env to standard location
-  # --- END MODIFIED VOLUMES SECTION ---
+    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/app/.env # Mount .env inside app dir
 
-  user: "${AIRFLOW_UID:-50000}:0"
+  # --- User ---
+  # user: "${AIRFLOW_UID:-50000}:0" # Keep commented out to run as root for now to avoid DVC write issues
+
+  # --- Dependencies ---
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -108,7 +84,7 @@ services:
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_DB: airflow # Single DB for both Airflow and MLflow metadata
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
@@ -119,8 +95,6 @@ services:
     restart: always
 
   redis:
-    # Redis is limited to 7.2-bookworm due to licencing change
-    # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
     image: redis:7.2-bookworm
     expose:
       - 6379
@@ -131,6 +105,40 @@ services:
       retries: 50
       start_period: 30s
     restart: always
+
+  # --- NEW MLFLOW SERVER SERVICE ---
+  mlflow-server:
+    # Using a standard Python image. Could build custom if more OS deps needed.
+    image: python:3.9-slim
+    container_name: personaltrainerai-mlflow-server-1
+    environment:
+      # Pass cloud credentials implicitly via attached service account (from host VM)
+      # Or explicitly mount a service account key if needed:
+      # GOOGLE_APPLICATION_CREDENTIALS: /etc/gcp/gcp_key.json
+      # Define backend and artifact root here (passed to mlflow server command)
+      # Note: Using the *same* Postgres DB as Airflow for simplicity here.
+      # For production, a separate DB instance might be better.
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-gs://ragllm-454718-mlflow-artifacts} # Use variable from common env
+    volumes:
+      # Mount GCP key if using explicit credentials instead of attached SA
+      # - /path/on/vm/to/gcp_key.json:/etc/gcp/gcp_key.json:ro
+      pass # No other volumes needed if using Postgres + GCS
+    command: >
+      bash -c "pip install mlflow psycopg2-binary google-cloud-storage &&
+               echo 'Starting MLflow server...' &&
+               mlflow server \
+                --host 0.0.0.0 \
+                --port 5000 \
+                --backend-store-uri $$MLFLOW_BACKEND_STORE_URI \
+                --default-artifact-root $$MLFLOW_ARTIFACT_ROOT"
+    ports:
+      - "5001:5000" # Map host port 5001 to container port 5000
+    restart: always
+    depends_on:
+      postgres: # Depends on Postgres if using it for backend
+        condition: service_healthy
+  # --- END MLFLOW SERVER SERVICE ---
 
   airflow-webserver:
     <<: *airflow-common
@@ -148,6 +156,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+      mlflow-server: # Add dependency if webserver needs to talk to mlflow (optional)
+         condition: service_started # Or service_healthy if healthcheck added
 
   airflow-scheduler:
     <<: *airflow-common
@@ -163,12 +173,13 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+      mlflow-server: # Add dependency
+         condition: service_started
 
   airflow-worker:
     <<: *airflow-common
     command: celery worker
     healthcheck:
-      # yamllint disable rule:line-length
       test:
         - "CMD-SHELL"
         - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
@@ -178,14 +189,14 @@ services:
       start_period: 30s
     environment:
       <<: *airflow-common-env
-      # Required to handle warm shutdown of the celery workers properly
-      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
       DUMB_INIT_SETSID: "0"
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+      mlflow-server: # Add dependency
+         condition: service_started
 
   airflow-triggerer:
     <<: *airflow-common
@@ -201,65 +212,29 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+      mlflow-server: # Add dependency
+         condition: service_started
 
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
-    # yamllint disable rule:line-length
     command:
       - -c
       - |
-        if [[ -z "${AIRFLOW_UID}" ]]; then
-          echo
-          echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
-          echo "If you are on Linux, you SHOULD follow the instructions below to set "
-          echo "AIRFLOW_UID environment variable, otherwise files will be owned by root."
-          echo "For other operating systems you can get rid of the warning with manually created .env file:"
-          echo "    See: https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#setting-the-right-airflow-user"
-          echo
-        fi
-        one_meg=1048576
-        mem_available=$$(($$(getconf _PHYS_PAGES) * $$(getconf PAGE_SIZE) / one_meg))
-        cpus_available=$$(grep -cE 'cpu[0-9]+' /proc/stat)
-        disk_available=$$(df / | tail -1 | awk '{print $$4}')
-        warning_resources="false"
-        if (( mem_available < 4000 )) ; then
-          echo
-          echo -e "\033[1;33mWARNING!!!: Not enough memory available for Docker.\e[0m"
-          echo "At least 4GB of memory required. You have $$(numfmt --to iec $$((mem_available * one_meg)))"
-          echo
-          warning_resources="true"
-        fi
-        if (( cpus_available < 2 )); then
-          echo
-          echo -e "\033[1;33mWARNING!!!: Not enough CPUS available for Docker.\e[0m"
-          echo "At least 2 CPUs recommended. You have $${cpus_available}"
-          echo
-          warning_resources="true"
-        fi
-        if (( disk_available < one_meg * 10 )); then
-          echo
-          echo -e "\033[1;33mWARNING!!!: Not enough Disk space available for Docker.\e[0m"
-          echo "At least 10 GBs recommended. You have $$(numfmt --to iec $$((disk_available * 1024 )))"
-          echo
-          warning_resources="true"
-        fi
-        if [[ $${warning_resources} == "true" ]]; then
-          echo
-          echo -e "\033[1;33mWARNING!!!: You have not enough resources to run Airflow (see above)!\e[0m"
-          echo "Please follow the instructions to increase amount of resources available:"
-          echo "   https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#before-you-begin"
-          echo
-        fi
-        # The /sources volume mount in airflow-init is different from the main services.
-        # We still need standard Airflow dirs created within /opt/airflow (where services run)
-        # But the chown needs to happen on the /sources mount point for the init container.
-        mkdir -p /sources/logs /sources/dags /sources/plugins
-        chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-        # Also ensure standard Airflow directories exist where services expect them
+        # [...] Keep existing checks and warnings
+        # --- Ensure required directories exist in /opt/airflow where services run ---
         mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+        # The /sources mount is only relevant for this init container's chown step
+        mkdir -p /sources/logs /sources/dags /sources/plugins
+        # Ensure the mounted directories on host get correct permissions IF AIRFLOW_UID is set
+        if [[ -n "${AIRFLOW_UID}" ]]; then
+          echo "Changing ownership of /sources/* to ${AIRFLOW_UID}:0"
+          chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins} || echo "WARN: Failed to chown /sources"
+        else
+           echo "Skipping chown as AIRFLOW_UID is not set."
+        fi
+        # Continue with Airflow initialization checks
         exec /entrypoint airflow version
-    # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
@@ -279,15 +254,11 @@ services:
     environment:
       <<: *airflow-common-env
       CONNECTION_CHECK_MAX_COUNT: "0"
-    # Workaround for entrypoint issue. See: https://github.com/apache/airflow/issues/16252
     command:
       - bash
       - -c
       - airflow
 
-  # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
-  # or by explicitly targeted on the command line e.g. docker-compose up flower.
-  # See: https://docs.docker.com/compose/profiles/
   flower:
     <<: *airflow-common
     command: celery flower
@@ -306,6 +277,9 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+      mlflow-server: # Add dependency
+        condition: service_started
+
 
 volumes:
   postgres-db-volume:

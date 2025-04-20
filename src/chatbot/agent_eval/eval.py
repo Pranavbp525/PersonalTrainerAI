@@ -1,82 +1,130 @@
-# llm_run_evaluation_create_feedback.py
+# src/chatbot/agent_eval/eval.py
 
 import os
-import sys # ### MLFLOW INTEGRATION ###: Added for path manipulation
+import sys
 import json
 import re
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple # ### MLFLOW INTEGRATION ###: Added Tuple
+from typing import List, Dict, Any, Optional, Tuple
 
-from dotenv import load_dotenv
-from langsmith import Client, evaluate, traceable, wrappers, schemas # Import schemas
+# --- REMOVED load_dotenv - rely on environment ---
+# from dotenv import load_dotenv
+from langsmith import Client, evaluate, traceable, wrappers, schemas
 from openai import OpenAI
 from pydantic import BaseModel, Field
 import logging
 
-# ### MLFLOW INTEGRATION ###: Add project root to sys.path to allow importing from src.rag_model
+# Add project root to sys.path to allow importing from src.rag_model
+# This assumes the script is run from a context where the project root is accessible
+# or that the calling process (like Airflow DAG) has already set up sys.path
 try:
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    src_root = os.path.abspath(os.path.join(current_dir, "..", "..")) # Adjust depth if needed
-    if src_root not in sys.path:
-        sys.path.insert(0, src_root)
+    # Navigate up two levels from agent_eval to reach src, then one more to reach project root
+    project_root_path = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+    if project_root_path not in sys.path:
+        sys.path.insert(0, project_root_path)
+        logging.info(f"[Agent Eval] Added {project_root_path} to sys.path")
+
     # Now import the tracker
-    from rag_model.mlflow.mlflow_rag_tracker import MLflowRAGTracker 
+    from src.rag_model.mlflow.mlflow_rag_tracker import MLflowRAGTracker # Use src prefix
     mlflow_imported = True
 except ImportError as import_err:
-    logging.warning(f"Could not import MLflowRAGTracker. MLflow logging will be disabled. Error: {import_err}")
+    logging.warning(f"[Agent Eval] Could not import MLflowRAGTracker. MLflow logging will be disabled. Error: {import_err}")
     mlflow_imported = False
     MLflowRAGTracker = None # Define as None if import fails
+except Exception as path_err:
+     logging.error(f"[Agent Eval] Error setting up sys.path: {path_err}", exc_info=True)
+     mlflow_imported = False
+     MLflowRAGTracker = None
+
 
 # --- Configuration ---
-load_dotenv()
-os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API_KEY')
-os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
-os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
-LANGSMITH_PROJECT_NAME = os.environ.get("LANGSMITH_PROJECT")
+# REMOVED load_dotenv() - Rely on environment variables being set externally (e.g., via .env in docker-compose)
 
-JUDGE_LLM_MODEL = "gpt-4o-mini" # Or "deepseek-chat", etc.
+# Get required variables from environment
+LANGSMITH_API_KEY = os.getenv('LANGSMITH_API_KEY')
+LANGSMITH_PROJECT_NAME = os.getenv('LANGSMITH_PROJECT')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') # Used for Judge LLM
+# DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY') # Uncomment if using Deepseek
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000") # Default if not set
 
+# Optional tracing variable
+LANGSMITH_TRACING = os.getenv('LANGSMITH_TRACING', "true") # Default to true if not set
+os.environ['LANGSMITH_TRACING'] = LANGSMITH_TRACING # Ensure it's set for LangSmith client
 
-FETCH_RUNS_LIMIT = 100 # Start small to test again, increase later
+JUDGE_LLM_MODEL = "gpt-4o-mini" # Or your preferred judge model
+
+FETCH_RUNS_LIMIT = 100 # Number of LangSmith runs to evaluate
 FEEDBACK_KEY = f"llm_run_quality_score_{datetime.now().strftime('%Y%m%d')}" # Date-encoded key
 
-# ### MLFLOW INTEGRATION ###: MLflow Configuration
+# MLflow Configuration
 AGENT_MLFLOW_EXPERIMENT_NAME = "Agent Evaluation" # Define experiment name
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000") # Get from env or default
+
 
 # --- Logging Setup ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Use standard logging config - Airflow handlers will capture it
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__) # Use __name__ for logger hierarchy
 logging.getLogger("httpx").setLevel(logging.WARNING)
-# Adjust logging for the specific client library if needed
-# logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("langsmith").setLevel(logging.INFO) # Adjust LangSmith client logging if needed
 
-# --- Initialize Clients ---
-try:
-    ls_client = Client()
-    logger.info("LangSmith client initialized.")
 
-    # Initialize the correct client for your JUDGE_LLM_MODEL
-    #oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"))
-    oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("OPENAI_API_KEY")))
-
-except Exception as e:
-    logger.error(f"Error initializing clients: {e}", exc_info=True)
-    exit(1)
-
+# --- Validate Essential Configuration ---
+if not LANGSMITH_API_KEY:
+    logger.error("LANGSMITH_API_KEY environment variable not set.")
+    raise ValueError("LANGSMITH_API_KEY environment variable not set.")
 if not LANGSMITH_PROJECT_NAME:
     logger.error("LANGSMITH_PROJECT environment variable not set.")
-    exit(1)
+    raise ValueError("LANGSMITH_PROJECT environment variable not set.")
+if not OPENAI_API_KEY: # Check for the key needed by the judge
+    logger.error(f"{JUDGE_LLM_MODEL} API key (e.g., OPENAI_API_KEY) environment variable not set.")
+    raise ValueError(f"{JUDGE_LLM_MODEL} API key environment variable not set.")
 
 
-# --- Helper Functions for LLM Run Structure (extract_llm_prompt, extract_llm_completion) ---
-# (Using the provided versions)
+# --- Initialize Clients ---
+# Wrapped in function for clarity and potential retry logic later
+def initialize_clients():
+    try:
+        ls_client = Client(api_key=LANGSMITH_API_KEY) # Pass key explicitly if needed
+        logger.info("LangSmith client initialized.")
+
+        # Initialize the correct client for your JUDGE_LLM_MODEL
+        # Ensure the correct API key is used based on JUDGE_LLM_MODEL
+        if "gpt-" in JUDGE_LLM_MODEL:
+            judge_llm_client = wrappers.wrap_openai(OpenAI(api_key=OPENAI_API_KEY))
+        # Example for Deepseek:
+        # elif "deepseek-" in JUDGE_LLM_MODEL:
+        #     deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+        #     if not deepseek_key: raise ValueError("DEEPSEEK_API_KEY not set for judge model")
+        #     judge_llm_client = wrappers.wrap_openai(OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com"))
+        else:
+            raise ValueError(f"Unsupported JUDGE_LLM_MODEL specified: {JUDGE_LLM_MODEL}")
+
+        logger.info(f"Judge LLM client initialized for model: {JUDGE_LLM_MODEL}")
+        return ls_client, judge_llm_client
+
+    except Exception as e:
+        logger.error(f"Error initializing clients: {e}", exc_info=True)
+        raise RuntimeError(f"Failed to initialize clients: {e}") from e
+
+# Initialize globally or within evaluate_agent
+ls_client, judge_llm_client = initialize_clients()
+
+
+# --- Helper Functions (extract_llm_prompt, extract_llm_completion) ---
+# Keep these functions as provided in your original code
+# ... (Insert your existing extract_llm_prompt function here) ...
 def extract_llm_prompt(inputs: Optional[Dict[str, Any]], run_id: str) -> Optional[str]:
     """Extracts the full prompt string sent to the LLM from an LLM run's inputs."""
     if not inputs or not isinstance(inputs, dict) or "messages" not in inputs:
         logger.debug(f"Run {run_id}: 'messages' field missing or invalid in inputs.")
+        # Try alternative common input structures
+        if isinstance(inputs.get("input"), str): return inputs["input"]
+        if isinstance(inputs.get("question"), str): return inputs["question"]
+        if isinstance(inputs.get("prompt"), str): return inputs["prompt"]
         return None
     messages_data = inputs["messages"]
+    # Handle different potential list structures
     if isinstance(messages_data, list) and len(messages_data) == 1 and isinstance(messages_data[0], list):
         messages = messages_data[0]
     elif isinstance(messages_data, list):
@@ -84,20 +132,30 @@ def extract_llm_prompt(inputs: Optional[Dict[str, Any]], run_id: str) -> Optiona
     else:
         logger.warning(f"Run {run_id}: Unexpected structure for 'messages' in inputs: {type(messages_data)}")
         return None
+
     prompt_parts = []
     for msg in messages:
+        content = None
+        role = None
         if isinstance(msg, dict):
-            content = msg.get("kwargs", {}).get("content") or msg.get("content")
-            role = msg.get("kwargs", {}).get("role") or msg.get("role")
+            # Standard OpenAI format
+            content = msg.get("content")
+            role = msg.get("role")
+            # LangChain format variations
+            if not content: content = msg.get("kwargs", {}).get("content")
+            if not role: role = msg.get("kwargs", {}).get("role")
+            # Heuristic based on ID if role is missing
             if not role and isinstance(msg.get("id"), list):
                  if any("SystemMessage" in str(part) for part in msg["id"]): role = "system"
                  elif any("HumanMessage" in str(part) for part in msg["id"]): role = "user"
                  elif any("AIMessage" in str(part) for part in msg["id"]): role = "assistant"
                  else: role = "unknown"
+
             if content:
                 prompt_parts.append(f"<{role or 'message'}>\n{str(content)}\n</{role or 'message'}>")
-        elif isinstance(msg, str):
+        elif isinstance(msg, str): # Handle plain string messages if any
              prompt_parts.append(str(msg))
+
     if prompt_parts:
          full_prompt = "\n".join(prompt_parts)
          logger.debug(f"Run {run_id}: Extracted LLM prompt successfully.")
@@ -107,60 +165,90 @@ def extract_llm_prompt(inputs: Optional[Dict[str, Any]], run_id: str) -> Optiona
          logger.debug(f"Run {run_id}: Failing input structure: {json.dumps(inputs, default=str)}")
          return None
 
+# ... (Insert your existing extract_llm_completion function here) ...
 def extract_llm_completion(outputs: Optional[Dict[str, Any]], run_id: str) -> Optional[str]:
     """Extracts the LLM's generated completion from an LLM run's outputs."""
-    if not outputs or not isinstance(outputs, dict) or "generations" not in outputs:
-        logger.debug(f"Run {run_id}: 'generations' field missing or invalid in outputs.")
+    if not outputs or not isinstance(outputs, dict):
+        logger.debug(f"Run {run_id}: Outputs field missing or invalid.")
         return None
+
+    # Prioritize standard output keys
+    if isinstance(outputs.get("output"), str): return outputs["output"]
+    if isinstance(outputs.get("answer"), str): return outputs["answer"]
+    if isinstance(outputs.get("result"), str): return outputs["result"]
+
+    # Check generations structure
+    if "generations" not in outputs:
+        logger.debug(f"Run {run_id}: 'generations' field missing in outputs.")
+        return None
+
     generations = outputs["generations"]
+    # Handle different list structures for generations
     if isinstance(generations, list) and len(generations) >= 1 and isinstance(generations[0], list) and len(generations[0]) >= 1:
-        generation_data = generations[0][0]
+        generation_data = generations[0][0] # Takes the first generation from the first list
     elif isinstance(generations, list) and len(generations) >= 1:
-        generation_data = generations[0]
+        generation_data = generations[0] # Takes the first generation element
     else:
         logger.warning(f"Run {run_id}: Unexpected structure or empty 'generations' in outputs: {type(generations)}")
         return None
+
+    # Extract text from generation data dictionary
     if isinstance(generation_data, dict):
+        # Prioritize 'text' field
         text_content = generation_data.get("text")
         if text_content is not None:
             logger.debug(f"Run {run_id}: Extracted LLM completion from 'text' field.")
             return str(text_content)
+
+        # Check nested 'message' field (common in chat models)
         message_data = generation_data.get("message")
         if isinstance(message_data, dict):
-             content = message_data.get("kwargs", {}).get("content") or message_data.get("content")
+             # Handle OpenAI and potential LangChain message formats
+             content = message_data.get("content") or \
+                       message_data.get("kwargs", {}).get("content")
              if content is not None:
                  logger.debug(f"Run {run_id}: Extracted LLM completion from nested 'message' field.")
                  return str(content)
+
+    # Fallback if extraction failed
     logger.warning(f"Run {run_id}: Could not extract text/content from generation data: {json.dumps(generation_data, default=str)[:500]}")
     logger.debug(f"Run {run_id}: Failing output structure: {json.dumps(outputs, default=str)}")
     return None
 
 # --- Fetch LLM Runs ---
+# Keep this function unchanged
 def fetch_runs_for_evaluation(project_name: str, limit: int) -> List[schemas.Run]:
-    """Fetches LLM runs from a LangSmith project for evaluation."""
+    # ... (Insert your existing fetch_runs_for_evaluation function here) ...
     logger.info(f"Fetching up to {limit} LLM runs from project '{project_name}'...")
     try:
+        # Use the globally initialized ls_client
         runs_iterator = ls_client.list_runs(
             project_name=project_name,
-            run_type="llm",
-            error=False,
+            run_type="llm", # Fetch only LLM runs for this evaluator
+            error=False, # Exclude runs that errored out
             limit=limit,
+            # Optional: Add start_time filter if needed
+            # start_time=datetime.now() - timedelta(days=1)
         )
-        runs = list(runs_iterator)
+        runs = list(runs_iterator) # Convert iterator to list
         logger.info(f"Fetched {len(runs)} LLM runs.")
+        if not runs:
+             logger.warning(f"No LLM runs found in project '{project_name}' matching criteria.")
         return runs
     except Exception as e:
-        logger.error(f"Error fetching runs from LangSmith: {e}", exc_info=True)
+        logger.error(f"Error fetching runs from LangSmith project '{project_name}': {e}", exc_info=True)
         return []
 
-
 # --- LLM Judge Logic ---
+# Keep JudgeLLMRunResult class unchanged
 class JudgeLLMRunResult(BaseModel):
+    # ... (Insert your existing JudgeLLMRunResult class here) ...
     score: int = Field(..., description="The numeric score from 0 to 100.", ge=0, le=100)
     reasoning: str = Field(..., description="Detailed reasoning for the score based on the criteria.")
 
+# Keep get_llm_run_judgement function unchanged (uses global judge_llm_client)
 def get_llm_run_judgement(llm_prompt: str, llm_completion: str, run_id_for_log: str) -> Optional[Dict]:
-    """Calls the judge LLM for a single prompt/completion pair."""
+    # ... (Insert your existing get_llm_run_judgement function here) ...
     if llm_prompt is None or llm_completion is None:
         logger.warning(f"Skipping judgement for run {run_id_for_log}: Missing prompt or completion.")
         return None
@@ -188,19 +276,19 @@ Your response MUST be a JSON object containing ONLY the keys "score" (an integer
 """
 
     try:
-        completion = oai_client.chat.completions.create(
+        # Use the globally initialized judge_llm_client
+        completion = judge_llm_client.chat.completions.create(
             model=JUDGE_LLM_MODEL,
             messages=[
                 {"role": "system", "content": "You are an expert evaluator grading an LLM's response. Respond only in the requested JSON format."},
                 {"role": "user", "content": judge_prompt}
             ],
-            temperature=0.0
+            temperature=0.0,
+            response_format={"type": "json_object"} # Request JSON output if API supports it
         )
         response_content = completion.choices[0].message.content
         cleaned_content = response_content.strip()
-        if cleaned_content.startswith("```json"): cleaned_content = cleaned_content[7:].strip()
-        if cleaned_content.startswith("```"): cleaned_content = cleaned_content[3:].strip()
-        if cleaned_content.endswith("```"): cleaned_content = cleaned_content[:-3].strip()
+        # No need to strip ```json anymore if response_format works
 
         try:
             parsed_data = json.loads(cleaned_content)
@@ -209,24 +297,21 @@ Your response MUST be a JSON object containing ONLY the keys "score" (an integer
             logger.debug(f"LLM Judge successful for run {run_id_for_log}: Score={validated_result.score}")
             return validated_result.model_dump() # Return dict from validated model
         except (json.JSONDecodeError, TypeError, ValueError) as parse_error: # Catches Pydantic validation errors too
-            logger.error(f"Failed to parse/validate LLM Judge response for run {run_id_for_log}. Error: {parse_error}. Cleaned: '{cleaned_content}'. Original: '{response_content}'", exc_info=False) # Keep log concise
+            logger.error(f"Failed to parse/validate LLM Judge response for run {run_id_for_log}. Error: {parse_error}. Response: '{cleaned_content}'", exc_info=False)
             return None
     except Exception as e:
         logger.error(f"Error during LLM Judge API call for run {run_id_for_log}: {e}", exc_info=True)
         return None
 
-# --- Evaluation Loop using create_feedback ---
-# ### MLFLOW INTEGRATION ###: Modified function signature and logic
+# --- Evaluation Loop ---
+# Keep evaluate_runs_and_get_average function unchanged
 def evaluate_runs_and_get_average(runs: List[schemas.Run], feedback_key: str) -> Tuple[Optional[float], List[Dict[str, Any]]]:
-    """
-    Iterates through runs, gets judgement, posts feedback, calculates average score,
-    and returns the average score and the list of successful judgement dicts.
-    """
+    # ... (Insert your existing evaluate_runs_and_get_average function here) ...
     logger.info(f"Starting evaluation for {len(runs)} runs using create_feedback...")
     successful_evals = 0
     failed_evals = 0
     recorded_scores = [] # List to store scores that were successfully posted
-    successful_judgements = [] # ### MLFLOW INTEGRATION ###: List to store judgement dicts
+    successful_judgements = [] # List to store judgement dicts for MLflow
 
     for i, run in enumerate(runs):
         run_id_str = str(run.id)
@@ -251,18 +336,18 @@ def evaluate_runs_and_get_average(runs: List[schemas.Run], feedback_key: str) ->
                     key=feedback_key,
                     score=current_score / 100.0,
                     comment=judgement.get("reasoning", "No reasoning provided."),
-                    # Optionally add source="llm_judge" or similar
+                    source="llm_judge" # Add source info
                 )
                 logger.info(f"Posted feedback to LangSmith for run {run_id_str} (Score: {current_score})")
                 recorded_scores.append(current_score) # Add original score to list *after* successful post
-                # ### MLFLOW INTEGRATION ###: Add the full judgement dict to the list
+                # Add the full judgement dict to the list for MLflow artifact
                 successful_judgements.append({
                     "run_id": run_id_str,
                     "score": current_score,
-                    "reasoning": judgement.get("reasoning", "No reasoning provided.")
-                    # Add prompt/completion if needed, but makes artifact large
-                    # "prompt": llm_prompt[:500] + "..." if llm_prompt else None, # Truncate
-                    # "completion": llm_completion[:500] + "..." if llm_completion else None, # Truncate
+                    "reasoning": judgement.get("reasoning", "No reasoning provided."),
+                    # Optionally add truncated prompt/completion for context in artifact
+                    "prompt_preview": llm_prompt[:300] + "..." if llm_prompt else None,
+                    "completion_preview": llm_completion[:300] + "..." if llm_completion else None,
                 })
                 successful_evals += 1
             except Exception as feedback_err:
@@ -282,51 +367,59 @@ def evaluate_runs_and_get_average(runs: List[schemas.Run], feedback_key: str) ->
     else:
         logger.warning("No scores were successfully recorded. Cannot calculate average.")
 
-    # ### MLFLOW INTEGRATION ###: Return both average score and the list of judgements
+    # Return both average score and the list of judgements
     return average_score, successful_judgements
 
-# --- Main Execution Logic ---
-# ### MLFLOW INTEGRATION ###: Modified to initialize tracker and log results
+# --- Main Execution Logic for Airflow ---
 def evaluate_agent(feedback_key=FEEDBACK_KEY, langsmith_project_name=LANGSMITH_PROJECT_NAME, fetch_runs_limit=FETCH_RUNS_LIMIT):
+    """
+    Main function called by Airflow to evaluate agent runs.
+    Handles MLflow logging if available.
+    Returns average accuracy or raises Exception on critical failure.
+    """
     logger.info(f"--- Starting Fitness Chatbot LLM Run Evaluation Script (Key: {feedback_key}) ---")
 
-    # ### MLFLOW INTEGRATION ###: Initialize MLflow Tracker
+    # Initialize MLflow Tracker if imported
     mlflow_tracker = None
-    if mlflow_imported:
+    if mlflow_imported and MLflowRAGTracker: # Check class exists
         try:
-            mlflow_tracker = MLflowRAGTracker(
-                experiment_name=AGENT_MLFLOW_EXPERIMENT_NAME,
-                tracking_uri=MLFLOW_TRACKING_URI
-            )
-            logger.info(f"MLflow Tracker initialized for experiment '{AGENT_MLFLOW_EXPERIMENT_NAME}' at {MLFLOW_TRACKING_URI}")
+            # Ensure URI is valid
+            if not MLFLOW_TRACKING_URI or not MLFLOW_TRACKING_URI.startswith(("http", "databricks", "file:")):
+                 logger.error(f"Invalid MLFLOW_TRACKING_URI: {MLFLOW_TRACKING_URI}. Disabling MLflow.")
+            else:
+                 mlflow_tracker = MLflowRAGTracker(
+                     experiment_name=AGENT_MLFLOW_EXPERIMENT_NAME,
+                     tracking_uri=MLFLOW_TRACKING_URI
+                 )
+                 logger.info(f"MLflow Tracker initialized for experiment '{AGENT_MLFLOW_EXPERIMENT_NAME}' at {MLFLOW_TRACKING_URI}")
         except Exception as tracker_init_err:
             logger.error(f"Failed to initialize MLflow Tracker: {tracker_init_err}", exc_info=True)
-            mlflow_tracker = None # Ensure it's None if init fails
+            mlflow_tracker = None
     else:
-         logger.warning("MLflow logging disabled due to import failure.")
+         logger.warning("MLflow logging disabled (import failed or tracker class unavailable).")
 
 
     # 1. Fetch LLM Runs
     fetched_runs = fetch_runs_for_evaluation(langsmith_project_name, fetch_runs_limit)
 
     if not fetched_runs:
-        logger.error("No LLM runs fetched. Exiting evaluation.")
-        # Optionally log failure to MLflow if tracker exists?
+        logger.error("No LLM runs fetched from LangSmith. Cannot proceed.")
+        # Log failure to MLflow if possible
         if mlflow_tracker:
              try:
                 run_name = f"AgentEval_FAILED_FETCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                mlflow_tracker.start_run(run_name=run_name, tags={"evaluation_type": "agent", "status": "failed"})
-                mlflow_tracker.log_parameters({
-                    "langsmith_project": langsmith_project_name,
-                    "fetch_limit": fetch_runs_limit,
-                    "error": "No runs fetched from LangSmith"
-                })
-                mlflow_tracker.end_run()
-             except Exception: pass # Avoid nested failures
-        exit(1)
+                with mlflow_tracker.start_run(run_name=run_name, tags={"evaluation_type": "agent", "status": "failed_fetch"}):
+                    mlflow_tracker.log_parameters({
+                        "langsmith_project": langsmith_project_name,
+                        "fetch_limit": fetch_runs_limit,
+                        "error": "No runs fetched from LangSmith"
+                    })
+             except Exception as log_err:
+                 logger.error(f"Failed to log fetch failure to MLflow: {log_err}")
+        # Raise exception to fail the Airflow task
+        raise RuntimeError("No LLM runs fetched from LangSmith.")
 
     # 2. Run Evaluation and Get Average Score & Judgements
-    # ### MLFLOW INTEGRATION ###: Capture both return values
     average_accuracy, all_judgements = evaluate_runs_and_get_average(fetched_runs, feedback_key)
 
     # 3. Report Final Result (Console)
@@ -336,58 +429,68 @@ def evaluate_agent(feedback_key=FEEDBACK_KEY, langsmith_project_name=LANGSMITH_P
          logger.info("  Could not calculate average score (no successful evaluations).")
 
 
-    # ### MLFLOW INTEGRATION ###: Log results to MLflow
+    # 4. Log results to MLflow
     if mlflow_tracker:
         if average_accuracy is not None:
-            # Prepare parameters and metrics for MLflow
             mlflow_params = {
                 "judge_llm_model": JUDGE_LLM_MODEL,
                 "langsmith_project": langsmith_project_name,
                 "num_runs_fetched": len(fetched_runs),
-                "num_runs_evaluated": len(all_judgements), # Count successful judgements logged
+                "num_runs_evaluated": len(all_judgements),
                 "fetch_limit": fetch_runs_limit,
                 "langsmith_feedback_key": feedback_key,
                 "evaluation_timestamp": datetime.now().isoformat()
             }
             mlflow_metrics = {
-                # Prefix metrics for clarity
                 "avg_llm_quality_score": average_accuracy
             }
-
             try:
                 run_name = f"AgentEval_{feedback_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                # Use the dedicated logging method from the tracker
                 mlflow_tracker.log_agent_evaluation_results(
                     run_name=run_name,
                     parameters=mlflow_params,
                     metrics=mlflow_metrics,
-                    judgements=all_judgements # Pass the list of judgements
+                    judgements=all_judgements # Pass the list of judgements for artifact logging
                 )
                 logger.info("Successfully logged agent evaluation results to MLflow.")
             except Exception as mlflow_err:
                 logger.error(f"Failed to log agent evaluation results to MLflow: {mlflow_err}", exc_info=True)
+                # Don't fail the whole task just because MLflow logging failed
         else:
             logger.warning("Skipping MLflow logging as no average score was calculated.")
-            # Optionally log a failed run to MLflow here as well
+            # Log a failed run to MLflow for traceability
             try:
                  run_name = f"AgentEval_FAILED_SCORE_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                 mlflow_tracker.start_run(run_name=run_name, tags={"evaluation_type": "agent", "status": "failed"})
-                 mlflow_tracker.log_parameters({
-                     "langsmith_project": langsmith_project_name,
-                     "fetch_limit": fetch_runs_limit,
-                     "num_runs_fetched": len(fetched_runs),
-                     "error": "No average score calculated"
-                 })
-                 mlflow_tracker.end_run()
-            except Exception: pass
+                 with mlflow_tracker.start_run(run_name=run_name, tags={"evaluation_type": "agent", "status": "failed_score"}):
+                     mlflow_tracker.log_parameters({
+                         "langsmith_project": langsmith_project_name,
+                         "fetch_limit": fetch_runs_limit,
+                         "num_runs_fetched": len(fetched_runs),
+                         "error": "No average score calculated"
+                     })
+            except Exception as log_err:
+                 logger.error(f"Failed to log scoring failure to MLflow: {log_err}")
 
 
     logger.info("--- Fitness Chatbot LLM Run Evaluation Script Finished ---")
     logger.info(f"Check LangSmith project '{langsmith_project_name}' for individual run feedback ({feedback_key}).")
     logger.info(f"Check MLflow UI at '{MLFLOW_TRACKING_URI}' for aggregated results in experiment '{AGENT_MLFLOW_EXPERIMENT_NAME}'.")
 
-    # Return the average accuracy for potential programmatic use
-    return average_accuracy
+    # If the process reached here without critical errors (like LangSmith fetch), consider it successful.
+    # The average_accuracy being None is logged but doesn't necessarily mean the script failed.
+    # Raise error only if average_accuracy is None AND len(all_judgements) == 0? Optional.
+    # if average_accuracy is None and not all_judgements:
+    #      raise RuntimeError("Agent evaluation completed but failed to generate any valid scores.")
 
-# Make sure the script can be run directly
+    # No explicit return needed for Airflow success (absence of exception implies success)
+
+
+# Make sure the script can be run directly if needed
 if __name__ == "__main__":
-    evaluate_agent()
+    logger.info("Running agent evaluation script directly...")
+    try:
+        evaluate_agent()
+        logger.info("Direct script execution finished successfully.")
+    except Exception as e:
+         logger.error(f"Direct script execution failed: {e}", exc_info=True)

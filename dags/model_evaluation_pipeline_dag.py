@@ -6,178 +6,171 @@ import os
 import logging
 import traceback
 from datetime import timedelta
+import sys # Keep sys import
 
 # Import necessary Airflow classes FIRST
 from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
-# --- REMOVED Sensor and State imports ---
-# from airflow.sensors.external_task import ExternalTaskSensor
-# from airflow.utils.state import DagRunState
-
-# Import dotenv AFTER airflow imports
-from dotenv import load_dotenv
+# from airflow.operators.bash import BashOperator # Removed if no bash needed
 
 # --- Configuration ---
-PROJECT_ROOT = "/opt/airflow"
+# Use the project root defined by the docker-compose volume mount
+PROJECT_ROOT = "/opt/airflow/app" # <<< Correct project root inside container
 SRC_DIR = os.path.join(PROJECT_ROOT, "src")
-EVAL_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "results", "airflow_eval_output")
+# Output directory inside container (optional, only needed if scripts write locally before GCS/MLflow)
+# EVAL_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "results", "airflow_eval_output")
 
+# --- Logging Setup ---
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+# No need to setLevel here, Airflow task handler configures logging
 
-import sys
+# --- Add src directory to Python path ---
+# Ensure this path is correct based on docker-compose volume mount
 if SRC_DIR not in sys.path:
     log.info(f"Adding {SRC_DIR} to sys.path for DAG definition/worker.")
     sys.path.insert(0, SRC_DIR)
 
-# --- Task Function for RAG Evaluation ---
-def run_rag_evaluation_task(**context):
-    # ... (Keep the inside of this function exactly as it was) ...
-    # Including the load_dotenv() call at the beginning
+# --- Import Task Functions ---
+# Import the main execution functions directly from the refactored scripts
+try:
+    # Import the class for RAG eval
+    from src.rag_model.advanced_rag_evaluation import AdvancedRAGEvaluator
+    # Import the function for Agent eval
+    from src.chatbot.agent_eval.eval import evaluate_agent
+    IMPORT_SUCCESS = True
+    log.info("Successfully imported evaluation functions/classes.")
+except ImportError as e:
+    log.error(f"Failed to import evaluation functions: {e}", exc_info=True)
+    IMPORT_SUCCESS = False
+    # Define dummy functions if import fails to allow DAG parsing
+    def run_rag_eval_wrapper(**kwargs): raise ImportError("advanced_rag_evaluation module/class not found")
+    def run_agent_eval_wrapper(**kwargs): raise ImportError("agent_eval.eval module/function not found")
+
+
+# --- Wrapper function for RAG Evaluation Task ---
+def run_rag_eval_wrapper(**context):
+    """
+    Sets up and runs the Advanced RAG Evaluator.
+    Relies on environment variables being set via docker-compose (.env mount).
+    """
     task_log = logging.getLogger("airflow.task")
     task_log.info("--- Starting RAG Evaluation Task ---")
-    env_path = os.path.join(PROJECT_ROOT, ".env")
-    if os.path.exists(env_path):
-        loaded = load_dotenv(dotenv_path=env_path, override=True, verbose=True)
-        task_log.info(f".env file found at {env_path}, load_dotenv result: {loaded}")
-        task_log.info(f"MLFLOW_TRACKING_URI from os.getenv: {os.getenv('MLFLOW_TRACKING_URI')}")
-        task_log.info(f"OPENAI_API_KEY from os.getenv: {os.getenv('OPENAI_API_KEY')}")
-        task_log.info(f"PINECONE_API_KEY from os.getenv: {os.getenv('PINECONE_API_KEY')}")
-    else:
-        task_log.warning(f".env file not found at {env_path}. Relying on pre-set environment variables.")
-    # ... (rest of the function is unchanged) ...
-    required_vars = {
-        "MLFLOW_TRACKING_URI": os.getenv('MLFLOW_TRACKING_URI'),
-        "OPENAI_API_KEY": os.getenv('OPENAI_API_KEY')
-        # "PINECONE_API_KEY": os.getenv('PINECONE_API_KEY') # Add back if needed by RAGEvaluator directly
-    }
-    missing_vars = [k for k, v in required_vars.items() if not v]
+
+    # Check for essential environment variables needed by the evaluator or RAG models
+    required_vars = ["MLFLOW_TRACKING_URI", "OPENAI_API_KEY", "PINECONE_API_KEY"] # Add others if needed
+    missing_vars = [k for k in required_vars if not os.getenv(k)]
     if missing_vars:
-        error_msg = f"RAG Eval Task Failed: Missing required environment variables after attempting load: {', '.join(missing_vars)}."
+        error_msg = f"RAG Eval Task Failed: Missing required environment variables: {', '.join(missing_vars)}."
         task_log.error(error_msg)
-        raise ValueError(error_msg)
-    else:
-        task_log.info("RAG Eval Task: Required environment variables are present.")
-        task_log.info(f"MLFLOW_TRACKING_URI detected: {required_vars['MLFLOW_TRACKING_URI']}")
+        raise ValueError(error_msg) # Fail task if critical env vars missing
+
+    task_log.info("RAG Eval Task: Required environment variables appear to be present.")
+    task_log.info(f"Using MLFLOW_TRACKING_URI: {os.getenv('MLFLOW_TRACKING_URI')}")
+
     try:
-        os.makedirs(EVAL_OUTPUT_DIR, exist_ok=True)
-        task_log.info(f"Ensured output directory exists: {EVAL_OUTPUT_DIR}")
-    except OSError as e:
-        task_log.error(f"Could not create output directory {EVAL_OUTPUT_DIR}: {e}")
-        raise
-    try:
-        from rag_model.advanced_rag_evaluation import AdvancedRAGEvaluator 
+        # Define a temporary output directory inside the container if needed by evaluator internals
+        # Otherwise, this might not be needed if all output goes direct to GCS/MLflow
+        temp_output_dir = "/tmp/rag_eval_output"
+        os.makedirs(temp_output_dir, exist_ok=True)
+        task_log.info(f"Ensured temp output directory exists: {temp_output_dir}")
+
         task_log.info("Initializing AdvancedRAGEvaluator...")
-        evaluator = AdvancedRAGEvaluator(output_dir=EVAL_OUTPUT_DIR)
-        task_log.info("Running comparison of RAG implementations via evaluator.compare_implementations()...")
+        # Pass the temporary dir if the class needs it, otherwise remove output_dir arg
+        evaluator = AdvancedRAGEvaluator(output_dir=temp_output_dir)
+
+        task_log.info("Running comparison of RAG implementations...")
+        # The compare_implementations method now handles MLflow logging and GCS saving
         comparison_results = evaluator.compare_implementations()
         task_log.info("RAG Implementation Comparison Finished.")
-        if comparison_results and comparison_results.get("best_implementation"):
-            task_log.info(f"Best RAG Implementation determined: {comparison_results['best_implementation']}")
-            task_log.info(f"Best Overall Score: {comparison_results.get('best_score', 'N/A'):.2f}")
-            evaluator.print_summary(comparison_results)
-        else:
-            task_log.warning("Could not determine best RAG implementation from results, or results were empty.")
-        task_log.info("--- RAG Evaluation Task Successfully Completed ---")
-        return True
-    except ImportError as e:
-        task_log.error(f"Import Error during RAG evaluation task: {e}")
-        task_log.error(f"Current sys.path: {sys.path}")
-        raise
-    except Exception as e:
-        task_log.error(f"An error occurred during RAG evaluation task: {e}")
-        task_log.error(traceback.format_exc())
-        raise
 
-# --- Task Function for Agent Evaluation ---
-def run_agent_evaluation_task(**context):
-     # ... (Keep the inside of this function exactly as it was) ...
-     # Including the load_dotenv() call at the beginning
+        # Add a final check or summary log if needed
+        if not comparison_results or "error" in comparison_results:
+             task_log.warning(f"RAG evaluation completed but reported an error or no results: {comparison_results}")
+             # Decide if this should fail the task
+             # raise RuntimeError("RAG Evaluation script reported an error or no results.")
+
+        task_log.info("--- RAG Evaluation Task Completed ---")
+        # No return needed - success implied by lack of exceptions
+
+    except Exception as e:
+        task_log.error(f"An error occurred during RAG evaluation task: {e}", exc_info=True)
+        raise # Re-raise exception to fail the Airflow task
+
+# --- Wrapper function for Agent Evaluation Task ---
+def run_agent_eval_wrapper(**context):
+    """
+    Runs the Agent evaluation script.
+    Relies on environment variables being set via docker-compose (.env mount).
+    """
     task_log = logging.getLogger("airflow.task")
     task_log.info("--- Starting Agent Evaluation Task ---")
-    env_path = os.path.join(PROJECT_ROOT, ".env")
-    if os.path.exists(env_path):
-        loaded = load_dotenv(dotenv_path=env_path, override=True, verbose=True)
-        task_log.info(f".env file found at {env_path}, load_dotenv result: {loaded}")
-        task_log.info(f"MLFLOW_TRACKING_URI from os.getenv: {os.getenv('MLFLOW_TRACKING_URI')}")
-        task_log.info(f"LANGSMITH_API_KEY from os.getenv: {os.getenv('LANGSMITH_API_KEY')}")
-        task_log.info(f"LANGSMITH_TRACING from os.getenv: {os.getenv('LANGSMITH_TRACING')}")
-        task_log.info(f"OPENAI_API_KEY from os.getenv: {os.getenv('OPENAI_API_KEY')}")
-        task_log.info(f"LANGSMITH_PROJECT from os.getenv: {os.getenv('LANGSMITH_PROJECT')}")
 
-    else:
-        task_log.warning(f".env file not found at {env_path}. Relying on pre-set environment variables.")
-    # ... (rest of the function is unchanged) ...
-    required_vars = {
-        "MLFLOW_TRACKING_URI": os.getenv('MLFLOW_TRACKING_URI'),
-        "LANGSMITH_API_KEY": os.getenv('LANGSMITH_API_KEY'),
-        "LANGSMITH_TRACING": os.getenv('LANGSMITH_TRACING'),
-        "LANGSMITH_PROJECT": os.getenv('LANGSMITH_PROJECT'),
-        "OPENAI_API_KEY": os.getenv('OPENAI_API_KEY')
-    }
-    missing_vars = [k for k, v in required_vars.items() if not v]
+    # Check for essential environment variables
+    required_vars = ["MLFLOW_TRACKING_URI", "LANGSMITH_API_KEY", "LANGSMITH_PROJECT", "OPENAI_API_KEY"] # Add others if needed
+    missing_vars = [k for k in required_vars if not os.getenv(k)]
     if missing_vars:
-        error_msg = f"Agent Eval Task Failed: Missing required environment variables after attempting load: {', '.join(missing_vars)}."
+        error_msg = f"Agent Eval Task Failed: Missing required environment variables: {', '.join(missing_vars)}."
         task_log.error(error_msg)
-        raise ValueError(error_msg)
-    else:
-        task_log.info("Agent Eval Task: Required environment variables are present.")
-        task_log.info(f"MLFLOW_TRACKING_URI detected: {required_vars['MLFLOW_TRACKING_URI']}")
-        task_log.info(f"LANGSMITH_PROJECT detected: {required_vars['LANGSMITH_PROJECT']}")
+        raise ValueError(error_msg) # Fail task
+
+    task_log.info("Agent Eval Task: Required environment variables appear to be present.")
+    task_log.info(f"Using MLFLOW_TRACKING_URI: {os.getenv('MLFLOW_TRACKING_URI')}")
+    task_log.info(f"Using LANGSMITH_PROJECT: {os.getenv('LANGSMITH_PROJECT')}")
+
     try:
-        from chatbot.agent_eval.eval import evaluate_agent
         task_log.info("Running Agent evaluation via evaluate_agent()...")
-        average_accuracy = evaluate_agent()
-        if average_accuracy is not None:
-            task_log.info(f"Agent evaluation completed. Average Accuracy reported: {average_accuracy:.2f}")
-        else:
-            task_log.warning("Agent evaluation finished, but no average accuracy score was returned/calculated.")
-        task_log.info("--- Agent Evaluation Task Successfully Completed ---")
-        return True
-    except ImportError as e:
-        task_log.error(f"Import Error during Agent evaluation task: {e}")
-        task_log.error(f"Current sys.path: {sys.path}")
-        raise
+        # Directly call the imported function
+        evaluate_agent() # The function now handles MLflow logging internally and raises errors
+        task_log.info("--- Agent Evaluation Task Completed ---")
+        # No return needed - success implied by lack of exceptions
+
     except Exception as e:
-        task_log.error(f"An error occurred during Agent evaluation task: {e}")
-        task_log.error(traceback.format_exc())
-        raise
+        task_log.error(f"An error occurred during Agent evaluation task: {e}", exc_info=True)
+        raise # Re-raise exception to fail the Airflow task
+
 
 # --- Define DAG ---
 with DAG(
-    dag_id='model_evaluation_pipeline',
+    dag_id='model_evaluation_pipeline_dag', # Use the specific ID
     default_args={
-        'owner': 'Your Name / Team', # CHANGE THIS
-        'start_date': pendulum.datetime(2024, 4, 17, tz="UTC"),
+        'owner': 'Vinyas', # Set consistent owner
+        'start_date': pendulum.datetime(2024, 4, 18, tz="UTC"), # Align start date
         'depends_on_past': False,
-        'retries': 1,
+        'retries': 1, # Adjust retries if needed for flaky evals
         'retry_delay': timedelta(minutes=3),
         'catchup': False,
-        'email_on_failure': False,
+        'email_on_failure': False, # Set to True and add email if needed
         'email_on_retry': False,
     },
-    description='Runs RAG and Agent evaluations using MLflow. Triggered by Data_pipeline_dag.',
-    schedule=None, # This DAG is triggered, not scheduled
+    description='Runs RAG and Agent evaluations, logging results to MLflow. Triggered by Data_pipeline_dag.',
+    schedule=None, # This DAG is triggered
     tags=['evaluation', 'rag', 'agent', 'mlflow'],
-    template_searchpath=PROJECT_ROOT
+    template_searchpath=PROJECT_ROOT # Use updated PROJECT_ROOT
 ) as dag:
 
-    # --- REMOVED ExternalTaskSensor ---
-    # wait_for_data_pipeline = ExternalTaskSensor(...)
+    if not IMPORT_SUCCESS:
+        # If imports failed, create a single dummy task to indicate the error
+        import_error_task = BashOperator(
+            task_id='import_error',
+            bash_command='echo "CRITICAL: Failed to import evaluation functions. Check Airflow logs and sys.path configuration." && exit 1',
+        )
+    else:
+        # Task 1: Run RAG Evaluation Comparison
+        rag_evaluation_task = PythonOperator(
+            task_id='run_rag_evaluation',
+            python_callable=run_rag_eval_wrapper, # Call the wrapper
+            execution_timeout=timedelta(hours=1), # Add timeout for safety
+        )
 
-    # Task 1 (was Task 2): Run RAG Evaluation Comparison
-    rag_evaluation_task = PythonOperator(
-        task_id='run_rag_evaluation',
-        python_callable=run_rag_evaluation_task,
-    )
+        # Task 2: Run Agent Evaluation
+        agent_evaluation_task = PythonOperator(
+            task_id='run_agent_evaluation',
+            python_callable=run_agent_eval_wrapper, # Call the wrapper
+            execution_timeout=timedelta(hours=1), # Add timeout for safety
+        )
 
-    # Task 2 (was Task 3): Run Agent Evaluation
-    agent_evaluation_task = PythonOperator(
-        task_id='run_agent_evaluation',
-        python_callable=run_agent_evaluation_task,
-    )
-
-    # Define task dependencies: Run evaluations in parallel AFTER DAG start
-    # (No upstream dependency within this DAG anymore)
-    # If you wanted them sequential: rag_evaluation_task >> agent_evaluation_task
-    # For parallel: just define them without internal dependencies
+        # Define task dependencies: Run evaluations in parallel
+        # If agent eval depends on RAG eval completing, set dependency:
+        # rag_evaluation_task >> agent_evaluation_task
+        # If they can run independently, no dependency line is needed between them.
+        # Assuming they can run in parallel for now.
