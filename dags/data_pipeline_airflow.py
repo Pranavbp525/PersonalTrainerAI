@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 # Airflow specific imports
 from airflow.models.dag import DAG # Use DAG from models for Airflow 2+
 from airflow.operators.python import PythonOperator
-from airflow.operators.bash import BashOperator # Import BashOperator
+from airflow.operators.bash import BashOperator # Keep import just in case needed elsewhere
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # --- Add src directory to Python path ---
@@ -29,6 +29,7 @@ try:
     from data_pipeline.pdfs import run_pdf_pipeline
     from data_pipeline.other_preprocesing import run_other_preprocess_pipeline
     from data_pipeline.ms_preprocess import run_ms_preprocess_pipeline
+    # Import the correct function name from vector_db.py
     from data_pipeline.vector_db import run_chunk_embed_store_pipeline
     IMPORT_SUCCESS = True
     logging.info("Successfully imported pipeline functions.")
@@ -46,8 +47,8 @@ except ImportError as e:
 
 # --- DAG Definition ---
 
-# Define DVC remote name used in configuration
-DVC_REMOTE_NAME = "gcs-remote" # Match the name used in `dvc remote add`
+# Define DVC remote name used in configuration (still needed if DVC is used elsewhere)
+# DVC_REMOTE_NAME = "gcs-remote"
 
 default_args = {
     'owner': 'vinyas', # Changed owner
@@ -63,10 +64,10 @@ default_args = {
 with DAG(
         dag_id="Data_pipeline_dag", # Ensure this ID is correct and unique
         default_args=default_args,
-        description='Scrapes data, preprocesses, stores artifacts in GCS, optionally uses DVC, stores embeddings in Pinecone, triggers evaluation.',
+        description='Scrapes data, preprocesses, stores artifacts in GCS, stores embeddings in Pinecone, triggers evaluation.', # Removed DVC from desc
         schedule='@weekly', # Keep your schedule
         catchup=False,
-        tags=["data_pipeline", "etl", "rag", "gcs", "pinecone", "dvc"],
+        tags=["data_pipeline", "etl", "rag", "gcs", "pinecone"], # Removed DVC tag
 ) as dag:
 
     if not IMPORT_SUCCESS:
@@ -80,7 +81,6 @@ with DAG(
         scrape_ms_task = PythonOperator(
             task_id='scrape_ms_task',
             python_callable=run_ms_pipeline,
-            # op_kwargs={'max_workouts': 10} # Optional: Pass arguments if needed
         )
 
         scrape_blog_task = PythonOperator(
@@ -91,7 +91,6 @@ with DAG(
         scrape_pdf_task = PythonOperator(
             task_id='scrape_pdf_task',
             python_callable=run_pdf_pipeline,
-            # op_kwargs={'limit': None} # Optional: Pass arguments
         )
 
         # --- Preprocessing Tasks ---
@@ -106,40 +105,17 @@ with DAG(
             python_callable=run_other_preprocess_pipeline,
         )
 
-        # --- DVC Pull Task ---
-        # Pulls the *preprocessed* data from GCS DVC remote to the worker's local filesystem
-        # Assumes the project root (containing .dvc) is mounted at /opt/airflow/app
-        dvc_pull_processed_task = BashOperator(
-            task_id='dvc_pull_processed_data',
-            # --- MODIFIED BASH COMMAND ---
-            bash_command=(
-                # Change to the correct project root inside the container
-                f'cd /opt/airflow/app && '
-                # Echo status
-                f'echo "Ensuring .dvc/tmp directory exists and is writable..." && '
-                # Create the tmp directory if it doesn't exist (-p handles existing dirs)
-                f'mkdir -p .dvc/tmp && '
-                # Make it world-writable recursively (crude but effective for debugging permissions)
-                f'chmod -R 777 .dvc/tmp && '
-                # Log permissions for verification
-                f'echo "Permissions for .dvc/tmp:" && ls -ld .dvc/tmp && '
-                # Now attempt the DVC pull
-                f'echo "Pulling processed data with DVC..." && '
-                f'dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force'
-            ),
-            # --- END MODIFIED BASH COMMAND ---
-            doc_md="Ensures DVC temp dir exists and pulls preprocessed data tracked by DVC from GCS remote storage.",
-            retries=2 # Example: Allow more retries specifically for this task if needed
-        )
+        # --- DVC Pull Task - REMOVED ---
+        # dvc_pull_processed_task = BashOperator(...) # Definition removed
 
         # --- Chunking, Embedding, Storing Task ---
-        # Reads preprocessed data (now available locally due to dvc pull)
+        # Reads preprocessed data directly from GCS processed bucket
         # Needs PINECONE_API_KEY from environment
         chunk_embed_store_task = PythonOperator(
-            task_id='chunk_embed_store_pinecone_task',
-            python_callable=run_chunk_embed_store_pipeline,
+            task_id='chunk_embed_store_pinecone_task', # Kept original task_id for consistency
+            python_callable=run_chunk_embed_store_pipeline, # Use correct function name
             execution_timeout=timedelta(hours=2), # Adjust timeout as needed for embedding
-            doc_md="Chunks preprocessed data, generates embeddings, and stores in Pinecone.",
+            doc_md="Chunks preprocessed data from GCS, generates embeddings, and stores in Pinecone.",
         )
 
         # --- Trigger Next DAG Task ---
@@ -161,11 +137,9 @@ with DAG(
         # Other preprocessing depends on blogs and PDFs scrape finishing
         [scrape_blog_task, scrape_pdf_task] >> preprocess_other_data_task
 
-        # DVC pull depends on *all* preprocessing tasks completing
-        [preprocess_ms_task, preprocess_other_data_task] >> dvc_pull_processed_task
-
-        # Chunking/Embedding/Storing depends on DVC pull finishing
-        dvc_pull_processed_task >> chunk_embed_store_task
+        # --- UPDATED DEPENDENCY ---
+        # Chunking/Embedding/Storing depends DIRECTLY on preprocessing finishing
+        [preprocess_ms_task, preprocess_other_data_task] >> chunk_embed_store_task
 
         # Triggering the next DAG depends on successful chunking/embedding/storing
         chunk_embed_store_task >> trigger_evaluation_dag

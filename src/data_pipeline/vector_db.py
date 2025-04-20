@@ -58,8 +58,7 @@ INPUT_FILES_TO_PROCESS = {
     "articles": f"{INPUT_BLOB_PREFIX}blogs.json"
 }
 
-# **Step 1: Load JSON Data - Now handled within main loop using GCS utils **
-# (Removed the old load_json_data function)
+# **Step 1: Load JSON Data - Removed old local function, integrated GCS read below **
 
 # **Step 2: Split Text into Chunks**
 def split_text(data, source_type, chunk_size=400, chunk_overlap=50):
@@ -85,32 +84,34 @@ def split_text(data, source_type, chunk_size=400, chunk_overlap=50):
             items_skipped_not_dict +=1
             continue
 
-        # *** IMPORTANT: Reading from 'text' field ***
-        # *** Change to 'description' if your preprocessing outputs that key ***
+        # *** Reading from 'text' field (ensure preprocessing output this key) ***
         text_to_split = item.get("text", "")
-        source = item.get("source", f"unknown_{source_type}") # Use GCS path or original source
+        # Extract other metadata fields (use defaults if missing)
+        original_gcs_source = item.get("source", f"gs://{PROCESSED_BUCKET}/{source_type}_{item_index}") # Use GCS path if available
         title = item.get("title", "N/A")
         url = item.get("url", "N/A")
 
         if not text_to_split:
-            logger.debug(f"Skipping item #{item_index+1} with empty text field: source={source}, title={title}")
+            logger.debug(f"Skipping item #{item_index+1} with empty text field: source={original_gcs_source}, title={title}")
             items_skipped_no_text += 1
             continue
 
         try:
             # Split the text from the 'text' field
             chunks = text_splitter.split_text(text_to_split)
-            base_id = f"{source_type}_{item_index}" # Create a base ID for the original document
+            # Create a base ID using the source type and original item index
+            base_id = f"{source_type}_{item_index}"
 
             for chunk_idx, chunk_text in enumerate(chunks):
                 # Create a unique ID for each chunk
                 chunk_id = f"{base_id}_chunk_{chunk_idx}"
+                # Prepare chunk dictionary in the structure needed later
                 chunked_data.append({
                     "id": chunk_id, # Use 'id' for the Pinecone vector ID
                     "text": chunk_text, # The actual text content of the chunk
                     # Metadata to be stored with the vector in Pinecone
                     "metadata": {
-                         "original_source": source, # Where the data originally came from (URL/GCS path)
+                         "original_source": original_gcs_source, # GCS path or original URL
                          "title": title,
                          "url": url,
                          "data_source_type": source_type, # e.g., 'pdf', 'ms', 'articles'
@@ -119,7 +120,7 @@ def split_text(data, source_type, chunk_size=400, chunk_overlap=50):
                      }
                 })
         except Exception as e:
-            logger.error(f"Error splitting text for item #{item_index+1} (source={source}, title={title}): {e}", exc_info=True)
+            logger.error(f"Error splitting text for item #{item_index+1} (source={original_gcs_source}, title={title}): {e}", exc_info=True)
             continue # Skip item on splitting error
 
     if items_skipped_no_text > 0: logger.warning(f"Skipped {items_skipped_no_text} items from {source_type} due to empty text field.")
@@ -218,22 +219,37 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         return True # Nothing to store is not a failure
 
     try:
-        # --- Check/Connect to Index --- (Moved connection logic here from main)
+        # --- Check/Connect to Index ---
         existing_indexes = pc_client.list_indexes().names
         logger.info(f"Existing Pinecone indexes: {existing_indexes}")
         if index_name not in existing_indexes:
-            logger.error(f"Target Pinecone index '{index_name}' does not exist! Please create it manually or add creation logic.")
-            # Optional: Add creation logic here if desired
-            # logger.info(f"Creating index '{index_name}'...")
-            # pc_client.create_index(...)
+            logger.error(f"Target Pinecone index '{index_name}' does not exist! Please create it first via the Pinecone console or API.")
+            # Consider adding index creation logic here if desired for automation
+            # Example (uncomment and adjust):
+            # logger.info(f"Creating serverless index '{index_name}' in {PINECONE_CLOUD}/{PINECONE_REGION} with dim {EMBEDDING_DIMENSION}...")
+            # try:
+            #     pc_client.create_index(
+            #         name=index_name,
+            #         dimension=EMBEDDING_DIMENSION,
+            #         metric="cosine", # or 'dotproduct', 'euclidean'
+            #         spec=ServerlessSpec(cloud=PINECONE_CLOUD, region=PINECONE_REGION)
+            #     )
+            #     # Wait for index to be ready
+            #     while not pc_client.describe_index(index_name).status['ready']:
+            #         logger.info("Waiting for index creation...")
+            #         time.sleep(5)
+            #     logger.info(f"Index '{index_name}' created successfully.")
+            # except Exception as create_e:
+            #     logger.error(f"Failed to create Pinecone index '{index_name}': {create_e}", exc_info=True)
+            #     return False # Fail if creation fails
             return False # Fail if index doesn't exist and isn't created
 
         logger.info(f"Connecting to Pinecone index '{index_name}'...")
-        index = pc_client.Index(index_name)
+        index: Index = pc_client.Index(index_name)
         # Verify connection by getting stats
         try:
              stats = index.describe_index_stats()
-             logger.info(f"Connected successfully. Index stats: {stats}")
+             logger.info(f"Connected successfully. Index stats before upsert: {stats}")
         except Exception as desc_err:
              logger.error(f"Failed to get stats for index '{index_name}'. Connection issue? Error: {desc_err}")
              return False # Fail if cannot connect/describe
@@ -250,15 +266,20 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
             if isinstance(vector_id, str) and \
                isinstance(embedding, list) and len(embedding) == EMBEDDING_DIMENSION and \
                isinstance(metadata, dict):
-                # Ensure metadata only contains compatible types (str, bool, number, list of strings)
-                # Pinecone might error if metadata is too complex
-                cleaned_metadata = {k: v for k, v in metadata.items() if isinstance(v, (str, bool, int, float))}
-                # Re-add text to metadata if needed and not already there
-                if 'text' not in cleaned_metadata and isinstance(chunk.get('text'), str) :
-                    cleaned_metadata['text'] = chunk['text']
+                # Clean metadata: Keep only types Pinecone supports (str, bool, numbers, list of str)
+                # Pinecone errors if metadata values are complex (like nested dicts/lists)
+                cleaned_metadata = {}
+                for k, v in metadata.items():
+                    if isinstance(v, (str, bool, int, float)):
+                        cleaned_metadata[k] = v
+                    elif isinstance(v, list) and all(isinstance(item, str) for item in v):
+                         cleaned_metadata[k] = v # List of strings is okay
+                    else:
+                         logger.debug(f"Skipping metadata key '{k}' for vector '{vector_id}' due to unsupported type: {type(v)}")
+                         cleaned_metadata[k] = str(v) # Convert other types to string as fallback
 
                 vectors_to_upsert.append(
-                    (vector_id, embedding, cleaned_metadata) # Pinecone tuple format
+                    (vector_id, embedding, cleaned_metadata) # Pinecone tuple format (id, values, metadata)
                 )
             else:
                 logger.warning(f"Skipping invalid chunk during vector preparation (missing id, embedding, metadata, or wrong format): ID={vector_id}")
@@ -268,7 +289,8 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 
         if not vectors_to_upsert:
             logger.error("No valid vectors prepared for upserting after validation.")
-            return False # Fail if nothing can be upserted
+            # Decide if this is an error or just means no data was processed
+            return True # Return True as no storage operation needed/failed
 
         # --- Upsert in Batches ---
         total_vectors = len(vectors_to_upsert)
@@ -276,19 +298,21 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         num_batches = math.ceil(total_vectors / batch_size)
         logger.info(f"Upserting {total_vectors} vectors to index '{index_name}' in {num_batches} batches of size {batch_size}...")
         total_upserted_count = 0
+        storage_had_errors = False
 
         for i in tqdm(range(0, total_vectors, batch_size), desc="Upserting to Pinecone"):
             batch = vectors_to_upsert[i:i + batch_size]
             try:
                 upsert_response = index.upsert(vectors=batch)
                 logger.debug(f"Upserted batch {i//batch_size + 1}/{num_batches}. Response: {upsert_response}")
-                if upsert_response and upsert_response.upserted_count:
+                if upsert_response and hasattr(upsert_response, 'upserted_count') and upsert_response.upserted_count:
                      total_upserted_count += upsert_response.upserted_count
                 else:
-                     logger.warning(f"Pinecone upsert response for batch {i//batch_size + 1} did not report upserted count.")
+                     logger.warning(f"Pinecone upsert response for batch {i//batch_size + 1} did not report expected upserted count.")
             except Exception as upsert_err:
                 # Log the error but continue to next batch (maybe some batches succeed)
                 logger.error(f"Error upserting batch starting at index {i}: {upsert_err}", exc_info=True)
+                storage_had_errors = True
                 # Consider adding failed batch IDs to a list for retry later if needed
 
         logger.info(f"Finished upserting vectors. Total reported upserted count by Pinecone: {total_upserted_count} (Target: {total_vectors})")
@@ -299,11 +323,11 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         except Exception as final_stat_err:
              logger.warning(f"Could not get final index stats: {final_stat_err}")
 
-        # Consider success even if some batches failed, depends on requirements
-        return True # Indicate storage process completed (maybe with errors)
+        # Return True if no errors occurred during upserting, False otherwise
+        return not storage_had_errors
 
     except Exception as e:
-        logger.error(f"A critical error occurred during the Pinecone storage process: {e}", exc_info=True)
+        logger.error(f"A critical error occurred during the Pinecone storage process (e.g., connection, index check): {e}", exc_info=True)
         return False # Indicate overall storage failure
 
 
@@ -324,6 +348,9 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
     try:
         logger.debug("Generating query embedding...")
         query_embedding = model.embed_query(query)
+        if not query_embedding:
+             logger.error("Failed to generate query embedding.")
+             return None
         logger.debug("Query embedding generated.")
     except Exception as e:
         logger.error(f"Error generating query embedding: {e}", exc_info=True)
@@ -331,7 +358,7 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
 
     try:
         logger.debug(f"Connecting to index '{index_name}' for query...")
-        index = pc_client.Index(index_name)
+        index: Index = pc_client.Index(index_name)
         logger.debug(f"Querying index with top_k=3...")
         # Query the index
         result = index.query(
@@ -381,21 +408,23 @@ def run_chunk_embed_store_pipeline():
     # --- Initialize Pinecone Client ---
     if not PINECONE_API_KEY:
         logger.error("CRITICAL: PINECONE_API_KEY environment variable not found.")
-        return False # Cannot proceed without API key
+        # Raise error to fail the Airflow task immediately
+        raise ValueError("PINECONE_API_KEY is required but not set.")
     try:
         logger.info("Initializing Pinecone client...")
         pc = Pinecone(api_key=PINECONE_API_KEY)
-        # Maybe add a simple check like list_indexes to confirm connection
+        # Add a simple check like list_indexes to confirm connection
         pc.list_indexes()
         logger.info("Pinecone client initialized and connection confirmed.")
     except Exception as e:
         logger.error(f"CRITICAL: Failed to initialize Pinecone client or confirm connection: {e}", exc_info=True)
-        return False # Cannot proceed without Pinecone client
+        # Raise error to fail the Airflow task immediately
+        raise RuntimeError(f"Failed to initialize Pinecone: {e}") from e
 
     # --- Phase 1: Load and Chunk All Data from GCS ---
     logger.info("--- Phase 1: Loading and Chunking Data from GCS ---")
     load_chunk_start = time.time()
-    all_data_to_embed = []
+    all_chunks_to_process = []
     any_data_loaded = False
 
     for source_type, input_blob_name in INPUT_FILES_TO_PROCESS.items():
@@ -405,49 +434,50 @@ def run_chunk_embed_store_pipeline():
         # Read preprocessed JSON from GCS
         data = read_json_from_gcs(PROCESSED_BUCKET, input_blob_name)
 
-        if data is not None and isinstance(data, list):
+        if data is not None and isinstance(data, list) and data: # Ensure data is not empty list
             any_data_loaded = True
             # Split the text data
             chunked_data = split_text(data, source_type=source_type)
             if chunked_data:
-                all_data_to_embed.extend(chunked_data)
+                all_chunks_to_process.extend(chunked_data)
                 logger.info(f"Successfully added {len(chunked_data)} chunks from source '{source_type}'.")
             else:
-                logger.warning(f"No chunks generated after splitting for source '{source_type}'.")
+                logger.warning(f"No chunks generated after splitting for source '{source_type}' (input data might be empty after cleaning).")
         elif data is None:
              logger.warning(f"Skipping source '{source_type}' as file was not found or failed to load/parse from GCS.")
-             # Decide if this constitutes failure - potentially set overall_success = False
+             # Decide if this constitutes failure - let's continue for now
+        elif not data:
+             logger.info(f"Skipping source '{source_type}' as the input file from GCS was empty.")
         else:
              logger.warning(f"Skipping source '{source_type}' as loaded data was not a list ({type(data)}).")
 
 
     load_chunk_end = time.time()
     logger.info(f"--- Phase 1 Finished ({load_chunk_end - load_chunk_start:.2f} seconds) ---")
-    logger.info(f"Total chunks generated across all sources: {len(all_data_to_embed)}")
+    logger.info(f"Total chunks generated across all sources: {len(all_chunks_to_process)}")
 
-    if not any_data_loaded:
-         logger.error("CRITICAL: No input data could be loaded from GCS. Stopping pipeline.")
-         return False # Fail if no input was loaded at all
-    if not all_data_to_embed:
-        logger.warning("No chunks generated from loaded data. Pipeline will stop before embedding.")
+    if not all_chunks_to_process:
+        # If NO chunks were generated at all (either no files found or all were empty)
+        logger.warning("No chunks generated from any source. Pipeline finished successfully but no data processed.")
         return True # Considered success as processing finished, just no output
 
     # --- Phase 2: Generate Embeddings ---
     logger.info("--- Phase 2: Generating Embeddings ---")
     embedding_start = time.time()
-    chunks_with_embeddings, embedding_model = generate_embeddings_batched(all_data_to_embed)
+    chunks_with_embeddings, embedding_model = generate_embeddings_batched(all_chunks_to_process)
     embedding_end = time.time()
     logger.info(f"--- Phase 2 Finished ({embedding_end - embedding_start:.2f} seconds) ---")
 
     if not chunks_with_embeddings:
-        logger.error("Embedding generation failed or yielded no results. Cannot proceed to storage.")
+        logger.error("Embedding generation failed or yielded no results with valid embeddings. Cannot proceed to storage.")
         overall_success = False
-        # We might still want to run the example query if the model loaded? No, model might be None.
-        return False # Fail if no embeddings generated
+        # Raise error to fail the Airflow task
+        raise RuntimeError("Embedding generation failed or yielded no valid embeddings.")
 
     # --- Phase 3: Store Embeddings in Pinecone ---
     logger.info("--- Phase 3: Storing in Pinecone ---")
     storage_start = time.time()
+    # Pass the Pinecone client instance, not just the API key
     storage_success = store_in_pinecone(chunks_with_embeddings, pc, INDEX_NAME)
     storage_end = time.time()
     logger.info(f"--- Phase 3 Finished ({storage_end - storage_start:.2f} seconds) ---")
@@ -455,9 +485,11 @@ def run_chunk_embed_store_pipeline():
     if not storage_success:
          logger.error("Pinecone storage process encountered critical errors.")
          overall_success = False # Mark overall failure if storage had issues
+         # Raise error to fail the Airflow task
+         raise RuntimeError("Pinecone storage process failed.")
 
     # --- Optional: Example Query ---
-    # Run only if embedding model is available and storage process didn't critically fail early
+    # Run only if embedding model is available and storage process succeeded
     if embedding_model and overall_success:
         try:
             logger.info("--- Running example Pinecone query ---")
@@ -471,17 +503,19 @@ def run_chunk_embed_store_pipeline():
     elif not embedding_model:
          logger.warning("Skipping example query because embedding model was not loaded successfully.")
     else:
-         logger.warning("Skipping example query due to earlier critical failures.")
+         logger.warning("Skipping example query due to earlier critical failures during storage.")
 
 
     # --- Final Status ---
     end_time = time.time()
     if overall_success:
         logger.info(f"--- Chunk, Embed, Store Pipeline finished successfully in {end_time - start_time:.2f} seconds ---")
-        return True
+        # No return needed, Airflow assumes success if no exception is raised
     else:
+         # This part is now handled by raising exceptions above
          logger.error(f"--- Chunk, Embed, Store Pipeline finished with errors in {end_time - start_time:.2f} seconds ---")
-         return False
+         # Should not reach here if exceptions are raised correctly
+         # raise RuntimeError("Pipeline finished with errors.") # Redundant if exceptions raised earlier
 
 
 # --- Main Guard ---
@@ -493,5 +527,8 @@ if __name__ == "__main__":
     # 3. Ensure input files (e.g., pdf_data.json) exist in gs://ragllm-454718-processed-data/preprocessed_json_data/
     # 4. Ensure PINECONE_API_KEY is set in your environment (e.g., via a .env file loaded by load_dotenv()).
     # 5. Ensure Pinecone index 'fitness-bot' exists or add creation logic.
-    run_chunk_embed_store_pipeline()
-    logger.info("Direct script execution finished.")
+    try:
+        run_chunk_embed_store_pipeline()
+        logger.info("Direct script execution finished successfully.")
+    except Exception as e:
+         logger.error(f"Direct script execution failed: {e}", exc_info=True)
