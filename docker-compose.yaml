@@ -50,6 +50,7 @@ x-airflow-common:
     LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
     LANGSMITH_TRACING: ${LANGSMITH_TRACING}
     PINECONE_API_KEY: ${PINECONE_API_KEY}
+    PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME}
     PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
     # --- !!! UPDATED MLFLOW URI !!! ---
     # Point to the mlflow-server service within the Docker network on port 5000
