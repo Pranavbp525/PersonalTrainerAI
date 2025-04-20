@@ -89,6 +89,11 @@ services:
               --default-artifact-root $MLFLOW_ARTIFACT_ROOT"
     ports:
       - "5001:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
     restart: always
     depends_on:
       postgres:
@@ -111,7 +116,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
       mlflow-server:
-        condition: service_started
+        condition: service_healthy
 
   airflow-scheduler:
     <<: *airflow-common
@@ -128,7 +133,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
       mlflow-server:
-        condition: service_started
+        condition: service_healthy
 
   airflow-worker:
     <<: *airflow-common
@@ -149,7 +154,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
       mlflow-server:
-        condition: service_started
+        condition: service_healthy
 
   airflow-triggerer:
     <<: *airflow-common
@@ -166,7 +171,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
       mlflow-server:
-        condition: service_started
+        condition: service_healthy
 
   airflow-init:
     <<: *airflow-common
@@ -175,20 +180,13 @@ services:
       - -c
       - |
         set -e
-        if [[ -n "${AIRFLOW_UID}" && "${AIRFLOW_UID}" != "0" ]]; then
-          echo "Checking .env file permissions (if AIRFLOW_UID is set)..."
-        fi
         mkdir -p /sources/logs /sources/dags /sources/plugins
         chmod -R 777 /sources/logs || echo "WARN: Failed to chmod /sources/logs"
         if [[ -n "${AIRFLOW_UID}" && "${AIRFLOW_UID}" != "0" ]]; then
           chown -R "${AIRFLOW_UID}:0" /sources/logs /sources/dags /sources/plugins || echo "WARN: Failed to chown basic dirs in /sources"
-        else
-          echo "Running as root or AIRFLOW_UID not set, skipping chown."
         fi
         mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-        echo "Running Airflow DB migrate..."
         airflow db migrate
-        echo "Creating Airflow Admin User..."
         airflow users create \
             --username "${_AIRFLOW_WWW_USER_USERNAME:-admin}" \
             --password "${_AIRFLOW_WWW_USER_PASSWORD:-admin}" \
@@ -242,7 +240,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
       mlflow-server:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   postgres-db-volume:

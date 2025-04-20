@@ -134,7 +134,7 @@ with DAG(
     },
     # --- MODIFIED ---
     description='Runs scheduled RAG and Agent evaluations, logging results to MLflow.',
-    schedule=None, # <<< CHANGED: Set a schedule (e.g., daily at midnight UTC)
+    schedule='@daily', # <<< CHANGED: Set a schedule (e.g., daily at midnight UTC)
     catchup=False, # <<< IMPORTANT: Ensures it only runs for the latest interval on startup
     is_paused_upon_creation=False, # <<< ADDED: Starts the DAG in unpaused state
     # --- END MODIFIED ---
