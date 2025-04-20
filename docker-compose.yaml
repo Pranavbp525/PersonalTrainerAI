@@ -42,7 +42,7 @@ x-airflow-common:
 
     # --- BASE Python Dependencies (Scheduler, Webserver, Triggerer, Worker Base) ---
     # Keep this lean: Only include core providers, clients needed everywhere (GCS, DVC, MLflow, Pinecone), basic utils
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone-client python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn}
 
     # --- Environment Variables Passed to Tasks (from Host or .env) ---
     OPENAI_API_KEY: ${OPENAI_API_KEY}
