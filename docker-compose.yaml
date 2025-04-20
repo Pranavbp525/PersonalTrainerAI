@@ -87,11 +87,10 @@ services:
       - "5001:5000"
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5000/"]
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:5000/"]
       interval: 10s
       timeout: 10s
       retries: 5
-
 
   airflow-webserver:
     <<: *airflow-common
@@ -141,7 +140,7 @@ services:
     environment:
       <<: *airflow-common-env
       DUMB_INIT_SETSID: "0"
-      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets"
+      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS:-...} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets"
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
