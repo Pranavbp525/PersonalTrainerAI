@@ -1,11 +1,50 @@
-.env
-venv
-#data/*
-logs/*
-data/source_pdf/*
-gen-lang-client-0113635676-3ad57733ca8d.json
-.DS_Store
-src/chatbot/alembic
-src/chatbot/alembic.ini
+# Environment Variables
+.env*
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+
+# Python Cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Database Migration Files (KEEP THESE TRACKED!)
+# src/chatbot/alembic # <<< REMOVED THIS LINE
+
+# Alembic Config (Track unless it contains secrets)
+# src/chatbot/alembic.ini # <<< Review and potentially REMOVE this line
+
+# Large Data Files / Source Data (Handled by DVC or GCS)
+data/source_pdf/
+# Add specific large files in data/ if not handled by .dvcignore
+# data/some_large_untracked_file.csv
+
+# Logs
+logs/
+*.log
+
+# MLflow Local Runs
+mlruns/
+mlartifacts/
+
+# Test Artifacts
+.pytest_cache/
+.coverage*
+
+# Build Artifacts
+dist/
+build/
+*.egg-info/
+
+# Generated Files
+gen-lang-client-*.json
+
+# OS-specific & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
