@@ -13,7 +13,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # --- Add src directory to Python path ---
 # Adjust path based on the new docker-compose mount point
-SRC_PATH = "/opt/airflow/app/src" # <<< UPDATED PATH
+SRC_PATH = "/opt/airflow/app/src" # Path inside container where src is mounted
 if SRC_PATH not in sys.path:
     sys.path.append(SRC_PATH)
     logging.info(f"Appended {SRC_PATH} to sys.path")
@@ -52,8 +52,8 @@ DVC_REMOTE_NAME = "gcs-remote" # Match the name used in `dvc remote add`
 default_args = {
     'owner': 'vinyas', # Changed owner
     'start_date': pendulum.datetime(2024, 4, 18, tz="UTC"), # Use pendulum
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retries': 1, # Default retries
+    'retry_delay': timedelta(minutes=5), # Default retry delay
     # Email config commented out, enable if your Airflow SMTP is configured
     # 'email_on_failure': True,
     # 'email': ['your_email@example.com'],
@@ -111,9 +111,25 @@ with DAG(
         # Assumes the project root (containing .dvc) is mounted at /opt/airflow/app
         dvc_pull_processed_task = BashOperator(
             task_id='dvc_pull_processed_data',
-            # cd into the correct project root inside the container
-            bash_command=f'cd /opt/airflow/app && echo "Pulling processed data with DVC..." && dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force', # <<< UPDATED PATH
-            doc_md="Pulls preprocessed data tracked by DVC from GCS remote storage.",
+            # --- MODIFIED BASH COMMAND ---
+            bash_command=(
+                # Change to the correct project root inside the container
+                f'cd /opt/airflow/app && '
+                # Echo status
+                f'echo "Ensuring .dvc/tmp directory exists and is writable..." && '
+                # Create the tmp directory if it doesn't exist (-p handles existing dirs)
+                f'mkdir -p .dvc/tmp && '
+                # Make it world-writable recursively (crude but effective for debugging permissions)
+                f'chmod -R 777 .dvc/tmp && '
+                # Log permissions for verification
+                f'echo "Permissions for .dvc/tmp:" && ls -ld .dvc/tmp && '
+                # Now attempt the DVC pull
+                f'echo "Pulling processed data with DVC..." && '
+                f'dvc pull data/preprocessed_json_data -r {DVC_REMOTE_NAME} --force'
+            ),
+            # --- END MODIFIED BASH COMMAND ---
+            doc_md="Ensures DVC temp dir exists and pulls preprocessed data tracked by DVC from GCS remote storage.",
+            retries=2 # Example: Allow more retries specifically for this task if needed
         )
 
         # --- Chunking, Embedding, Storing Task ---
