@@ -23,9 +23,11 @@ except ImportError:
 dotenv_path = "/opt/airflow/app/.env"
 if os.path.exists(dotenv_path):
     loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
-    logging.info(f"Attempted to load .env file from {dotenv_path}. Load successful: {loaded}")
+    # Use logger only after basicConfig is set
+    # logging.info(f"Attempted to load .env file from {dotenv_path}. Load successful: {loaded}")
 else:
-    logging.warning(f".env file not found at {dotenv_path}. Relying on environment variables already set.")
+    # Use print or configure basic logging temporarily if needed before full setup
+    print(f"WARNING: .env file not found at {dotenv_path}. Relying on environment variables already set.")
 
 
 # Setup logger
@@ -40,13 +42,14 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+# Log .env loading result after logger is configured
+logger.info(f"Attempted to load .env file from {dotenv_path}. Load successful: {loaded if 'loaded' in locals() else 'N/A (file not found)'}")
 logger.info("Logging initialized in vector_db.py")
 
 # --- Constants ---
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-# Ensure your Pinecone env matches where your index is (Serverless uses region/cloud)
-# PINECONE_ENV = os.getenv("PINECONE_ENVIRONMENT", "us-east-1") # Less relevant for Serverless init
-INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fitness-bot") # Your index name
+# Ensure index name matches your .env or desired index
+INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fitness-chatbot") # <<< USE CHATBOT INDEX
 PINECONE_REGION = "us-east-1" # Or your specific region for ServerlessSpec
 PINECONE_CLOUD = "aws" # Or your specific cloud for ServerlessSpec
 
@@ -146,6 +149,7 @@ def generate_embeddings_batched(chunked_data, model_name=EMBEDDING_MODEL_NAME, b
     logger.info(f"Initializing embedding model: {model_name}")
     try:
         # Ensure device selection is appropriate for the execution environment (CPU likely on VM)
+        # Consider adding cache_folder='/opt/airflow/embeddings_cache' or similar if space allows
         model = HuggingFaceEmbeddings(model_name=model_name, model_kwargs={'device': 'cpu'})
         logger.info("Embedding model initialized.")
     except Exception as e:
@@ -167,7 +171,8 @@ def generate_embeddings_batched(chunked_data, model_name=EMBEDDING_MODEL_NAME, b
 
             if not batch_texts_non_empty:
                 logger.warning(f"Batch {i//batch_size + 1} contained only empty strings or non-strings. Assigning None embeddings.")
-                all_embeddings.extend([None] * len(batch_texts)) # Add None for all items in original batch
+                # Extend with None for the length of the original batch slice
+                all_embeddings.extend([None] * len(batch_texts))
                 continue
 
             # Generate embeddings for the valid texts in the batch
@@ -179,12 +184,14 @@ def generate_embeddings_batched(chunked_data, model_name=EMBEDDING_MODEL_NAME, b
             for text in batch_texts:
                 if isinstance(text, str) and text.strip():
                      try:
+                          # Get the next embedding if the text was valid
                           batch_results.append(next(embedding_iter))
                      except StopIteration:
                           logger.error("Embedding model returned fewer results than expected for batch. Assigning None.")
-                          batch_results.append(None)
+                          batch_results.append(None) # Append None if iterator exhausted prematurely
                 else:
-                     batch_results.append(None) # Assign None for empty/invalid input text
+                     # Append None for empty/invalid original text
+                     batch_results.append(None)
             all_embeddings.extend(batch_results)
 
     except Exception as e:
@@ -199,15 +206,21 @@ def generate_embeddings_batched(chunked_data, model_name=EMBEDDING_MODEL_NAME, b
     failed_count = 0
     if len(all_embeddings) != len(chunked_data):
          logger.error(f"CRITICAL: Mismatch between number of chunks ({len(chunked_data)}) and embedding results ({len(all_embeddings)}). Aborting combination.")
+         # Consider returning empty list vs raising error based on desired behavior
          return [], model # Abort if lengths mismatch
 
     for i, chunk_item in enumerate(chunked_data):
         embedding_result = all_embeddings[i]
+        # Check if embedding is a list and has the correct dimension
         if embedding_result is not None and isinstance(embedding_result, list) and len(embedding_result) == EMBEDDING_DIMENSION:
             chunk_item["embedding"] = embedding_result
             chunks_with_embeddings.append(chunk_item)
         else:
-            logger.warning(f"Embedding missing, None, or wrong dimension ({len(embedding_result) if isinstance(embedding_result, list) else type(embedding_result)}) for chunk ID {chunk_item.get('id')}. Skipping this chunk.")
+            # Log detailed warning if embedding is invalid
+            embedding_info = f"type={type(embedding_result)}"
+            if isinstance(embedding_result, list):
+                 embedding_info += f", len={len(embedding_result)}"
+            logger.warning(f"Embedding missing, None, or wrong dimension ({embedding_info}) for chunk ID {chunk_item.get('id')}. Skipping this chunk.")
             failed_count += 1
 
     if failed_count > 0:
@@ -228,25 +241,28 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
     try:
         # --- Check/Connect to Index ---
         logger.info(f"Listing existing Pinecone indexes...")
-        # --- CORRECTED LINES START ---
+        # --- !!! CORRECTED FIX APPLIED HERE !!! ---
         index_list_obj = pc_client.list_indexes() # Get the IndexList object first
         existing_index_names = index_list_obj.names # Access the 'names' attribute which IS the list
-        # --- CORRECTED LINES END ---
+        # --- !!! END FIX !!! ---
 
         logger.info(f"Existing Pinecone index names found: {existing_index_names}") # Log the actual list now
-        if index_name not in existing_index_names: # Now checking against the list
-            logger.error(f"Target Pinecone index '{index_name}' does not exist in {existing_index_names}! Please create it first.")
+
+        # Check if the target index exists in the retrieved list
+        if index_name not in existing_index_names:
+            logger.error(f"Target Pinecone index '{index_name}' does not exist in the list: {existing_index_names}! Please create it first.")
             return False # Fail if index doesn't exist
 
         logger.info(f"Connecting to Pinecone index '{index_name}'...")
         index: Index = pc_client.Index(index_name)
-        # Verify connection by getting stats
+
+        # Verify connection by getting stats (Optional but good practice)
         try:
              stats = index.describe_index_stats()
              logger.info(f"Connected successfully. Index stats before upsert: {stats}")
         except Exception as desc_err:
-             logger.error(f"Failed to get stats for index '{index_name}'. Connection issue? Error: {desc_err}")
-             return False # Fail if cannot connect/describe
+             # Log warning but don't necessarily fail if stats check fails, proceed to upsert cautiously
+             logger.warning(f"Could not get stats for index '{index_name}'. Proceeding with upsert attempt... Error: {desc_err}")
 
         # --- Prepare vectors for upsert ---
         vectors_to_upsert = []
@@ -257,22 +273,32 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
             embedding = chunk.get("embedding")
             metadata = chunk.get("metadata")
 
+            # Check types robustly
             if isinstance(vector_id, str) and \
                isinstance(embedding, list) and len(embedding) == EMBEDDING_DIMENSION and \
                isinstance(metadata, dict):
+
                 # Clean metadata: Keep only types Pinecone supports (str, bool, numbers, list of str)
                 cleaned_metadata = {}
                 for k, v in metadata.items():
                     if isinstance(v, (str, bool, int, float)):
-                        cleaned_metadata[k] = v
+                        # Ensure strings are not excessively long if Pinecone has limits
+                        if isinstance(v, str) and len(v.encode('utf-8')) > 40000: # Example limit, check Pinecone docs
+                             logger.warning(f"Truncating long metadata string key '{k}' for vector '{vector_id}'")
+                             cleaned_metadata[k] = v[:10000] + "... (truncated)" # Truncate long strings
+                        else:
+                             cleaned_metadata[k] = v
                     elif isinstance(v, list) and all(isinstance(item, str) for item in v):
+                         # Check list length and individual string lengths if needed
                          cleaned_metadata[k] = v # List of strings is okay
                     else:
-                         logger.debug(f"Skipping metadata key '{k}' for vector '{vector_id}' due to unsupported type: {type(v)}")
-                         cleaned_metadata[k] = str(v) # Convert other types to string as fallback
+                         # Convert other types to string as fallback, log warning
+                         logger.warning(f"Converting unsupported metadata type ({type(v)}) to string for key '{k}' in vector '{vector_id}'")
+                         cleaned_metadata[k] = str(v)
 
                 vectors_to_upsert.append(
-                    (vector_id, embedding, cleaned_metadata) # Pinecone tuple format (id, values, metadata)
+                    # Using Pinecone tuple format: (id, values, metadata)
+                    (vector_id, embedding, cleaned_metadata)
                 )
             else:
                 logger.warning(f"Skipping invalid chunk during vector preparation (missing id, embedding, metadata, or wrong format): ID={vector_id}")
@@ -281,7 +307,8 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         if skipped_chunks > 0: logger.warning(f"Skipped {skipped_chunks} invalid chunks during vector preparation.")
 
         if not vectors_to_upsert:
-            logger.error("No valid vectors prepared for upserting after validation.")
+            logger.warning("No valid vectors prepared for upserting after validation.")
+            # Changed from error to warning, still return True as no operation failed
             return True # Return True as no storage operation needed/failed
 
         # --- Upsert in Batches ---
@@ -294,20 +321,28 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 
         for i in tqdm(range(0, total_vectors, batch_size), desc="Upserting to Pinecone"):
             batch = vectors_to_upsert[i:i + batch_size]
+            if not batch: # Should not happen if vectors_to_upsert is not empty, but safety check
+                logger.warning(f"Skipping empty batch at index {i}")
+                continue
             try:
                 upsert_response = index.upsert(vectors=batch)
                 logger.debug(f"Upserted batch {i//batch_size + 1}/{num_batches}. Response: {upsert_response}")
-                if upsert_response and hasattr(upsert_response, 'upserted_count') and upsert_response.upserted_count:
+                # Check response for success indicators if available
+                if upsert_response and hasattr(upsert_response, 'upserted_count') and upsert_response.upserted_count is not None:
                      total_upserted_count += upsert_response.upserted_count
+                     if upsert_response.upserted_count != len(batch):
+                          logger.warning(f"Batch {i//batch_size + 1} upsert count ({upsert_response.upserted_count}) differs from batch size ({len(batch)}).")
                 else:
-                     logger.warning(f"Pinecone upsert response for batch {i//batch_size + 1} did not report expected upserted count.")
+                     # If upserted_count is missing or None, we can't confirm success precisely
+                     logger.warning(f"Pinecone upsert response for batch {i//batch_size + 1} did not report expected upserted count. Assuming batch size ({len(batch)}) were attempted.")
+                     total_upserted_count += len(batch) # Assume attempted count
+
             except Exception as upsert_err:
-                # Log the error but continue to next batch (maybe some batches succeed)
                 logger.error(f"Error upserting batch starting at index {i}: {upsert_err}", exc_info=True)
                 storage_had_errors = True
-                # Consider adding failed batch IDs to a list for retry later if needed
+                # Optional: Add logic here to collect failed IDs from 'batch' for retry
 
-        logger.info(f"Finished upserting vectors. Total reported upserted count by Pinecone: {total_upserted_count} (Target: {total_vectors})")
+        logger.info(f"Finished upsert loop. Total reported/attempted upsert count by Pinecone: {total_upserted_count} (Target: {total_vectors})")
         # Log final index stats
         try:
             final_stats = index.describe_index_stats()
@@ -319,6 +354,7 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
         return not storage_had_errors
 
     except Exception as e:
+        # Catch errors during index check or connection
         logger.error(f"A critical error occurred during the Pinecone storage process (e.g., connection, index check): {e}", exc_info=True)
         return False # Indicate overall storage failure
 
@@ -326,7 +362,6 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 # **Step 5: Query Pinecone**
 def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
     """Queries the Pinecone index with the given text query."""
-    # --- (Keep this function exactly as it was in the previous version) ---
     if not model:
         logger.error("Cannot query: Embedding model is not available.")
         return None
@@ -351,8 +386,9 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
 
     try:
         logger.debug(f"Connecting to index '{index_name}' for query...")
-        index: Index = pc_client.Index(index_name)
+        index: Index = pc_client.Index(index_name) # Get index object
         logger.debug(f"Querying index with top_k=3...")
+
         # Query the index
         result = index.query(
             vector=query_embedding,
@@ -368,12 +404,13 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
             for i, match in enumerate(matches):
                 metadata = match.get('metadata', {})
                 # Use get() with defaults for safer access
-                text_chunk = metadata.get('text', 'N/A')
+                text_chunk = metadata.get('text', 'N/A') # Get stored text chunk
                 title = metadata.get('title', 'N/A')
                 original_source = metadata.get('original_source', 'N/A')
                 score = match.get('score', 'N/A')
                 chunk_id = match.get('id', 'N/A')
 
+                # Log retrieved information
                 logger.info(f"Match {i+1}:")
                 logger.info(f"  Score: {score:.4f}")
                 logger.info(f"  ID: {chunk_id}")
@@ -382,22 +419,22 @@ def query_pinecone(query: str, model, pc_client: Pinecone, index_name: str):
                 logger.info(f"  Text Chunk: {text_chunk[:200]}...") # Display preview
                 logger.info("---")
         return result # Return the full result object
+
     except Exception as e:
         logger.error(f"Error querying Pinecone index '{index_name}': {e}", exc_info=True)
         return None
 
 
 # **Step 6: Main Execution Function for Airflow**
-def run_chunk_embed_store_pipeline():
+def run_chunk_embed_store_pipeline(**kwargs): # Add **kwargs to accept Airflow context
     """
     Main function orchestrating loading from GCS, chunking, embedding,
     and storage in Pinecone. Called by the Airflow DAG task.
     Raises exceptions on critical failure.
     """
-    # --- (Keep this function exactly as it was in the previous version) ---
+    logger = logging.getLogger("airflow.task") # Use Airflow's task logger
     logger.info("--- Starting Chunk, Embed, Store Pipeline (GCS -> Pinecone) ---")
     start_time = time.time()
-    overall_success = True # Assume success initially
 
     # --- Initialize Pinecone Client ---
     if not PINECONE_API_KEY:
@@ -416,15 +453,13 @@ def run_chunk_embed_store_pipeline():
     logger.info("--- Phase 1: Loading and Chunking Data from GCS ---")
     load_chunk_start = time.time()
     all_chunks_to_process = []
-    any_data_loaded = False
 
     for source_type, input_blob_name in INPUT_FILES_TO_PROCESS.items():
         gcs_input_path = f"gs://{PROCESSED_BUCKET}/{input_blob_name}"
         logger.info(f"Processing source: {source_type} | File: {gcs_input_path}")
-        data = read_json_from_gcs(PROCESSED_BUCKET, input_blob_name)
+        data = read_json_from_gcs(PROCESSED_BUCKET, input_blob_name) # Use helper
         if data is not None and isinstance(data, list) and data:
-            any_data_loaded = True
-            chunked_data = split_text(data, source_type=source_type)
+            chunked_data = split_text(data, source_type=source_type) # Use helper
             if chunked_data:
                 all_chunks_to_process.extend(chunked_data)
                 logger.info(f"Successfully added {len(chunked_data)} chunks from source '{source_type}'.")
@@ -444,6 +479,7 @@ def run_chunk_embed_store_pipeline():
     # --- Phase 2: Generate Embeddings ---
     logger.info("--- Phase 2: Generating Embeddings ---")
     embedding_start = time.time()
+    # generate_embeddings_batched returns (chunks_with_embeddings, embedding_model)
     chunks_with_embeddings, embedding_model = generate_embeddings_batched(all_chunks_to_process)
     embedding_end = time.time()
     logger.info(f"--- Phase 2 Finished ({embedding_end - embedding_start:.2f} seconds) ---")
@@ -455,7 +491,7 @@ def run_chunk_embed_store_pipeline():
     # --- Phase 3: Store Embeddings in Pinecone ---
     logger.info("--- Phase 3: Storing in Pinecone ---")
     storage_start = time.time()
-    # Pass the initialized client 'pc' here
+    # Pass the initialized client 'pc' and the correct INDEX_NAME
     storage_success = store_in_pinecone(chunks_with_embeddings, pc, INDEX_NAME)
     storage_end = time.time()
     logger.info(f"--- Phase 3 Finished ({storage_end - storage_start:.2f} seconds) ---")
@@ -469,11 +505,12 @@ def run_chunk_embed_store_pipeline():
         try:
             logger.info("--- Running example Pinecone query ---")
             query_start = time.time()
-            # Pass the initialized client 'pc' here
+            # Pass the initialized client 'pc' and the correct INDEX_NAME
             query_pinecone("How to improve pull-ups?", embedding_model, pc, INDEX_NAME)
             query_end = time.time()
             logger.info(f"--- Example Query Finished ({query_end - query_start:.2f} seconds) ---")
         except Exception as query_e:
+             # Log error but don't fail the whole task just because query failed
              logger.error(f"Example query failed: {query_e}", exc_info=True)
     else:
          logger.warning("Skipping example query because embedding model was not loaded successfully.")
@@ -481,13 +518,15 @@ def run_chunk_embed_store_pipeline():
     # --- Final Status ---
     end_time = time.time()
     logger.info(f"--- Chunk, Embed, Store Pipeline finished successfully in {end_time - start_time:.2f} seconds ---")
-    # No return needed, Airflow assumes success if no exception is raised
+    # If function reaches here without raising an exception, Airflow marks it as success
 
 
 # --- Main Guard ---
+# This part is only for direct script execution, not used by Airflow DAG
 if __name__ == "__main__":
     logger.info("Running vector_db.py script directly for testing...")
     try:
+        # Add **kwargs={} if the function requires it when called directly
         run_chunk_embed_store_pipeline()
         logger.info("Direct script execution finished successfully.")
     except Exception as e:
