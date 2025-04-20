@@ -227,15 +227,16 @@ def store_in_pinecone(chunks_with_embeddings, pc_client: Pinecone, index_name: s
 
     try:
         # --- Check/Connect to Index ---
-        # --- MODIFIED LINE START ---
-        existing_index_names = pc_client.list_indexes().names # Get the list of names
-        # --- MODIFIED LINE END ---
-        logger.info(f"Existing Pinecone index names: {existing_index_names}")
-        if index_name not in existing_index_names: # Check against the list of names
-            logger.error(f"Target Pinecone index '{index_name}' does not exist! Please create it first via the Pinecone console or API.")
-            # Optional: Add creation logic here if desired
-            # ... (rest of creation logic) ...
-            return False # Fail if index doesn't exist and isn't created
+        logger.info(f"Listing existing Pinecone indexes...")
+        # --- CORRECTED LINES START ---
+        index_list_obj = pc_client.list_indexes() # Get the IndexList object first
+        existing_index_names = index_list_obj.names # Access the 'names' attribute which IS the list
+        # --- CORRECTED LINES END ---
+
+        logger.info(f"Existing Pinecone index names found: {existing_index_names}") # Log the actual list now
+        if index_name not in existing_index_names: # Now checking against the list
+            logger.error(f"Target Pinecone index '{index_name}' does not exist in {existing_index_names}! Please create it first.")
+            return False # Fail if index doesn't exist
 
         logger.info(f"Connecting to Pinecone index '{index_name}'...")
         index: Index = pc_client.Index(index_name)
@@ -454,6 +455,7 @@ def run_chunk_embed_store_pipeline():
     # --- Phase 3: Store Embeddings in Pinecone ---
     logger.info("--- Phase 3: Storing in Pinecone ---")
     storage_start = time.time()
+    # Pass the initialized client 'pc' here
     storage_success = store_in_pinecone(chunks_with_embeddings, pc, INDEX_NAME)
     storage_end = time.time()
     logger.info(f"--- Phase 3 Finished ({storage_end - storage_start:.2f} seconds) ---")
@@ -467,6 +469,7 @@ def run_chunk_embed_store_pipeline():
         try:
             logger.info("--- Running example Pinecone query ---")
             query_start = time.time()
+            # Pass the initialized client 'pc' here
             query_pinecone("How to improve pull-ups?", embedding_model, pc, INDEX_NAME)
             query_end = time.time()
             logger.info(f"--- Example Query Finished ({query_end - query_start:.2f} seconds) ---")
