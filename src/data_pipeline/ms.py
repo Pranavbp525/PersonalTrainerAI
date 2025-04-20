@@ -12,9 +12,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# # Set up logging
-# logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-# logger = logging.getLogger(__name__)
 
 #  Configure logging for each file, writing to the same file
 logging.basicConfig(
