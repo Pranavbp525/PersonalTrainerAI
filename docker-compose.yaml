@@ -69,7 +69,7 @@ x-airflow-common:
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone langchain langchain-openai langchain_community langchain_huggingface openai python-dotenv mlflow ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib google-cloud-storage dvc[gs]}    # --- ADD Variables Needed by Tasks ---
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone langchain langchain-openai langchain_community langchain_huggingface openai python-dotenv mlflow ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib google-cloud-storage dvc[gs] requests==2.31.0}    # --- ADD Variables Needed by Tasks ---
     OPENAI_API_KEY: ${OPENAI_API_KEY}
     LANGSMITH_API_KEY: ${LANGSMITH_API_KEY} # Use correct name from .env
     LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
@@ -94,7 +94,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/.env # Mount .env to standard location
   # --- END MODIFIED VOLUMES SECTION ---
 
-  #user: "${AIRFLOW_UID:-50000}:0"
+  user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
     redis:
