@@ -19,9 +19,8 @@
 # Uses CeleryExecutor, Redis, PostgreSQL
 # Deploys Airflow components and a dedicated MLflow Tracking Server
 ---
-version: '3.8' # Added compose file version
+version: '3.8'
 
-# Common configuration reusable across Airflow services
 x-airflow-common:
   &airflow-common
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2-python3.9}
@@ -59,14 +58,12 @@ x-airflow-common:
   networks:
     - airflow_net
 
-  # --- CORRECTED depends_on format within the anchor ---
   depends_on:
     &airflow-common-depends-on
     redis:
       condition: service_healthy
     postgres:
       condition: service_healthy
-  # --- END CORRECTION ---
 
 services:
   postgres:
@@ -80,7 +77,11 @@ services:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 10s; retries: 5; start_period: 5s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 10s
+      retries: 5
+      start_period: 5s
+      # --- END CORRECTION ---
     restart: always
     networks:
       - airflow_net
@@ -92,7 +93,12 @@ services:
       - 6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s; timeout: 30s; retries: 50; start_period: 30s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+      # --- END CORRECTION ---
     restart: always
     networks:
       - airflow_net
@@ -118,7 +124,7 @@ services:
     restart: always
     networks:
       - airflow_net
-    depends_on: # Uses block style directly
+    depends_on:
       postgres:
         condition: service_healthy
 
@@ -130,9 +136,14 @@ services:
       - "8080:8080"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s; timeout: 10s; retries: 5; start_period: 30s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      # --- END CORRECTION ---
     restart: always
-    depends_on: # Uses anchor AND adds specific dependencies in block style
+    depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
@@ -145,9 +156,14 @@ services:
     command: scheduler
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8973/health"]
-      interval: 30s; timeout: 10s; retries: 5; start_period: 60s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      # --- END CORRECTION ---
     restart: always
-    depends_on: # Uses anchor AND adds specific dependencies in block style
+    depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
@@ -160,13 +176,18 @@ services:
     command: celery worker
     healthcheck:
       test: ["CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
-      interval: 30s; timeout: 10s; retries: 5; start_period: 60s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      # --- END CORRECTION ---
     environment:
       <<: *airflow-common-env
       DUMB_INIT_SETSID: "0"
       _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets"
     restart: always
-    depends_on: # Uses anchor AND adds specific dependencies in block style
+    depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
@@ -179,9 +200,14 @@ services:
     command: triggerer
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
-      interval: 30s; timeout: 10s; retries: 5; start_period: 30s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      # --- END CORRECTION ---
     restart: always
-    depends_on: # Uses anchor AND adds specific dependencies in block style
+    depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
@@ -231,7 +257,7 @@ services:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources:rw
     networks:
       - airflow_net
-    depends_on: # Uses block style directly
+    depends_on:
       postgres:
         condition: service_healthy
       redis:
@@ -246,6 +272,8 @@ services:
       CONNECTION_CHECK_MAX_COUNT: "0"
     command: ["bash"]
     tty: true
+    networks: # Add network to cli
+      - airflow_net
 
   flower:
     <<: *airflow-common
@@ -256,9 +284,14 @@ services:
       - "5555:5555"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-      interval: 30s; timeout: 10s; retries: 5; start_period: 30s
+      # --- CORRECTED Healthcheck Syntax ---
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      # --- END CORRECTION ---
     restart: always
-    depends_on: # Uses anchor AND adds specific dependencies in block style
+    depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
@@ -267,8 +300,8 @@ services:
 
 # --- Define the network ---
 networks:
-  airflow_net: # Define the network name
-    driver: bridge # Use standard bridge driver
+  airflow_net:
+    driver: bridge
 
 volumes:
-  postgres-db-volume: # Define the named volume for Postgres data persistence
+  postgres-db-volume:
