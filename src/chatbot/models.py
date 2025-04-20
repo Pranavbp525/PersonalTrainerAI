@@ -16,7 +16,6 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
-    thumbs_up = Column(Boolean, nullable=True, default=None)
     sessions = relationship('Session', back_populates='user')
 
 class Session(Base):
@@ -36,6 +35,7 @@ class Message(Base):
     role = Column(String(20))  # 'user' or 'assistant'
     content = Column(Text)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    thumbs_up = Column(Boolean, nullable=True, default=None)
     session = relationship('Session', back_populates='messages')
 
 
@@ -49,8 +49,6 @@ class ExerciseTemplate(Base):
     secondary_muscle_groups = Column(ARRAY(String(50)))
     is_custom = Column(Boolean, default=False)
 
-
-# --- Pydantic Models (Optional, but recommended for validation) ---
 
 class MessageCreate(BaseModel):
     session_id: str

@@ -33,9 +33,11 @@ from agent.prompts import (
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from langgraph.errors import GraphRecursionError
 
+# Password encryption
 from passlib.context import CryptContext
 from uuid import uuid4
 
+from fastapi import status
 
 load_dotenv()
 
@@ -166,6 +168,9 @@ class MessageResponse(BaseModel):
         # orm_mode = True # OLD
         from_attributes = True # NEW (Pydantic v2)
 
+class FeedbackRequest(BaseModel):
+    message_id: int
+    thumbs_up: bool
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -198,19 +203,6 @@ class SessionResponse(BaseModel):
 
 class LogoutRequest(BaseModel):
     session_id: str
-
-class FeedbackRequest(BaseModel):
-    session_id: str
-    thumbs_up: bool
-
-
-def hash_password(plain: str) -> str:
-    return pwd_ctx.hash(plain)
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_ctx.verify(plain, hashed)
-
-
 
 async def generate_response(session_id: str, latest_human_message_content: str, db: Session, request: Request) -> str: # Add request
     """
@@ -326,7 +318,74 @@ async def generate_response(session_id: str, latest_human_message_content: str, 
         agent_log.critical(f"Critical error in generate_response", exc_info=True, extra={"total_duration_seconds": round(duration, 2), "error_type": type(e).__name__})
         raise HTTPException(status_code=500, detail=f"Internal server error: {type(e).__name__}")
 
+# password helpers
+def hash_password(plain: str) -> str:
+    return pwd_ctx.hash(plain)
 
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_ctx.verify(plain, hashed)
+
+# Session routes
+@app.get("/sessions/{user_id}")
+def get_all_sessions(user_id: int, db: Session = Depends(get_db)):
+    return db.query(DBSession).filter(DBSession.user_id == user_id).order_by(DBSession.created_at.desc()).all()
+
+@app.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(session_id: str, db: Session = Depends(get_db)):
+    """
+    Deletes a session and its associated messages and chat history.
+    """
+    session = db.query(DBSession).get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.delete(session)  # Messages are deleted via cascade
+    db.commit()
+
+    delete_chat_history(session_id)  # Delete Redis history
+
+    log.info(f"Deleted session {session_id} and its messages.")
+
+
+@app.post("/sessions/", response_model=SessionResponse)
+async def create_session(session: SessionCreate, request: Request, db: Session = Depends(get_db)):
+    """Creates a new session for a user."""
+    # --- Create a logger with request context ---
+    request_log = log.add_context(
+        request_path=request.url.path,
+        request_method=request.method,
+        user_id_provided=session.user_id # Add context specific to this endpoint
+    )
+    # ---
+    try:
+        # request_body = await request.json() # Already read if using log.debug below
+        # request_log.debug(f"Received request body: {request_body}")
+        pass # Avoid logging raw body unless necessary and safe
+    except Exception:
+        request_log.warning("Could not read request body for logging.")
+
+    request_log.info(f"Attempting to create session.") # Use request_log
+
+    user = db.query(User).filter(User.id == session.user_id).first()
+    if not user:
+        request_log.warning(f"User not found.") # Use request_log
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_session = DBSession(user_id=session.user_id) # DBSession is your model
+    db.add(new_session)
+    try:
+        db.commit()
+        db.refresh(new_session)
+        # Add the newly created session_id to the context for the final log message
+        request_log.add_context(session_id=new_session.id)
+        request_log.info(f"Session created successfully.") # Use request_log
+        return new_session
+    except Exception as e:
+        db.rollback()
+        request_log.error("Database error creating session.", exc_info=True) # Use request_log
+        raise HTTPException(status_code=500, detail="Database error creating session")
+
+# Message routes
 @app.post("/messages/", response_model=MessageResponse)
 async def create_message(message_data: MessageCreate, request: Request, db: Session = Depends(get_db)):
     """
@@ -432,7 +491,7 @@ async def get_messages(session_id: str, request: Request, db: Session = Depends(
     request_log.info(f"Retrieved {len(messages)} messages from PostgreSQL.") # Use request_log
     return messages
 
-# --- NEW: Endpoint to get user by username ---
+# User routes
 @app.get("/users/username/{username}", response_model=UserResponse)
 async def get_user_by_username(username: str, request: Request, db: Session = Depends(get_db)):
     """Gets a user by their username."""
@@ -450,46 +509,6 @@ async def get_user_by_username(username: str, request: Request, db: Session = De
         request_log.info("User not found.")
         raise HTTPException(status_code=404, detail="User not found")
 
-
-@app.post("/sessions/", response_model=SessionResponse)
-async def create_session(session: SessionCreate, request: Request, db: Session = Depends(get_db)):
-    """Creates a new session for a user."""
-    # --- Create a logger with request context ---
-    request_log = log.add_context(
-        request_path=request.url.path,
-        request_method=request.method,
-        user_id_provided=session.user_id # Add context specific to this endpoint
-    )
-    # ---
-    try:
-        # request_body = await request.json() # Already read if using log.debug below
-        # request_log.debug(f"Received request body: {request_body}")
-        pass # Avoid logging raw body unless necessary and safe
-    except Exception:
-        request_log.warning("Could not read request body for logging.")
-
-    request_log.info(f"Attempting to create session.") # Use request_log
-
-    user = db.query(User).filter(User.id == session.user_id).first()
-    if not user:
-        request_log.warning(f"User not found.") # Use request_log
-        raise HTTPException(status_code=404, detail="User not found")
-
-    new_session = DBSession(user_id=session.user_id) # DBSession is your model
-    db.add(new_session)
-    try:
-        db.commit()
-        db.refresh(new_session)
-        # Add the newly created session_id to the context for the final log message
-        request_log.add_context(session_id=new_session.id)
-        request_log.info(f"Session created successfully.") # Use request_log
-        return new_session
-    except Exception as e:
-        db.rollback()
-        request_log.error("Database error creating session.", exc_info=True) # Use request_log
-        raise HTTPException(status_code=500, detail="Database error creating session")
-    
-# --- NEW: Endpoint to get the latest session for a user ---
 @app.get("/users/{user_id}/sessions/latest", response_model=SessionResponse)
 async def get_latest_session(user_id: int, request: Request, db: Session = Depends(get_db)):
     """Gets the most recent session for a given user ID."""
@@ -510,7 +529,7 @@ async def get_latest_session(user_id: int, request: Request, db: Session = Depen
         request_log.info("No sessions found for this user.")
         raise HTTPException(status_code=404, detail="No sessions found for this user")
 
-
+# sign up route
 @app.post("/signup/", response_model=UserResponse, status_code=201)
 async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.username == user_data.username).first()
@@ -523,6 +542,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
+# log in route
 @app.post("/login/", response_model=SessionResponse)
 async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == user_data.username).first()
@@ -535,37 +555,31 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     db.refresh(db_session)
     return db_session
 
+# feedback route
 @app.post("/feedback/", status_code=204)
 def give_feedback(req: FeedbackRequest, db: Session = Depends(get_db)):
-    # fetch the session and its user
-    sess = db.query(DBSession).get(req.session_id)
-    if not sess:
-        raise HTTPException(404, "Session not found")
-    user = sess.user
-    # only allow once
-    if user.thumbs_up is not None:
-        raise HTTPException(400, "Feedback already given")
-    user.thumbs_up = req.thumbs_up
+    message = db.query(Message).get(req.message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if message.role != "assistant":
+        raise HTTPException(status_code=400, detail="Feedback only allowed on assistant messages")
+    if message.thumbs_up is not None:
+        raise HTTPException(status_code=400, detail="Feedback already given")
+    
+    message.thumbs_up = req.thumbs_up
     db.commit()
-    return
 
+# log out route
 @app.post("/logout/", status_code=204)
 def logout(req: LogoutRequest, db: Session = Depends(get_db)):
     sess = db.query(DBSession).get(req.session_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
-    if sess.user.thumbs_up is None:
-        raise HTTPException(status_code=400, detail="Feedback required before logout")
-
     sess.logged_out_at = datetime.utcnow()
     db.commit()
-
     delete_chat_history(req.session_id)
-
     return
 
-
-# --- Example Usage / Initialization ---
 if __name__ == "__main__":
     # This part usually runs only when executing the file directly, not via uvicorn
     # It's often used for setup tasks like DB migrations (though Alembic is better)
@@ -579,7 +593,7 @@ if __name__ == "__main__":
         print("If running app in Docker, ensure LOGSTASH_HOST is the service name (e.g., 'logstash').")
         print("If running app locally, ensure Logstash port is exposed from Docker (e.g., docker-compose port 5000:5000).")
         print("\nRun 'docker-compose -f docker-compose.elk.yaml up -d' to start ELK.")
-        print("Run 'uvicorn main:app --host 0.0.0.0 --port 8000 --reload' to start the API.") # Example command
+        print("Run 'uvicorn main:app --host 0.0.0.0 --port 8000 --reload' to start the API.") 
 
         # Send a test log
         log.info("Test log message from __main__ block.", extra={"test_source": "__main__"})

@@ -147,7 +147,7 @@ def get_agent_logger(agent_name: str, session_id: Optional[str] = None) -> Conte
     Convenience for per‐agent loggers, with session_id context.
     """
     name = f"{APP_NAME}.agent.{agent_name}"
-    ctx = setup_elk_logging(name, console_level_str="WARN", logstash_level_str="ERROR")
+    ctx = setup_elk_logging(name, console_level_str="ERROR", logstash_level_str="CRITICAL")
     context = {"agent": agent_name}
     if session_id:
         context["session_id"] = session_id
