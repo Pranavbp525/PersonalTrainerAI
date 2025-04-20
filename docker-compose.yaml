@@ -184,7 +184,7 @@ services:
       DUMB_INIT_SETSID: "0"
       # --- OVERRIDE: Add worker-specific heavy requirements ---
       # Includes base requirements PLUS heavy ML/Eval libraries
-      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone-client python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets" # Append worker-specific libraries here
+      _PIP_ADDITIONAL_REQUIREMENTS: "${_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-postgres apache-airflow-providers-redis apache-airflow-providers-celery psycopg2-binary redis celery>=5.2.0 beautifulsoup4 PyPDF2 pinecone python-dotenv mlflow google-cloud-storage dvc[gs] requests==2.31.0 gunicorn} langchain langchain-openai langchain_community langchain_huggingface openai ragas deepseek langsmith scikit-learn numpy pandas tqdm matplotlib sentence-transformers torch transformers datasets" # Append worker-specific libraries here
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
