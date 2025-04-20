@@ -1,6 +1,6 @@
 import pytest
 import sys
-sys.path.append('./src')
+sys.path.append('../src')
 from src.data_pipeline.pdfs import extract_text_from_pdf, clean_text
 from unittest.mock import patch, mock_open, MagicMock
 
