@@ -4,7 +4,7 @@ name: Test, Build, and Deploy Backend & Frontend
 on:
   push:
     branches:
-      - cloudrun-ci-cd # Deployment branch
+      - dev # Deployment branch
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
