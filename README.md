@@ -540,6 +540,9 @@ This makes the system stateless, self-cleaning, and fully automated.
 
 This setup ensures a **serverless, cost-effective, and continuously deployed** data pipeline with minimal manual intervention.
 
+![flow](https://github.com/user-attachments/assets/c81475cd-3e22-4df1-a355-ed352e9e08fd)
+
+
 ### End
 
 ## RAG Implementation
