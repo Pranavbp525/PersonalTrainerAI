@@ -5,6 +5,9 @@ import json
 import requests
 import streamlit as st
 
+if not isinstance(st.session_state.get("feedback_given"), dict):
+    st.session_state.feedback_given = {}
+
 # ─── Configuration ──────────────────────────────────────────────────────────────
 
 BASE_URL = os.environ.get('BACKEND_API')
@@ -155,9 +158,6 @@ if not st.session_state.session_id:
 else:
     st.markdown(f"👤 **{st.session_state.username}**  |  Session `{st.session_state.session_id[:8]}…`")
 
-    if "feedback_given" not in st.session_state:
-        st.session_state.feedback_given = {}  # message_id -> True
-
     for role, msg, msg_id in st.session_state.chat_history:
         with st.chat_message(role):
             st.markdown(msg)
@@ -240,6 +240,6 @@ else:
     if st.button("Logout"):
         if api_logout(st.session_state.session_id):
             for k in ("username", "password", "user_id", "session_id", "chat_history", "feedback_given"):
-                st.session_state[k] = None
+                del st.session_state[k]
             st.success("Logged out.")
             st.rerun()
