@@ -1,25 +1,33 @@
 name: Evaluate Model Quality
 
-permissions:
-  id-token: write
-  contents: read
-
-# runs daily at 07:00 UTC, and you can also trigger manually
+# Allow manual trigger + daily at 07:00 UTC
 on:
   schedule:
-    - cron: '0 7 * * *'
+    - cron:  '0 7 * * *'
   workflow_dispatch:
 
+permissions:
+  id-token: write     # for Workload Identity Federation
+  contents:  read
+
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCS_BUCKET:  ${{ secrets.GCS_BUCKET }}
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  GCS_BUCKET:   ${{ secrets.GCS_BUCKET }}
   GAR_LOCATION: ${{ secrets.CLOUD_RUN_REGION }}
-  REGION: ${{ secrets.CLOUD_RUN_REGION }}
+  REGION:       ${{ secrets.CLOUD_RUN_REGION }}
 
 jobs:
   evaluate-and-upload:
     name: Run evaluation & upload metrics
     runs-on: ubuntu-latest
+
+    # make all of these available to your Python script as os.environ[…]
+    env:
+      LANGSMITH_API_KEY:   ${{ secrets.LANGSMITH_API_KEY }}
+      LANGSMITH_TRACING:   ${{ secrets.LANGSMITH_TRACING }}
+      LANGSMITH_PROJECT:   ${{ secrets.LANGSMITH_PROJECT }}
+      DEEPSEEK_API_KEY:    ${{ secrets.DEEPSEEK_API_KEY }}
+      OPENAI_API_KEY:      ${{ secrets.OPENAI_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -35,20 +43,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # Write secrets to .env file
-      - name: Write secrets to .env for evaluation
-        run: |
-          echo "LANGSMITH_API=${{ secrets.LANGSMITH_API_KEY }}" >> .env
-          echo "LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING }}" >> .env
-          echo "LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}" >> .env
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
-
-      # Authenticate to GCP (via Workload Identity)
+      # Authenticate to GCP so gsutil links up to the right bucket
       - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -58,8 +58,13 @@ jobs:
       - name: Run evaluation script
         id: eval
         run: |
-          # run your eval.py and capture its JSON output
           python src/chatbot/agent_eval/eval.py > eval_output.json
+
+      - name: Debug GCS access
+        run: |
+          gcloud auth list
+          gcloud config list project
+          gsutil ls "gs://${{ env.GCS_BUCKET }}/model_metrics/" || echo "👀 bucket listing failed"
 
       - name: Upload metrics to GCS
         run: |
@@ -69,4 +74,3 @@ jobs:
       - name: Verify upload
         run: |
           gsutil ls "gs://${{ env.GCS_BUCKET }}/model_metrics/"
-
