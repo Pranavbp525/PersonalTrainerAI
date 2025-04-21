@@ -1,0 +1,150 @@
+name: Test, Build, and Deploy Backend & Frontend
+
+# Trigger on push to the branch that initiates deployment
+on:
+  push:
+    branches:
+      - cloudrun-ci-cd # Deployment branch
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GAR_LOCATION: ${{ secrets.CLOUD_RUN_REGION }}
+  GAR_REPOSITORY: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
+  REGION: ${{ secrets.CLOUD_RUN_REGION }}
+
+jobs:
+  # --- CI Job: Run Tests ---
+  test:
+    name: Run Python Tests # Optional: Add a descriptive name
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.12] # Use the desired Python version
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Consider using caching for dependencies if installs are slow
+          pip install -r requirements.txt # Assuming requirements are at the root
+
+      - name: Write secrets to .env for testing
+        # Note: This uses GitHub secrets directly. Ensure tests expect this.
+        # This is DIFFERENT from how secrets are injected during deployment.
+        run: |
+          echo "pinecone_api_key=${{ secrets.pinecone_api_key }}" >> .env
+          echo "PINECONE_ENVIRONMENT=${{ secrets.PINECONE_ENVIRONMENT }}" >> .env
+          echo "PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" >> .env
+          echo "OPENAI_API_KEY=${{ secrets.GIT_OPENAI_API_KEY }}" >> .env
+          # The following line seems redundant as pinecone_api_key is already added above. Remove if needed.
+          # echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
+
+      - name: Run tests
+        run: |
+          PYTHONPATH=. python -m pytest tests/  # Adjust path/command if needed
+
+  # --- CD Job: Backend ---
+  build-and-deploy-backend:
+    name: Build and Deploy Backend
+    runs-on: ubuntu-latest
+    needs: test # <<< IMPORTANT: This job runs only if 'test' succeeds
+    permissions:
+      contents: 'read'
+      id-token: 'write' # Required for Workload Identity Federation
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Google Auth
+      id: 'auth-backend'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Artifact Registry
+      run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+    - name: Build and Push Backend Image
+      id: build-push-backend
+      run: |-
+        docker buildx build --platform linux/amd64 \
+          -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/backend:${{ github.sha }} \
+          -f Dockerfile . \
+          --push
+
+    - name: Deploy Backend to Cloud Run
+      id: deploy-backend
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: ${{ secrets.CLOUD_RUN_BACKEND_SERVICE_NAME }}
+        region: ${{ env.REGION }}
+        image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/backend:${{ github.sha }}
+        # --- UNCOMMENT AND CONFIGURE SECRETS FOR DEPLOYMENT ---
+        # secrets: |
+        #   GROQ_API=sm://${{ secrets.GROQ_API_SECRET_NAME }} # Example from previous discussion
+        #   # Add other env vars mapped to Secret Manager secrets (sm:// prefix)
+        #   POSTGRES_PASSWORD=sm://${{ secrets.POSTGRES_PASSWORD_SECRET_NAME }}
+        #   # etc...
+
+  # --- CD Job: Frontend ---
+  build-and-deploy-frontend:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    # Option 1: Run in parallel with backend (if independent)
+    needs: test # <<< IMPORTANT: This job runs only if 'test' succeeds
+
+    # Option 2: Run *after* backend deployment (if frontend depends on backend)
+    # needs: build-and-deploy-backend # <<< Uncomment this and comment the line above if needed
+
+    permissions:
+      contents: 'read'
+      id-token: 'write' # Required for Workload Identity Federation
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Google Auth
+      id: 'auth-frontend'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Artifact Registry
+      run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+    - name: Build and Push Frontend Image
+      id: build-push-frontend
+      run: |-
+        docker buildx build --platform linux/amd64 \
+          -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/frontend:${{ github.sha }} \
+          -f Dockerfile.frontend . \
+          --push
+
+    - name: Deploy Frontend to Cloud Run
+      id: deploy-frontend
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: ${{ secrets.CLOUD_RUN_FRONTEND_SERVICE_NAME }}
+        region: ${{ env.REGION }}
+        image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/frontend:${{ github.sha }}
+        # --- Add frontend secrets if needed, likely mapping to Secret Manager ---
+        # secrets: |
+        #   BACKEND_API_URL=sm://${{ secrets.BACKEND_API_URL_SECRET_NAME }} # Example

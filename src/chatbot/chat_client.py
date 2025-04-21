@@ -6,8 +6,8 @@ import os
 import time # Import time for potential delays/retries if needed
 
 # Use environment variable or fallback for BASE_URL
-# BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
-BASE_URL = "https://backend1-44804603965.us-east1.run.app"
+BASE_URL = os.environ.get("BACKEND_API")
+# BASE_URL = "https://backend1-44804603965.us-east1.run.app"
 
 # --- API Call Functions ---
 
