@@ -1,48 +1,52 @@
 # Chatbot Application Setup and Usage Guide
 
-## Prerequisites
-1. Install PostgreSQL and Redis locally
-2. Create a `.env` file with required configurations (refer to `config.py` for required fields)
+### 1. **Frontend (Streamlit)**
 
-## Setup Instructions
-1. Initialize Alembic:
-   ```bash
-   alembic init alembic
-   ```
-2. Perform database migration:
-   ```bash
-   alembic revision --autogenerate -m "initial migration"
-   alembic upgrade head
-   ```
+- **File:** `chat_client.py`
+- Users enter a username and chat with the fitness assistant.
+- Sessions are stored and resumed based on username.
+- Chat history is retrieved from the backend via REST.
 
-## Verification
-1. Check if databases are created in your system:
-   - Verify PostgreSQL database exists
-   - Verify Redis is accessible
+### 2. **Backend (FastAPI + LangGraph)**
 
-## Running the Application
-1. Start Redis server:
-   ```bash
-   redis-server
-   ```
-2. Start the FastAPI server:
-   ```bash
-   uvicorn main:app --reload
-   ```
-3. Start the chat client:
-   ```bash
-   python chat_client.py
-   ```
+- **File:** `main.py`
+- REST endpoints for:
+  - Creating users
+  - Creating and fetching chat sessions
+  - Posting and retrieving messages
+- Uses:
+  - **PostgreSQL** (via SQLAlchemy): permanent session/message storage
+  - **Redis**: fast chat history caching
+  - **LangGraph**: structured agent logic with memory and checkpointer
+  - **OpenAI GPT**: generates AI responses
 
-## Usage
-1. When prompted, enter a unique username
-2. A new user will be created in the database with a session
-3. Interact with the chatbot:
-   - General queries: Direct answers
-   - Workout queries: Retrieves from RAG and creates workout routines
-4. All chat history is permanently stored in PostgreSQL
+### 3. **Agent System**
 
-## Notes
-- Ensure Redis and PostgreSQL services are running before starting the application
-- Check logs for any connection issues
-- Session management and chat history are handled automatically
+- **Folder:** `agent/`
+- Prompts and graph logic to drive the AI’s memory, summarization, and recommendation behavior.
+
+### 4. **Data & Logging**
+
+- **ELK Stack Integration** via `elk_logging.py`
+- Fitness exercises (e.g. from Hevy) are stored in `hevy_exercises.json`
+- Additional logs and experiments tracked in `experiments.ipynb`
+
+---
+
+## 🐳 Deployment
+
+This module is containerized and deployed via **Cloud Run** using a `Dockerfile`. GitHub Actions triggers automated CI/CD workflows.
+
+To run locally:
+
+```bash
+cd src/chatbot
+
+# Install requirements
+pip install -r requirements.txt
+
+# Start backend (with uvicorn)
+uvicorn main:app --reload --port 8000
+
+# Start frontend
+streamlit run chat_client.py
