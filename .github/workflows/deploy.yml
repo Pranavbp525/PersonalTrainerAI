@@ -4,7 +4,7 @@ name: Test, Build, and Deploy Backend & Frontend
 on:
   push:
     branches:
-      - cloudrun-ci-cd # Deployment branch
+      - production # Deployment branch
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -45,7 +45,7 @@ jobs:
           echo "PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" >> .env
           echo "OPENAI_API_KEY=${{ secrets.GIT_OPENAI_API_KEY }}" >> .env
           # The following line seems redundant as pinecone_api_key is already added above. Remove if needed.
-          # echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
+          echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
 
       - name: Run tests
         run: |
