@@ -1,4 +1,4 @@
-# llm_run_evaluation_create_feedback.py
+# eval.py
 
 import os
 import json
@@ -19,7 +19,7 @@ os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
 os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
 LANGSMITH_PROJECT_NAME = os.environ.get("LANGSMITH_PROJECT")
 
-JUDGE_LLM_MODEL = "deepseek-chat" # Or "gpt-4o", etc.
+JUDGE_LLM_MODEL = "gpt-4o" # Or "gpt-4o", etc.
 
 
 FETCH_RUNS_LIMIT = 100 # Start small to test again, increase later
@@ -38,9 +38,7 @@ try:
     logger.info("LangSmith client initialized.")
 
     # Initialize the correct client for your JUDGE_LLM_MODEL
-    
-    oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"))
-    
+    oai_client = wrappers.wrap_openai(OpenAI(api_key=os.environ.get("OPENAI_API_KEY")))
 
 except Exception as e:
     logger.error(f"Error initializing clients: {e}", exc_info=True)
