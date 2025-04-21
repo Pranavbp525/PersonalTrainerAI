@@ -13,77 +13,6 @@ env:
 
 jobs:
   # --- Backend Job ---
-  build-and-deploy-backend:
-    name: Build and Deploy Backend
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: 'read'
-      id-token: 'write' # Required for Workload Identity Federation
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Google Auth
-      id: 'auth-backend'
-      uses: 'google-github-actions/auth@v2'
-      with:
-        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Login to Artifact Registry
-      # Use gcloud to configure docker auth using the WIF credentials.
-      run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
-
-    - name: Build and Push Backend Image
-      id: build-push-backend
-      run: |-
-        docker buildx build --platform linux/amd64 \
-          -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/backend:${{ github.sha }} \
-          -f Dockerfile . \
-          --push
-      # Note: Ensure 'Dockerfile' is the correct filename for your backend
-
-    - name: Deploy Backend to Cloud Run
-      id: deploy-backend
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: ${{ secrets.CLOUD_RUN_BACKEND_SERVICE_NAME }}
-        region: ${{ env.REGION }}
-        # Deploy the specific backend image tagged with the commit SHA
-        image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/backend:${{ github.sha }}
-        # --- Environment variables from Secret Manager ---
-        # Map environment variables inside Cloud Run (left side)
-        # to the GCP Secret Manager secrets (right side, using GitHub secrets holding the secret name:version)
-        # secrets: |
-        #   CLOUD_SQL_CONNECTION_NAME=${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
-        #   GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}
-        #   HEVY_API_KEY=${{ secrets.GCP_HEVY_API_KEY }}
-        #   LANGSMITH_API=${{ secrets.LANGSMITH_API }}
-        #   LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}
-        #   LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING }}
-        #   OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-        #   PINECONE_API_KEY=${{ secrets.GCP_PINECONE_API_KEY }}
-        #   POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-        #   POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}
-        #   POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-        #   POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
-        #   POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-        #   REDIS_DB=${{ secrets.REDIS_DB }}
-        #   REDIS_HOST=${{ secrets.REDIS_HOST }}
-        #   REDIS_PORT=${{ secrets.REDIS_PORT }}
-        #   SQL_ALCHEMY_URL=${{ secrets.SQL_ALCHEMY_URL }}
-          
-
-      # Note: Cloud SQL connections and other variables set via UI *not* listed in 'secrets' above
-      # will be preserved by default.
-
-
-
   # --- Frontend Job ---
   build-and-deploy-frontend:
     name: Build and Deploy Frontend
@@ -133,3 +62,76 @@ jobs:
         # secrets: |
         #   BACKEND_API=${{ secrets.BACKEND_API }}
 
+
+  # build-and-deploy-backend:
+  #   name: Build and Deploy Backend
+  #   runs-on: ubuntu-latest
+
+  #   permissions:
+  #     contents: 'read'
+  #     id-token: 'write' # Required for Workload Identity Federation
+
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+
+  #   - name: Google Auth
+  #     id: 'auth-backend'
+  #     uses: 'google-github-actions/auth@v2'
+  #     with:
+  #       workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  #       service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  #   - name: Set up Docker Buildx
+  #     uses: docker/setup-buildx-action@v3
+
+  #   - name: Login to Artifact Registry
+  #     # Use gcloud to configure docker auth using the WIF credentials.
+  #     run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+  #   - name: Build and Push Backend Image
+  #     id: build-push-backend
+  #     run: |-
+  #       docker buildx build --platform linux/amd64 \
+  #         -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/backend:${{ github.sha }} \
+  #         -f Dockerfile . \
+  #         --push
+  #     # Note: Ensure 'Dockerfile' is the correct filename for your backend
+
+  #   - name: Deploy Backend to Cloud Run
+  #     id: deploy-backend
+  #     uses: google-github-actions/deploy-cloudrun@v2
+  #     with:
+  #       service: ${{ secrets.CLOUD_RUN_BACKEND_SERVICE_NAME }}
+  #       region: ${{ env.REGION }}
+  #       # Deploy the specific backend image tagged with the commit SHA
+  #       image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/backend:${{ github.sha }}
+  #       # --- Environment variables from Secret Manager ---
+  #       # Map environment variables inside Cloud Run (left side)
+  #       # to the GCP Secret Manager secrets (right side, using GitHub secrets holding the secret name:version)
+  #       # secrets: |
+  #       #   CLOUD_SQL_CONNECTION_NAME=${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
+  #       #   GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}
+  #       #   HEVY_API_KEY=${{ secrets.GCP_HEVY_API_KEY }}
+  #       #   LANGSMITH_API=${{ secrets.LANGSMITH_API }}
+  #       #   LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}
+  #       #   LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING }}
+  #       #   OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+  #       #   PINECONE_API_KEY=${{ secrets.GCP_PINECONE_API_KEY }}
+  #       #   POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+  #       #   POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}
+  #       #   POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+  #       #   POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
+  #       #   POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+  #       #   REDIS_DB=${{ secrets.REDIS_DB }}
+  #       #   REDIS_HOST=${{ secrets.REDIS_HOST }}
+  #       #   REDIS_PORT=${{ secrets.REDIS_PORT }}
+  #       #   SQL_ALCHEMY_URL=${{ secrets.SQL_ALCHEMY_URL }}
+          
+
+  #     # Note: Cloud SQL connections and other variables set via UI *not* listed in 'secrets' above
+  #     # will be preserved by default.
+
+
+
+  
