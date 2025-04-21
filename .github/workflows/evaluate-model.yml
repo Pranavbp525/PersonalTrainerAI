@@ -69,4 +69,3 @@ jobs:
       - name: Verify upload
         run: |
           gsutil ls "gs://${{ env.GCS_BUCKET }}/model_metrics/"
-
