@@ -40,12 +40,12 @@ jobs:
         # Note: This uses GitHub secrets directly. Ensure tests expect this.
         # This is DIFFERENT from how secrets are injected during deployment.
         run: |
-          echo "pinecone_api_key=${{ secrets.GIT_pinecone_api_key }}" >> .env
+          echo "pinecone_api_key=${{ secrets.pinecone_api_key }}" >> .env
           echo "PINECONE_ENVIRONMENT=${{ secrets.PINECONE_ENVIRONMENT }}" >> .env
           echo "PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" >> .env
           echo "OPENAI_API_KEY=${{ secrets.GIT_OPENAI_API_KEY }}" >> .env
           # The following line seems redundant as pinecone_api_key is already added above. Remove if needed.
-          echo "PINECONE_API_KEY=${{ secrets.GIT_PINECONE_API_KEY }}" >> .env
+          echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
 
       - name: Run tests
         run: |
