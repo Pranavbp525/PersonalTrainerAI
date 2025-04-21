@@ -1,5 +1,8 @@
 name: Evaluate Model Quality
 
+permissions:
+  id-token: write
+  contents: read
 # runs daily at 07:00 UTC, and you can also trigger manually
 on:
   schedule:
