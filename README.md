@@ -475,6 +475,9 @@ The pipeline executes on a **GCP Virtual Machine** only when required.
   - Automatically shut down the VM upon completion.
 - This ensures compute costs are minimized.
 
+  ![image](https://github.com/user-attachments/assets/eb137c34-adae-4804-acf3-1063febe763c)
+
+
 ---
 
 ### 3. Workflow Automation — Cloud Workflows
@@ -484,6 +487,7 @@ A **GCP Workflow** is created to handle the lifecycle of the VM:
 - Starts the VM programmatically.
 - Can be triggered by an HTTP call or a Cloud Scheduler job.
 - Provides a serverless way to orchestrate infrastructure actions.
+![image](https://github.com/user-attachments/assets/d47ccb13-8e31-4b94-935c-3e6462c3e049)
 
 ---
 
@@ -493,6 +497,9 @@ To automate regular runs, a **Cloud Scheduler** job is set to trigger the workfl
 
 - **Schedule:** Every **Monday at 9:00 AM**.
 - Ensures the pipeline runs consistently without manual intervention.
+
+  ![image](https://github.com/user-attachments/assets/c6a8eed5-431c-48e8-84a8-003800753a38)
+
 
 ---
 
