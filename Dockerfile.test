@@ -1,0 +1,3 @@
+# Dockerfile.test - Ultra-minimal test image
+FROM debian:bullseye-slim
+CMD ["echo", "Minimal Debian test: Hello from Cloud Run!"]

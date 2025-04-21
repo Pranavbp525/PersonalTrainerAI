@@ -49,28 +49,33 @@ load_dotenv()
 # --- Initialization with Logging ---
 try:
     utils_log.info("Initializing Pinecone in utils...")
-    pinecone_api_key = os.environ.get("PINECONE_API_KEY")
+    pinecone_api_key = os.environ.get("PINECONE_API_KEY", "not_found")
+    utils_log.info(f"IN UTILS Pinecode api : {pinecone_api_key}")
     if not pinecone_api_key:
-        utils_log.error("PINECONE_API_KEY environment variable not set!")
-        raise ValueError("PINECONE_API_KEY not found.")
+        utils_log.error("IN UTILS PINECONE_API_KEY environment variable not set!")
+        raise ValueError("IN UTILS PINECONE_API_KEY not found.")
     pc = Pinecone(api_key=pinecone_api_key)
     index_name = "fitness-chatbot"
 
     if index_name not in pc.list_indexes().names():
-        utils_log.info(f"Pinecone index '{index_name}' not found, creating...")
+        utils_log.info(f"In utils Pinecone index '{index_name}' not found, creating...")
         pc.create_index(
-            name=index_name, dimension=768, metric="cosine",
+            name=index_name,
+            dimension=768,
+            metric="cosine",
             spec=ServerlessSpec(cloud="aws", region="us-east-1")
         )
-        utils_log.info(f"Pinecone index '{index_name}' created successfully.")
+        utils_log.info(f"In utils Pinecone index '{index_name}' created successfully.")
     else:
-        utils_log.info(f"Found existing Pinecone index '{index_name}'.")
+        utils_log.info(f"In utils Found existing Pinecone index '{index_name}'.")
 
     index = pc.Index(index_name)
     utils_log.info("Pinecone initialized successfully in utils.")
 except Exception as e:
     utils_log.error("Failed to initialize Pinecone in utils", exc_info=True)
-    index = None
+    # Depending on severity, you might raise the exception or try to continue without Pinecone
+    index = None # Ensure index is None if initialization failed
+
 
 try:
     utils_log.info("Initializing HuggingFace embeddings model in utils...")
