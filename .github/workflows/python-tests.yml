@@ -32,6 +32,11 @@ jobs:
       - name: Write secrets to .env
         run: |
           echo "pinecone_api_key=${{ secrets.pinecone_api_key }}" >> .env
+          echo "PINECONE_ENVIRONMENT=${{ secrets.PINECONE_ENVIRONMENT }}" >> .env
+          echo "PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" >> .env
+          echo "OPENAI_API_KEY=${{ secrets.GIT_OPENAI_API_KEY }}" >> .env
+          echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
+
 
       - name: Run tests
         run: |
