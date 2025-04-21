@@ -173,7 +173,7 @@ Our project includes developing a comprehensive Machine Learning Operations (MLO
 ├── image.png
 ├── kibana-dashboard-setup.md
 └── requirements.frontend.txt
-
+```
 
 ## Setup and Usage
 
@@ -797,7 +797,7 @@ uvicorn main:app --reload --port 8000
 streamlit run chat_client.py
 
 
-
+```
 
 
 
