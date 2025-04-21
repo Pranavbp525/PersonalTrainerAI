@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from psycopg_pool import AsyncConnectionPool
 # Assuming models.py defines Session as DBSession to avoid conflict
 from models import get_db, Message, MessageCreate, MessageResponse, User, Session as DBSession
-from redis_utils import store_chat_history, get_chat_history
+from redis_utils import store_chat_history, get_chat_history, delete_chat_history
 from config import config
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -32,7 +32,11 @@ from agent.prompts import (
 )
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, FunctionMessage
 from langgraph.errors import GraphRecursionError
+# Password encryption frp1-start
+from passlib.context import CryptContext
+from uuid import uuid4
 
+from fastapi import status
 
 load_dotenv()
 
@@ -153,8 +157,19 @@ class MessageResponse(BaseModel):
         # orm_mode = True # OLD
         from_attributes = True # NEW (Pydantic v2)
 
+class FeedbackRequest(BaseModel):
+    message_id: int
+    thumbs_up: bool
+
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 class UserCreate(BaseModel):
     username: str
+    password: str = Field(..., min_length=8)
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
 class UserResponse(BaseModel):
     id: int
@@ -175,6 +190,11 @@ class SessionResponse(BaseModel):
     class Config:
         # orm_mode = True # OLD
         from_attributes = True # NEW (Pydantic v2)
+
+class LogoutRequest(BaseModel):
+    session_id: str
+
+
 
 async def generate_response(session_id: str, latest_human_message_content: str, db: Session, request: Request) -> str: # Add request
     """
@@ -289,6 +309,27 @@ async def generate_response(session_id: str, latest_human_message_content: str, 
         duration = time.time() - start_time
         agent_log.critical(f"Critical error in generate_response", exc_info=True, extra={"total_duration_seconds": round(duration, 2), "error_type": type(e).__name__})
         raise HTTPException(status_code=500, detail=f"Internal server error: {type(e).__name__}")
+
+@app.get("/sessions/{user_id}")
+def get_all_sessions(user_id: int, db: Session = Depends(get_db)):
+    return db.query(DBSession).filter(DBSession.user_id == user_id).order_by(DBSession.created_at.desc()).all()
+
+@app.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(session_id: str, db: Session = Depends(get_db)):
+    """
+    Deletes a session and its associated messages and chat history.
+    """
+    session = db.query(DBSession).get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.delete(session)  # Messages are deleted via cascade
+    db.commit()
+
+    # delete_chat_history(session_id)  # Delete Redis history
+
+    log.info(f"Deleted session {session_id} and its messages.")
+
 
 
 @app.post("/messages/", response_model=MessageResponse)
@@ -510,6 +551,58 @@ async def get_latest_session(user_id: int, request: Request, db: Session = Depen
     else:
         request_log.info("No sessions found for this user.")
         raise HTTPException(status_code=404, detail="No sessions found for this user")
+
+
+@app.post("/signup/", response_model=UserResponse, status_code=201)
+async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.username == user_data.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken.")
+    hashed_pw = pwd_ctx.hash(user_data.password)
+    db_user = User(username=user_data.username, password_hash=hashed_pw)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+# log in route
+@app.post("/login/", response_model=SessionResponse)
+async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == user_data.username).first()
+    if not user or not pwd_ctx.verify(user_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    session_id = str(uuid4())
+    db_session = DBSession(id=session_id, user_id=user.id, created_at=datetime.utcnow())
+    db.add(db_session)
+    db.commit()
+    db.refresh(db_session)
+    return db_session
+
+# feedback route
+@app.post("/feedback/", status_code=204)
+def give_feedback(req: FeedbackRequest, db: Session = Depends(get_db)):
+    message = db.query(Message).get(req.message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if message.role != "assistant":
+        raise HTTPException(status_code=400, detail="Feedback only allowed on assistant messages")
+    if message.thumbs_up is not None:
+        raise HTTPException(status_code=400, detail="Feedback already given")
+    
+    message.thumbs_up = req.thumbs_up
+    db.commit()
+
+# log out route
+@app.post("/logout/", status_code=204)
+def logout(req: LogoutRequest, db: Session = Depends(get_db)):
+    sess = db.query(DBSession).get(req.session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    sess.logged_out_at = datetime.utcnow()
+    db.commit()
+    # delete_chat_history(req.session_id)
+    return
+
 
 
 # --- Example Usage / Initialization ---
