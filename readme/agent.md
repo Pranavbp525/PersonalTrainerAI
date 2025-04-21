@@ -144,8 +144,28 @@ graph TD;
     7.  **`finalize_report`:** Uses an LLM to compile the `accumulated_findings` and `reflections` into a final, coherent report (`final_report` field).
     8.  **`END`:** The subgraph finishes, returning control to the `coordinator` in the main graph, which will find the `final_report` in the state.
 
-*(Placeholder for Deep Research Subgraph Diagram)*
-`[Mermaid diagram for Deep Research Subgraph]`
+```mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	plan_steps(plan_steps)
+	generate_query(generate_query)
+	execute_rag(execute_rag)
+	synthesize(synthesize)
+	reflect(reflect)
+	finalize_report(finalize_report)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> plan_steps;
+	execute_rag --> synthesize;
+	finalize_report --> __end__;
+	generate_query --> execute_rag;
+	plan_steps --> generate_query;
+	synthesize --> reflect;
+	reflect -. &nbsp;generate_rag_query&nbsp; .-> generate_query;
+	reflect -. &nbsp;finalize_research_report&nbsp; .-> finalize_report;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
 
 ### 6.2. Streamlined Routine Creation Subgraph (`planning_agent`)
 
@@ -158,8 +178,21 @@ graph TD;
     3.  **`execute_tool` (`tool_execution_node`):** Takes the `hevy_payloads`. Uses `asyncio.gather` to call the `tool_create_routine` tool concurrently for each payload. Collects results (success or error details from Hevy API) into `hevy_results`.
     4.  **`END`:** The subgraph finishes. The `coordinator` detects the presence of `hevy_results` in the state, summarizes them for the user, and routes to `end_conversation`.
 
-*(Placeholder for Streamlined Routine Subgraph Diagram)*
-`[Mermaid diagram for Streamlined Routine Subgraph]`
+```mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	planner(planner)
+	format_lookup(format_lookup)
+	execute_tool(execute_tool)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> planner;
+	execute_tool --> __end__;
+	format_lookup --> execute_tool;
+	planner --> format_lookup;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
 
 ### 6.3. Progress Analysis & Adaptation Subgraph (V2) (`progress_adaptation_agent`)
 
@@ -184,8 +217,26 @@ graph TD;
     6.  **`compile_report`:** Takes the `processed_results` list and determines an overall status (Success, Partial Success, Failed, No Changes Made). Uses an LLM (`FINAL_CYCLE_REPORT_TEMPLATE_V2`) to generate a single, concise user-facing notification summarizing the outcome of the entire cycle. Stores this in `final_report_and_notification` and sets `cycle_completed_successfully` boolean.
     7.  **`END`:** The subgraph finishes. The `coordinator` detects `final_report_and_notification`, presents it to the user, and routes to `end_conversation`.
 
-*(Placeholder for Progress Analysis & Adaptation Subgraph Diagram)*
-`[Mermaid diagram for Progress Analysis & Adaptation Subgraph V2]`
+```mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	fetch_routines(fetch_routines)
+	fetch_logs(fetch_logs)
+	identify_targets(identify_targets)
+	process_targets(process_targets)
+	compile_report(compile_report)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> fetch_routines;
+	compile_report --> __end__;
+	fetch_logs --> identify_targets;
+	fetch_routines --> fetch_logs;
+	process_targets --> compile_report;
+	identify_targets -.-> process_targets;
+	identify_targets -.-> compile_report;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
 
 ## 7. Tools
 
