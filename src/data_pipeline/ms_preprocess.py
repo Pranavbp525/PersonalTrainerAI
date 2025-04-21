@@ -13,7 +13,7 @@ logging.basicConfig(
     ]
 )
 
-logger = logging.getLogger(__name__)  # Logger for each file
+logger = logging.getLogger(__name__)  
 
 def clean_text(text):
     """Normalize text encoding to remove special characters."""
