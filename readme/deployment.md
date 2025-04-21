@@ -34,21 +34,21 @@ The deployment architecture follows this flow:
 
 ```mermaid
 graph TD
-    A[Developer Push to 'production' Branch] --> B{GitHub Actions CI/CD};
-    B -- Run Tests --> C{Test Passed?};
-    C -- Yes --> D[Build Backend Image (Dockerfile)];
-    C -- Yes --> E[Build Frontend Image (Dockerfile.frontend)];
-    C -- No --> F[Stop Pipeline];
-    D --> G[Push Backend Image to Artifact Registry];
-    E --> H[Push Frontend Image to Artifact Registry];
-    G --> I[Deploy Backend Image to Cloud Run];
-    H --> J[Deploy Frontend Image to Cloud Run];
-    I -- Needs Secrets --> K[(Google Secret Manager)];
-    J -- Needs Secrets --> K;
-    L[User] --> M[Frontend Cloud Run Service];
-    M -- API Calls --> N[Backend Cloud Run Service];
-    N -- Needs Secrets --> K;
-    N -- External API Calls --> O(... OpenAI API, etc.);
+    A[Developer Push to 'production' Branch] --> B{GitHub Actions CI/CD}
+    B -- Run Tests --> C{Test Passed?}
+    C -- Yes --> D[Build Backend Image]
+    C -- Yes --> E[Build Frontend Image]
+    C -- No --> F[Stop Pipeline]
+    D --> G[Push Backend Image to Artifact Registry]
+    E --> H[Push Frontend Image to Artifact Registry]
+    G --> I[Deploy Backend Image to Cloud Run]
+    H --> J[Deploy Frontend Image to Cloud Run]
+    I -- Needs Secrets --> K[(Google Secret Manager)]
+    J -- Needs Secrets --> K
+    L[User] --> M[Frontend Cloud Run Service]
+    M -- API Calls --> N[Backend Cloud Run Service]
+    N -- Needs Secrets --> K
+    N -- External API Calls --> O[OpenAI API, etc.]
 ```
 
 ### 3.3. Environment Configuration
