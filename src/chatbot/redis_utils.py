@@ -89,3 +89,25 @@ def get_chat_history(session_id: str) -> list:
     # This part is less likely if get_redis_client() is robust, but keep for safety
     log.warning(f"Redis client not available. Could not retrieve history for session: {session_id}")
     return []
+
+
+# --- NEW FUNCTION ---
+def delete_chat_history(session_id: str) -> None:
+    """Deletes the chat history list from Redis for a given session ID."""
+    client = get_redis_client()
+    try:
+        # --- Use the SAME key format as store/get_chat_history ---
+        key = f"session:{session_id}:history"
+        # client.delete returns the number of keys deleted (0 or 1 here)
+        deleted_count = client.delete(key)
+        if deleted_count > 0:
+            log.info(f"Deleted chat history from Redis for session: {session_id} (key: {key})")
+        else:
+            # This isn't an error; the key might have already expired or never existed.
+            log.info(f"Attempted to delete chat history for session {session_id}, but key did not exist (key: {key})")
+    except redis.exceptions.RedisError as e:
+        log.error(f"Redis error deleting chat history for session {session_id}: {e}")
+        # Depending on criticality, you might want to raise an exception here
+    except Exception as e:
+        log.error(f"Unexpected error deleting chat history for session {session_id}: {e}")
+        # Depending on criticality, you might want to raise an exception here
