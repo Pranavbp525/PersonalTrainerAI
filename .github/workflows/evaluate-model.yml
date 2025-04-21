@@ -64,4 +64,5 @@ jobs:
       - name: Upload metrics to GCS
         run: |
           TS=$(date -u +"%Y%m%dT%H%M%SZ")
-          gsutil cp eval_output.json "${{ env.GCS_BUCKET }}/model_metrics/eval_${TS}.json"
+          gsutil cp eval_output.json "gs://${{ env.GCS_BUCKET }}/model_metrics/eval_${TS}.json"
+
