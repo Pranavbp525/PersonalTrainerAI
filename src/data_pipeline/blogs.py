@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)  # Logger for each file
 
 # Define URLs for blogs
 BLOG_URLS = [
-    "https://www.muscleandstrength.com/articles/beginners-guide-to-zone-2-cardio",
-    "https://www.muscleandstrength.com/articles/best-hiit-routines-gym-equipment",
     "https://jeffnippard.com/blogs/news",
     "https://rpstrength.com/blogs/articles",
     "https://rpstrength.com/collections/guides",
