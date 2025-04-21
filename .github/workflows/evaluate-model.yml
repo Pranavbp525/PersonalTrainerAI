@@ -42,6 +42,7 @@ jobs:
           echo "LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING }}" >> .env
           echo "LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}" >> .env
           echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+          echo "DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
 
       # Authenticate to GCP (via Workload Identity)
       - name: Google Auth
