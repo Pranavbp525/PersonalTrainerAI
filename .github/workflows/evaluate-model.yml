@@ -1,0 +1,68 @@
+name: Evaluate Model Quality
+
+permissions:
+  id-token: write
+  contents: read
+
+# runs daily at 07:00 UTC, and you can also trigger manually
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCS_BUCKET:  ${{ secrets.GCS_BUCKET }}
+  GAR_LOCATION: ${{ secrets.CLOUD_RUN_REGION }}
+  REGION: ${{ secrets.CLOUD_RUN_REGION }}
+
+jobs:
+  evaluate-and-upload:
+    name: Run evaluation & upload metrics
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # Write secrets to .env file
+      - name: Write secrets to .env for evaluation
+        run: |
+          echo "LANGSMITH_API=${{ secrets.LANGSMITH_API_KEY }}" >> .env
+          echo "LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING }}" >> .env
+          echo "LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}" >> .env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+
+      # Authenticate to GCP (via Workload Identity)
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Run evaluation script
+        id: eval
+        run: |
+          # run your eval.py and capture its JSON output
+          python src/chatbot/agent_eval/eval.py > eval_output.json
+
+      - name: Upload metrics to GCS
+        run: |
+          TS=$(date -u +"%Y%m%dT%H%M%SZ")
+          gsutil cp eval_output.json "gs://${{ env.GCS_BUCKET }}/model_metrics/eval_${TS}.json"
+
