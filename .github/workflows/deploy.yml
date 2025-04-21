@@ -45,7 +45,7 @@ jobs:
           echo "PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" >> .env
           echo "OPENAI_API_KEY=${{ secrets.GIT_OPENAI_API_KEY }}" >> .env
           # The following line seems redundant as pinecone_api_key is already added above. Remove if needed.
-          # echo "PINECONE_API_KEY=${{ secrets.GIT_PINECONE_API_KEY }}" >> .env
+          echo "PINECONE_API_KEY=${{ secrets.GIT_PINECONE_API_KEY }}" >> .env
 
       - name: Run tests
         run: |
