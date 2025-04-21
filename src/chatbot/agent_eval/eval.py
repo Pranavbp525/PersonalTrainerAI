@@ -276,3 +276,9 @@ def evaluate_agent(feedback_key=FEEDBACK_KEY, langsmith_project_name=LANGSMITH_P
     logger.info(f"Check LangSmith project '{langsmith_project_name}' for individual run feedback ({feedback_key}).")
 
     return average_accuracy
+
+if __name__ == "__main__":
+    # Run evaluation and output results as JSON to stdout
+    results = evaluate_agent()
+    # Print JSON to stdout for GitHub Actions to capture
+    print(json.dumps(results, indent=2))
