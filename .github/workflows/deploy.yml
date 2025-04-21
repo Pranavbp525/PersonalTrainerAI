@@ -4,7 +4,7 @@ name: Test, Build, and Deploy Backend & Frontend
 on:
   push:
     branches:
-      - dev # Deployment branch
+      - production # Deployment branch
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
