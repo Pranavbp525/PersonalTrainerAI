@@ -3,6 +3,7 @@ name: Evaluate Model Quality
 permissions:
   id-token: write
   contents: read
+
 # runs daily at 07:00 UTC, and you can also trigger manually
 on:
   schedule:
@@ -11,7 +12,12 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+  GCS_BUCKET:  ${{ secrets.GCS_BUCKET }}
+  LANGSMITH_API:     ${{ secrets.LANGSMITH_API_KEY }}
+  LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+  LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+  GAR_LOCATION: ${{ secrets.CLOUD_RUN_REGION }}
+  REGION: ${{ secrets.CLOUD_RUN_REGION }}
 
 jobs:
   evaluate-and-upload:
