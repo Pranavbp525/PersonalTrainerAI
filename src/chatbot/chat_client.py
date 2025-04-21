@@ -7,7 +7,7 @@ import streamlit as st
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("BACKEND_API")
+BASE_URL = os.environ.get('BACKEND_API')
 
 # ─── API Helpers ────────────────────────────────────────────────────────────────
 
