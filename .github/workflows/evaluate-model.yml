@@ -13,9 +13,6 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCS_BUCKET:  ${{ secrets.GCS_BUCKET }}
-  LANGSMITH_API:     ${{ secrets.LANGSMITH_API_KEY }}
-  LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
-  LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
   GAR_LOCATION: ${{ secrets.CLOUD_RUN_REGION }}
   REGION: ${{ secrets.CLOUD_RUN_REGION }}
 
@@ -37,6 +34,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+          # Write secrets to .env file
+      - name: Write secrets to .env for evaluation
+        run: |
+          echo "LANGSMITH_API=${{ secrets.LANGSMITH_API_KEY }}" >> .env
+          echo "LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING }}" >> .env
+          echo "LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}" >> .env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
 
       # Authenticate to GCP (via Workload Identity)
       - name: Google Auth
