@@ -1,0 +1,55 @@
+name: Evaluate Model Daily
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Runs daily at 3 AM UTC
+  workflow_dispatch:     # Also allows manual trigger
+
+env:
+  GCS_BUCKET_NAME: ragllm-454718-eval-results
+  GCS_RESULTS_DIR: evaluation_results
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+jobs:
+  evaluate-model:
+    name: Evaluate and Upload Score
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'  # Required for Workload Identity Federation
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.10
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: Install Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Run LLM Evaluation and Save Score
+      run: |
+        mkdir -p eval_results
+        SCORE=$(python src/chatbot/agent_eval/eval.py || echo "null")
+        echo "{\"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"score\": $SCORE}" > eval_results/score_$(date -u +%Y%m%d).json
+
+    - name: Upload Results to GCS
+      run: |
+        gsutil cp eval_results/*.json gs://${{ env.GCS_BUCKET_NAME }}/${{ env.GCS_RESULTS_DIR }}/
