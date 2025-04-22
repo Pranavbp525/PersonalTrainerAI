@@ -106,7 +106,7 @@ def api_logout(session_id: str):
 
 # ─── Streamlit App ──────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="Fitness Chatbot", layout="centered")
+st.set_page_config(page_title="AI-thelete", layout="centered")
 st.markdown("""
 <div style="display: flex; align-items: center; gap: 10px;">
   <h1 style="margin: 0;">AI-thlete.</h1>
@@ -222,7 +222,7 @@ else:
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        with st.spinner("Fit Bot is thinking..."):
+        with st.spinner("AI-thelete is thinking..."):
             # Send message to backend
             reply = api_send_message(st.session_state.session_id, user_input)
 
