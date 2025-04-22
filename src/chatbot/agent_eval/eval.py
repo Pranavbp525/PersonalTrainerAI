@@ -279,6 +279,8 @@ def evaluate_agent(feedback_key=FEEDBACK_KEY, langsmith_project_name=LANGSMITH_P
 
 if __name__ == "__main__":
     # Run evaluation and output results as JSON to stdout
-    results = evaluate_agent()
+    avg = evaluate_agent()
     # Print JSON to stdout for GitHub Actions to capture
-    print(json.dumps(results, indent=2))
+    out = {"accuracy": avg if avg is not None else 0.0}
+    print(json.dumps(out))
+
