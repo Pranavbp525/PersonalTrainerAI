@@ -21,6 +21,9 @@ This document outlines the cloud deployment strategy on Google Cloud Platform (G
     *   **Backend:** A FastAPI application (`src/chatbot/main.py`) serving the core agent logic and API endpoints. Containerized using `Dockerfile`.
     *   **Frontend:** A Streamlit application (`src/chatbot/chat_client.py`) providing the user interface. Containerized using `Dockerfile.frontend`.
 
+### Images inside the artifact registry
+![cloudrun images](https://github.com/user-attachments/assets/7b41412d-ac33-4f7a-934f-6f26e2536108)
+
 ### 3.2. Architecture Overview
 
 The deployment architecture follows this flow:
@@ -88,6 +91,11 @@ graph TD
         *   Logs into Google Artifact Registry.
         *   Builds the frontend Docker image using `Dockerfile.frontend` and pushes it to Artifact Registry tagged with the commit SHA.
         *   Deploys the pushed image to the frontend Cloud Run service (`${{ secrets.CLOUD_RUN_FRONTEND_SERVICE_NAME }}`), potentially configuring secrets like the backend API URL via Google Secret Manager.
+
+### CI/CD 
+![frontend deploy](https://github.com/user-attachments/assets/dfeeae8b-af1a-46ba-9ba8-04d6ac00ef3c)
+![backend deploy ](https://github.com/user-attachments/assets/f32c3af6-3319-47d9-b988-a8cbcde03be4)
+
 
 ### 3.5. Detailed Steps for Replication
 
@@ -178,13 +186,22 @@ Since this project uses external APIs and application logic rather than a locall
 *   **Monitoring Approach:**
     *   **Application Performance:** Google Cloud Run metrics (request latency, error rates, instance count, CPU/Memory utilization) are monitored via Google Cloud Monitoring. Google Cloud Logging captures `stdout`/`stderr` from both frontend and backend containers for debugging and tracking application-level events or errors. LangSmith integration with the Agent logs all the necessary metrics for cost, latency, traces, runs etc, and periodically store all the runs in a datase.
     *   **API Usage/Cost:** Monitoring usage and costs of external APIs (OpenAI, Pinecone, Groq, etc.) is done primarily through the LangSmith platform. 
-    *   **Agent Behavior:** Qualitative monitoring involves reviewing conversation logs (if stored securely and ethically) or user feedback to assess the agent's helpfulness and accuracy, and more importantly monitoring the agent traces in LangSmith.
+    *   **Agent Behavior:** Qualitative monitoring involves reviewing conversation logs and user feedback to assess the agent's helpfulness and accuracy, and more importantly monitoring the agent traces in LangSmith. The script `eval.py` in `chatbot/eval_agent` calculates the model's average accuracy tracing the last 100 LLM runs. The `evaluate-model.yml` automates the evaluation as a bi-weekly task and uploads the resultant evaluation in a GCP bucket for cloud monitoring.
 *   **"Data Shift" Equivalent:** Significant changes in user query patterns or external API behavior could degrade performance. This is monitored indirectly via application error rates, latency spikes, or negative user feedback. Also we have a model evaluation pipeline that runs periodically. It evaluated RAG and the AGENT using LLM as a Judge Evaluator, and pushed the evaluation results to the respective LangSmith runs.
 *   **"Retraining" Equivalent (Agent Update):** There is no automated retraining pipeline in the traditional ML sense. Instead:
     *   Improvements to the agent (e.g., better prompts, updated logic, switching API models) are implemented as code changes in the backend.
     *   These changes are tested via the CI portion (`test` job) of the `deploy.yml` workflow.
     *   Pushing these validated code changes to the `production` branch triggers the existing CD pipeline, automatically deploying the updated agent version to Cloud Run.
 *   **Notifications:** If Agent Evaluation results or RAG Evaluation results in the Model Evaluation pipeline drop below a 75 and 50 respectively, an email is sent to all the members of the team.
+
+### Model ops 
+![model eval ](https://github.com/user-attachments/assets/70d64ca3-8346-4a49-8dbe-70a10da54adb)
+
+### Evaluation bucket
+<img src = "https://github.com/user-attachments/assets/c27de6f0-3dc7-485b-805f-e6e26f974045" width = "800" />
+
+### Email notifications
+<img src="https://github.com/user-attachments/assets/e5ca2ddf-bd23-4fdd-9a3f-125975676ee5" width="600" />
 
 ## 5. Logs and Monitoring Access
 
@@ -199,6 +216,12 @@ Since this project uses external APIs and application logic rather than a locall
     *   Run traces and execution paths
     *   Conversation threads
     *   Error rates and response quality
+
+### Logs
+![cloudrun-backend-logs](https://github.com/user-attachments/assets/5755250d-5840-4318-9c95-1422409acaa3)
+
+### Metrics
+![cloudrun-backend-metrics](https://github.com/user-attachments/assets/a5d911e3-e0eb-4bd5-a8dc-f28aa939922e)
 
 ## 6. Video Demonstration
 
