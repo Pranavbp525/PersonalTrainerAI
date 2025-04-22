@@ -201,7 +201,8 @@ It will analyze `pdf_data.json`, `ms_data.json`, and `blogs.json`.
 
 ## Airflow Implementation
 
-![Airflow Implementation](image.png)
+![image](https://github.com/user-attachments/assets/5b9efcff-4781-4024-bfd5-8373d75e3de0)
+
 
 ## Pipeline Tasks Overview
 
