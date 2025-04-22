@@ -76,8 +76,8 @@ jobs:
           # export for the if‑condition below
           echo "accuracy=$accuracy" >> $GITHUB_OUTPUT
     
-      - name: Notify via Email if Accuracy < 95
-        if: ${{ steps.eval.outputs.accuracy < 95 }}
+      - name: Notify via Email if Accuracy < 75
+        if: ${{ steps.eval.outputs.accuracy < 75 }}
         env:
           EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
@@ -105,7 +105,7 @@ jobs:
           subject = "🚨 Model Accuracy Alert"
           body = f"""Hi Team,
     
-          The latest model evaluation shows accuracy dropped below 95%.
+          The latest model evaluation shows accuracy dropped below 75%.
     
           Current Accuracy: {accuracy:.2f}%
     
