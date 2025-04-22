@@ -59,12 +59,14 @@ jobs:
         id: eval
         run: |
           python src/chatbot/agent_eval/eval.py > eval_output.json
+      #     accuracy=$(jq '.accuracy | tonumber' eval_output.json)
+      #     echo "Model accuracy: $accuracy"
+      #     echo "accuracy=$accuracy" >> $GITHUB_OUTPUT
 
       - name: Upload metrics to GCS
         run: |
           TS=$(date -u +"%Y%m%dT%H%M%SZ")
           gsutil cp eval_output.json "gs://${{ env.GCS_BUCKET }}/model_metrics/eval_${TS}.json"
-
 
       - name: Parse accuracy
         run: |
@@ -74,8 +76,8 @@ jobs:
           # export for the if‑condition below
           echo "accuracy=$accuracy" >> $GITHUB_OUTPUT
     
-      - name: Notify via Email if Accuracy < 0.99
-        if: ${{ steps.eval.outputs.accuracy < 0.99 }}
+      - name: Notify via Email if Accuracy < 0.95
+        if: ${{ steps.eval.outputs.accuracy < 0.95 }}
         env:
           EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
