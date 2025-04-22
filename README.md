@@ -6,21 +6,6 @@ The primary objective of this project is to make personal training accessible an
 
 Our project includes developing a comprehensive Machine Learning Operations (MLOps) pipeline, encompassing data collection, preprocessing, model training, and deployment. The AI trainer will be available as a user-friendly mobile application, allowing users to conveniently access their personalized workout plans and track their progress anytime, anywhere.
 
-## Table of Contents
-
-1. [Directory Structure](#directory-structure)
-2. [Setup and Usage](#setup-and-usage)
-3. [Environment Setup](#environment-setup)
-4. [Running the Pipeline](#running-the-pipeline)
-5. [Test Functions](#test-functions)
-6. [Reproducibility and Data Versioning](#reproducibility-and-data-versioning)
-7. [Data Sources](#data-sources)
-8. [Schema](#schema)
-9. [Bias Detection](#bias-detection)
-10. [Airflow Implementation](#airflow-implementation)
-11. [Pipeline Tasks Overview](#pipeline-tasks-overview)
-
-## Directory Structure
 
 ## 📂 Project Directory Structure
 
