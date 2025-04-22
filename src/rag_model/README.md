@@ -18,8 +18,7 @@ We've implemented five different RAG architectures to compare their performance:
 1. **Naive RAG**: A baseline implementation with direct vector similarity search
 2. **Advanced RAG**: Enhanced with query expansion, sentence-window retrieval, and re-ranking
 3. **Modular RAG**: A flexible system with query classification and specialized retrievers
-4. **Graph RAG**: Uses a knowledge graph structure to represent relationships between fitness concepts
-5. **RAPTOR RAG**: Employs multi-step reasoning with iterative retrieval for complex queries
+4. **RAPTOR RAG**: Employs multi-step reasoning with iterative retrieval for complex queries
 
 ## Architecture Comparison
 
@@ -43,13 +42,6 @@ We've implemented five different RAG architectures to compare their performance:
 - Template-based responses
 - Excellent for diverse query types
 
-### Graph RAG
-- Knowledge graph construction from fitness documents
-- Graph-based retrieval using node relationships
-- Path-aware context augmentation
-- Relationship-enhanced prompting
-- Multi-hop reasoning for complex queries
-- Excels at questions involving relationships between fitness concepts
 
 ### RAPTOR RAG
 - Query planning and decomposition
@@ -142,13 +134,6 @@ For example, to use the Graph RAG implementation:
 python -m src.rag_model.rag_integration --implementation graph
 ```
 
-### Building the Knowledge Graph (for Graph RAG)
-
-To build and save the knowledge graph for Graph RAG:
-
-```bash
-python -m src.rag_model.graph_rag --build-graph --graph-path fitness_knowledge_graph.json
-```
 
 ## Evaluation Framework
 
@@ -196,7 +181,6 @@ When extending or modifying the RAG implementations:
 
 ## Next Steps
 
-- Fine-tune the knowledge graph for Graph RAG with domain expert input
 - Optimize RAPTOR RAG's reasoning process for better performance
 - Implement hybrid approaches combining the strengths of different architectures
 - Develop a feedback loop to continuously improve RAG performance based on user interactions
