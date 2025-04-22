@@ -90,6 +90,7 @@ jobs:
           sender   = os.environ["EMAIL_SENDER"]
           password = os.environ["EMAIL_PASSWORD"]
           receiver = os.environ["EMAIL_RECEIVER"]
+          print(receiver)
     
           # load your eval output
           with open("eval_output.json") as f:

@@ -6,6 +6,15 @@ The primary objective of this project is to make personal training accessible an
 
 Our project includes developing a comprehensive Machine Learning Operations (MLOps) pipeline, encompassing data collection, preprocessing, model training, and deployment. The AI trainer will be available as a user-friendly mobile application, allowing users to conveniently access their personalized workout plans and track their progress anytime, anywhere.
 
+## Documentation
+
+For more details on specific parts of the project, refer to the following documentation:
+
+- [Agent Documentation](./readme/agent.md): Details on the different levels of the fitness trainer agent.
+- [Data Pipeline Setup](./readme/data_pipeline.md): Instructions on setting up and using the data pipeline.
+- [Deployment Guide](./readme/deployment.md): Steps to deploy the system via Docker and CI/CD pipelines.
+- [Model Development](./readme/model_development.md): Information about model design, training, and evaluation.
+
 
 ## 📂 Project Directory Structure
 
