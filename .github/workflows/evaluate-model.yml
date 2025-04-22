@@ -68,51 +68,50 @@ jobs:
           TS=$(date -u +"%Y%m%dT%H%M%SZ")
           gsutil cp eval_output.json "gs://${{ env.GCS_BUCKET }}/model_metrics/eval_${TS}.json"
 
-      - name: Notify via SMTP if accuracy is below 90%
-        if: ${{ steps.eval.outputs.accuracy < 0.9 }}
+      - name: Notify via SMTP if accuracy is below 99%
+        if: ${{ steps.eval.outputs.accuracy < 0.99 }}
         env:
           EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
         run: |
           python - <<EOF
-import os, json
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+            import os, json
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
 
-# Load credentials & eval result
-sender   = os.environ["EMAIL_SENDER"]
-password = os.environ["EMAIL_PASSWORD"]
-receiver = os.environ["EMAIL_RECEIVER"]
+            # Load credentials & evaluation result
+            sender   = os.environ["EMAIL_SENDER"]
+            password = os.environ["EMAIL_PASSWORD"]
+            receiver = os.environ["EMAIL_RECEIVER"]
 
-with open("eval_output.json") as f:
-    data = json.load(f)
-accuracy = data.get("accuracy", 0)
+            with open("eval_output.json") as f:
+                data = json.load(f)
+            accuracy = data.get("accuracy", 0)
 
-# Build email
-subject = "🚨 Model Accuracy Alert"
-body = f"""\
-Hi Team,
+            # Build email
+            subject = "🚨 Model Accuracy Alert"
+            body = f"""Hi Team,
 
-The latest evaluation shows accuracy dropped below 90%.
+            The latest evaluation shows accuracy dropped below 99%.
 
-Current Accuracy: {accuracy:.2%}
+            Current Accuracy: {accuracy:.2%}
 
-Please investigate and retrain or adjust thresholds as needed.
+            Please investigate and retrain or adjust thresholds as needed.
 
-Regards,
-GitHub Actions Bot
-"""
+            Regards,
+            GitHub Actions Bot
+            """
 
-msg = MIMEMultipart()
-msg["From"]    = sender
-msg["To"]      = receiver
-msg["Subject"] = subject
-msg.attach(MIMEText(body, "plain"))
+            msg = MIMEMultipart()
+            msg["From"]    = sender
+            msg["To"]      = receiver
+            msg["Subject"] = subject
+            msg.attach(MIMEText(body, "plain"))
 
-# Send via Gmail SMTP
-with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-    server.login(sender, password)
-    server.send_message(msg)
-EOF
+            # Send via Gmail SMTP
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(sender, password)
+                server.send_message(msg)
+          EOF
