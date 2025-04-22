@@ -19,7 +19,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
     handlers=[
         logging.FileHandler(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../logs/scraper.log"))),  # Logs go into the same file
-        logging.StreamHandler()  # Also print logs to the console
+        logging.StreamHandler()  
     ]
 )
 
