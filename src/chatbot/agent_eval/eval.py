@@ -281,6 +281,5 @@ if __name__ == "__main__":
     # Run evaluation and output results as JSON to stdout
     avg = evaluate_agent()
     # Print JSON to stdout for GitHub Actions to capture
-    out = {"accuracy": avg if avg is not None else 0.0}
+    out = {"accuracy": round(avg, 2) if avg is not None else 0.0}
     print(json.dumps(out))
-
