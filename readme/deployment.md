@@ -204,7 +204,7 @@ Since this project uses external APIs and application logic rather than a locall
 
 A video demonstrating the deployment process from a fresh environment via a push to the `production` branch, including setup steps overview and verification, can be found here:
 
-*   **[Link to Your Deployment Video]**
+*   **[[Link to the Deployment Video](https://northeastern-my.sharepoint.com/:f:/g/personal/tandra_b_northeastern_edu/EtAnZheL_-VLgICY2zx_3loBpB0KcxVdsyd6BmgnsNH6Mw?e=XMKbQC)]**
 
 ## 7. Directory Structure (Example)
 
