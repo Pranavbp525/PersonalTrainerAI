@@ -1,6 +1,6 @@
 name: Test, Build, and Deploy Backend & Frontend
 
-# Trigger on push to the branch that initiates deployment
+# Trigger on push to the branch that initiates deployment ad
 on:
   push:
     branches:
