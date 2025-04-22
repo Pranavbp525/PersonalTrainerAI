@@ -23,7 +23,7 @@ logging.basicConfig(
     ]
 )
 
-logger = logging.getLogger(__name__)  # Logger for each file
+logger = logging.getLogger(__name__)  
 class WorkoutScraper:
     def __init__(self, base_url):
         self.base_url = base_url
@@ -34,7 +34,7 @@ class WorkoutScraper:
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://www.google.com",
         })
-        self.rate_limit_delay = (1, 3)  # Balanced delay (No blocking)
+        self.rate_limit_delay = (1, 3)  
 
     def fetch_html(self, url):
         """Fetch and parse HTML content with error handling."""
