@@ -225,7 +225,7 @@ Since this project uses external APIs and application logic rather than a locall
 
 ## 6. Video Demonstration
 
-A video demonstrating the deployment process from a fresh environment via a push to the `production` branch, including setup steps overview and verification, can be found here:
+A video demonstrating the deployment and implementation process from a fresh environment via a push to the `production` branch, including setup steps overview and verification, can be found here:
 
 *   **[[Link to the Deployment Video](https://northeastern-my.sharepoint.com/:f:/g/personal/tandra_b_northeastern_edu/EtAnZheL_-VLgICY2zx_3loBpB0KcxVdsyd6BmgnsNH6Mw?e=XMKbQC)]**
 
