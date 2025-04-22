@@ -105,7 +105,7 @@ jobs:
           subject = "🚨 Model Accuracy Alert"
           body = f"""Hi Team,
     
-          The latest model evaluation shows accuracy dropped below 99%.
+          The latest model evaluation shows accuracy dropped below 95%.
     
           Current Accuracy: {accuracy:.2f}%
     
