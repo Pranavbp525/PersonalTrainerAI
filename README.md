@@ -1,171 +1,90 @@
-# Personal Trainer AI
 
-The PersonalTrainerAI project aims to revolutionize personal fitness training by leveraging artificial intelligence. This project will develop an AI-powered personal trainer that provides customized workout plans, real-time feedback, and progress tracking to users. By utilizing advanced AI Agent systems, the AI trainer will adapt to individual fitness levels and goals, ensuring a personalized and effective training experience.
+# PersonalTrainerAI
 
-The primary objective of this project is to make personal training accessible and affordable for everyone. With the AI trainer, users can receive professional guidance and support without the need for expensive gym memberships or personal trainers. This solution is designed to promote a healthier lifestyle and help users achieve their fitness goals efficiently.
+## Overview
 
-Our project includes developing a comprehensive Machine Learning Operations (MLOps) pipeline, encompassing data collection, preprocessing, model training, and deployment. The AI trainer will be available as a user-friendly mobile application, allowing users to conveniently access their personalized workout plans and track their progress anytime, anywhere.
+PersonalTrainerAI is an AI-powered personal fitness trainer that provides customized workout plans, real-time feedback, and progress tracking. Using advanced AI Agent systems, it adapts to individual fitness levels and goals, ensuring a personalized training experience.
+
+### Key Features
+
+- **Personalized Workout Planning**: AI-generated routines based on user profile and goals
+- **Progress Tracking & Adaptation**: Analyzes workout logs to track progress and suggest routine adjustments
+- **RAG-Powered Knowledge**: Leverages fitness science through Retrieval Augmented Generation
+- **Multi-Agent Architecture**: Specialized agents for research, planning, analysis, and coaching
+- **Hevy Integration**: Direct creation and modification of routines in the Hevy app
+
+## Quick Start
+
+### Prerequisites
+- Python 3.8+
+- Docker & Docker Compose
+- Google Cloud SDK (for deployment)
+
+### Installation
+```bash
+git clone https://github.com/yourusername/PersonalTrainerAI.git
+cd PersonalTrainerAI
+pip install -r requirements.txt
+```
+
+### Local Development
+
+**1. Database Setup:** 
+- Install PostgreSQL if you don't already have it
+- Create a database called `chatbot_db`
+- Locate the `schema.sql` file in the project root directory
+- Run the schema file using either:
+  ```bash
+  psql -U your_username -d chatbot_db -a -f schema.sql
+  ```
+  Or from within psql:
+  ```sql
+  \i schema.sql
+  ```
+
+**2. Setting up env variables:** Fill in all the values inside .env.local file.
+
+**3. Run Docker Compose:**
+```bash
+# Start the backend and frontend services
+docker-compose -f docker-compose.local.yml up
+```
+
+Visit `http://localhost:8501` to access the frontend.
 
 ## Documentation
 
-For more details on specific parts of the project, refer to the following documentation:
+For more detailed documentation on specific components:
 
-- [Agent Documentation](./readme/agent.md): Details on the different levels of the fitness trainer agent.
-- [Data Pipeline Setup](./readme/data_pipeline.md): Instructions on setting up and using the data pipeline.
-- [Deployment Guide](./readme/deployment.md): Steps to deploy the system via Docker and CI/CD pipelines.
-- [Model Development](./readme/model_development.md): Information about model design, training, and evaluation.
+- [**AI Agent Architecture**](./readme/agent.md): Multi-agent system design and components
+- [**Data Pipeline**](./readme/data_pipeline.md): Data collection, processing, and storage
+- [**RAG Implementation**](./readme/MLflow.md): Retrieval-augmented generation models
+- [**Deployment Guide**](./readme/deployment.md): Cloud deployment and CI/CD pipeline
+- [**Model Development**](./readme/model_development.md): Agent development and evaluation
+- [**Airflow Integration**](./readme/airflow.md): Workflow orchestration
+- [**User Guide**](./readme/user_guide.md): End-user instructions
+- [**Evaluation Framework**](./readme/evaluation.md): Quality assessment and performance metrics
+- [**Maintenance Guide**](./readme/maintenance.md): System upkeep and troubleshooting
+- [**System Architecture**](./readme/architecture.md): High-level technical design overview
 
 
-## 📂 Project Directory Structure
+## Project Structure
 
+The repository is organized as follows:
+
+- `src/chatbot/`: Core chatbot application (FastAPI backend + Streamlit frontend)
+- `src/chatbot/agent/`: AI agent system implementation using LangGraph
+- `src/data_pipeline/`: Data collection and preprocessing scripts
+- `src/rag_model/`: RAG implementations and evaluation
+- `dags/`: Airflow DAG definitions for automation
+- `tests/`: Unit and integration tests
+- `.github/workflows/`: CI/CD pipeline configurations
+
+## Contributing
+
+Please read our [Contributing Guidelines](./CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 ```
-.
-├── .dvc/
-│   ├── .gitignore
-│   └── config
-│
-├── .github/
-│   └── workflows/
-│       ├── data_pipeline_to_gcp.yml
-│       └── python-tests.yml
-│
-├── alembic/
-│   ├── README
-│   ├── env.py
-│   ├── script.py.mako
-│
-├── dags/
-│   └── data_pipeline_airflow.py
-│
-├── data/
-│   ├── preprocessed_json_data/
-│   │   ├── .gitignore
-│   │   ├── blogs.json.dvc
-│   │   ├── ms_data.json.dvc
-│   │   └── pdf_data.json.dvc
-│   └── raw_json_data/
-│       ├── .gitignore
-│       ├── blogs.json.dvc
-│       ├── ms_data.json.dvc
-│       └── pdf_data.json.dvc
-│
-├── experiments/
-│   └── pranav/
-│       └── agent/
-│           ├── assets/
-│           ├── README.md
-│           ├── __init__.py
-│           ├── agent.ipynb
-│           ├── basic_agent.py
-│           ├── cognitive_agent.py
-│           ├── multi_agent.py
-│           ├── new_agent_architecture.py
-│           ├── orchestrator_worker_agent.py
-│           └── stage_based_agent.py
-│
-├── logs/
-│   ├── preprocessing.log
-│   ├── scraper.log
-│   └── vectordb.log
-│
-├── logstash/
-│   ├── config/
-│   │   ├── logstash.yml
-│   │   └── pipelines.yml
-│   └── pipeline/
-│       ├── fitness-chatbot.conf
-│       └── minimal.conf
-│
-├── result/
-│   ├── advanced_evaluation_results.json
-│   ├── fitness_domain_metrics_comparison.png
-│   ├── human_evaluation_metrics_comparison.png
-│   ├── overall_comparison.png
-│   ├── ragas_metrics_comparison.png
-│   ├── response_time_comparison.png
-│   └── retrieval_metrics_comparison.png
-│
-├── results/
-│   ├── evaluation_results.json
-│   ├── metrics_comparison.png
-│   └── response_time_comparison.png
-│
-├── src/
-│   ├── chatbot/
-│   │   └── agent/
-│   │       ├── __init__.py
-│   │       ├── agent_models.py
-│   │       ├── graph.py
-│   │       ├── hevy_api.py
-│   │       ├── hevy_exercises.json
-│   │       ├── llm_tools.py
-│   │       ├── personal_trainer_agent.py
-│   │       ├── prompts.py
-│   │       ├── test_api.py
-│   │       └── utils.py
-│   ├── agent_eval/
-│   │   └── eval.py
-│   ├── alembic/
-│   │   └── versions/
-│   ├── README.md
-│   ├── __init__.py
-│   ├── alembic.ini
-│   ├── chat_client.py
-│   ├── config.py
-│   ├── elk_logging.py
-│   ├── experiments.ipynb
-│   ├── hevy_exercises.json
-│   ├── main.py
-│   ├── models.py
-│   └── redis_utils.py
-│
-├── data_pipeline/
-│   ├── __init__.py
-│   ├── blogs.py
-│   ├── ms.py
-│   ├── ms_preprocess.py
-│   ├── other_preprocesing.py
-│   ├── pdfs.py
-│   └── vector_db.py
-│
-├── other/
-│   ├── __init__.py
-│   └── bias_detection.py
-│
-├── rag_model/
-│   ├── .DS_Store
-│   └── __init__.py
-│
-├── tests/
-│   ├── advanced_rag_evaluation_test.py
-│   ├── advanced_rag_test.py
-│   ├── modular_rag_test.py
-│   ├── raptor_rag_test.py
-│   ├── test_ms.py
-│   ├── test_ms_preprocess.py
-│   ├── test_other_preprocessing.py
-│   ├── test_pdf_scraper.py
-│   └── test_vectdb.py
-│
-├── .dockerignore
-├── .dvcignore
-├── .env.example
-├── .env.local
-├── .gitignore
-├── 2.8.0
-├── Dockerfile
-├── Dockerfile.frontend
-├── Dockerfile.test
-├── ELK-INTEGRATION.md
-├── README.md
-├── Scoping.md
-├── alembic.ini
-├── docker-compose-elk.yml
-├── docker-compose.chatbot.yml
-├── docker-compose.local.yml
-├── docker-compose.yaml
-├── image.png
-├── kibana-dashboard-setup.md
-└── requirements.frontend.txt
-```
-

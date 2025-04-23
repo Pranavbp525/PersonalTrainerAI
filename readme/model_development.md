@@ -11,7 +11,7 @@ Key technologies used in model development include:
 *   **LangGraph:** For defining the agent's state machine and multi-agent workflows.
 *   **Langchain:** For LLM interactions, prompt management, and tool usage.
 *   **Pinecone:** As the vector store backing the RAG system for fitness knowledge.
-*   **PostgreSQL:** For persistent agent state storage via `AsyncPostgresSaver` (LangGraph Checkpointer).
+*   **PostgreSQL:** For persistent agent state storage via `AsyncPostgresSaver` (LangGraph Checkpointer) and also for chat, users and sessions storage.
 *   **Langsmith:** For comprehensive tracing, observability, prompt versioning, and agent evaluation.
 *   **Google Cloud Platform (GCP) Buckets:** For storing evaluation artifacts.
 *   **ELK Stack (Elasticsearch, Logstash, Kibana):** For structured application and agent logging.

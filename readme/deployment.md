@@ -184,7 +184,7 @@ graph TD
 Since this project uses external APIs and application logic rather than a locally trained ML model, "monitoring and retraining" are adapted:
 
 *   **Monitoring Approach:**
-    *   **Application Performance:** Google Cloud Run metrics (request latency, error rates, instance count, CPU/Memory utilization) are monitored via Google Cloud Monitoring. Google Cloud Logging captures `stdout`/`stderr` from both frontend and backend containers for debugging and tracking application-level events or errors. LangSmith integration with the Agent logs all the necessary metrics for cost, latency, traces, runs etc, and periodically store all the runs in a datase.
+    *   **Application Performance:** Google Cloud Run metrics (request latency, error rates, instance count, CPU/Memory utilization) are monitored via Google Cloud Monitoring. Google Cloud Logging captures `stdout`/`stderr` from both frontend and backend containers for debugging and tracking application-level events or errors. LangSmith integration with the Agent logs all the necessary metrics for cost, latency, traces, runs etc, and periodically store all the runs are also stored in the cloud sql.
     *   **API Usage/Cost:** Monitoring usage and costs of external APIs (OpenAI, Pinecone, Groq, etc.) is done primarily through the LangSmith platform. 
     *   **Agent Behavior:** Qualitative monitoring involves reviewing conversation logs and user feedback to assess the agent's helpfulness and accuracy, and more importantly monitoring the agent traces in LangSmith. The script `eval.py` in `chatbot/eval_agent` calculates the model's average accuracy tracing the last 100 LLM runs. The `evaluate-model.yml` automates the evaluation as a bi-weekly task and uploads the resultant evaluation in a GCP bucket for cloud monitoring.
 *   **"Data Shift" Equivalent:** Significant changes in user query patterns or external API behavior could degrade performance. This is monitored indirectly via application error rates, latency spikes, or negative user feedback. Also we have a model evaluation pipeline that runs periodically. It evaluated RAG and the AGENT using LLM as a Judge Evaluator, and pushed the evaluation results to the respective LangSmith runs.
@@ -218,10 +218,28 @@ Since this project uses external APIs and application logic rather than a locall
     *   Error rates and response quality
 
 ### Logs
+
+**1. GCP Logs:**:
+
 ![cloudrun-backend-logs](https://github.com/user-attachments/assets/5755250d-5840-4318-9c95-1422409acaa3)
 
+**2. LangSmith Traces:**:
+![langsmith-traces](assets/langsmith-traces.png)
+
 ### Metrics
+
+**1. Cloud Run Metrics:**
 ![cloudrun-backend-metrics](https://github.com/user-attachments/assets/a5d911e3-e0eb-4bd5-a8dc-f28aa939922e)
+
+**2. LangSmith Metrics:**
+![langsmith-metrics](assets/langsmith-monitor.png)
+
+### Model versioning
+
+The model in our case is the prompts for various llm calls and the llm service provider model. We perform prompt versioning and also log the model used and associate it with each evaluation run. We use langsmith for both:
+
+![langsmith-prompts](assets/langsmith-prompts.png)
+
 
 ## 6. Video Demonstration
 
