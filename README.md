@@ -42,6 +42,40 @@ pip install -r requirements.txt
   \i schema.sql
   ```
 
+  Alternatively, you can use Alembic for database migrations:
+
+  0. Delete existing alembic for minimal debugging:
+    navigate to src/chatbot, delete alembic directory and alembic.ini
+
+  1. Install Alembic if not already installed:
+     ```bash
+     pip install alembic
+     ```
+
+  2. Initialize Alembic in your project:
+     ```bash
+     cd src/chatbot
+     alembic init alembic
+     ```
+
+  3. Configure `alembic.ini`:
+     - Set `sqlalchemy.url` to match your database connection string
+     - Example: `sqlalchemy.url = postgresql://pranav:chatbot_db@localhost:5432/chatbot_db`
+
+  4. Edit `alembic/env.py`:
+     - Import your SQLAlchemy models
+     - Set `target_metadata = Base.metadata` (where Base is your declarative base imported from models.py; from models import Base)
+
+  5. Create your first migration:
+     ```bash
+     alembic revision --autogenerate -m "Initial migration"
+     ```
+
+  6. Apply the migration:
+     ```bash
+     alembic upgrade head
+     ```
+
 **2. Setting up env variables:** Fill in all the values inside .env.local file.
 
 **3. Run Docker Compose:**
