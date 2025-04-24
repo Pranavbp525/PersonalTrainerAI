@@ -12,10 +12,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# --- Environment Variables & Logging ---
-os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API')
-os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
-os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
+
 
 # Initialize LangSmith client
 try:
@@ -797,7 +794,3 @@ def push_all_prompts():
         logger.warning("Some prompts failed to push. Check logs for details.")
         return results
 
-
-
-if __name__ == "__main__":
-    push_all_prompts()

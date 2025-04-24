@@ -37,6 +37,7 @@ from passlib.context import CryptContext
 from uuid import uuid4
 
 from fastapi import status
+from agent.prompts import push_all_prompts
 
 load_dotenv()
 
@@ -44,6 +45,8 @@ load_dotenv()
 os.environ['LANGSMITH_API_KEY'] = os.environ.get('LANGSMITH_API')
 os.environ['LANGSMITH_TRACING'] = os.environ.get('LANGSMITH_TRACING')
 os.environ['LANGSMITH_PROJECT'] = os.environ.get('LANGSMITH_PROJECT')
+
+push_all_prompts()
 
 # --- Setup ELK Logging ---
 # Configure the main application logger. Send DEBUG level logs and above to Logstash.
