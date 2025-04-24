@@ -59,7 +59,21 @@ from agent.prompts import (
     get_reasoning_generation_template,
     get_routine_identification_prompt,
     get_routine_modification_template_v2,
-    get_targeted_rag_query_template
+    get_targeted_rag_query_template,
+    get_analysis_v2_prompt,
+    get_final_cycle_report_v2_prompt,
+    get_reasoning_generation_prompt,
+    get_routine_modification_v2_prompt,
+    get_summarize_routine_prompt,
+    get_targeted_rag_query_prompt,
+    _get_prompt_from_langsmith,
+    get_finalize_research_report_prompt,
+    get_generate_rag_query_v2_prompt,
+    generate_rag_query_v2_prompt,
+    get_plan_research_steps_prompt,
+    get_reflect_on_progress_v2_prompt,
+    get_structured_planning_prompt,
+    get_synthesize_rag_results_prompt,
 )
 
 
@@ -629,288 +643,6 @@ async def coordinator(state: AgentState) -> AgentState:
     return updated_state
 
 
-          
-
-# Research agent for scientific knowledge retrieval
-async def research_agent(state: AgentState) -> AgentState:
-    """Retrieves and synthesizes scientific fitness knowledge from RAG."""
-    logger.info(f"Research Agent - Input State: {state}") #Log input state
-    research_prompt = get_research_prompt()
-    
-    # Generate targeted queries based on user profile
-    user_goals = state.get("user_model", {}).get("goals", ["general fitness"])
-    experience_level = state.get("user_model", {}).get("fitness_level", "beginner")
-    limitations = state.get("user_model", {}).get("constraints", [])
-    
-    # Create specific, focused queries for better RAG results
-    queries = []
-    
-    # Goal-specific queries
-    for goal in user_goals:
-        queries.append(f"optimal training frequency for {goal}")
-        queries.append(f"best exercises for {goal}")
-        queries.append(f"progression schemes for {goal}")
-    
-    # Experience-level queries
-    queries.append(f"training volume for {experience_level} lifters")
-    queries.append(f"intensity recommendations for {experience_level} lifters")
-    
-    # Limitation-specific queries
-    for limitation in limitations:
-        queries.append(f"exercise modifications for {limitation}")
-        queries.append(f"safe training with {limitation}")
-    
-    # Fill template with state data
-    filled_prompt = research_prompt.format(
-    user_profile=json.dumps(state.get("user_model", {})),
-    research_needs=json.dumps(state.get("working_memory", {}).get("research_needs", [])))
-    
-    # Add research topics to prompt
-    filled_prompt += f"\n\nSpecific research topics to investigate: {', '.join(queries)}"
-    
-    # Invoke LLM with research prompt and conversation history
-    messages = state["messages"] + [SystemMessage(content=filled_prompt)]
-    response = await llm_with_tools.ainvoke(messages)
-    
-    # Execute multiple targeted RAG queries
-    research_results = []
-    for query in queries[:3]:  # Limit to first 3 queries for demonstration
-        try:
-            result = await retrieve_data(query)
-            if result:  # Check if result is not None or empty
-                research_results.append({
-                    "query": query,
-                    "result": result,
-                    "source": "Pinecone RAG"
-                    # "source": result.get("source", "Unknown") # Add source field to pinecone metadata later for citations
-                })
-        except Exception as e:
-            research_results.append({
-                "query": query,
-                "error": str(e),
-                "result": "Error retrieving information"
-            })
-    
-    # Update working memory with structured research findings
-    working_memory = state.get("working_memory", {})
-    working_memory["research_findings"] = {
-        "principles": extract_principles(response.content),
-        "approaches": extract_approaches(response.content),
-        "citations": extract_citations(response.content),
-        "raw_results": research_results,
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    # Return updated state
-    updated_state = {
-        **state,
-        "messages": state["messages"] + [AIMessage(content=response.content)],
-        "working_memory": working_memory
-    }
-    logger.info(f"Research Agent - Output State: {updated_state}")  # Log output state
-    return updated_state
-
-# Planning agent for workout routine creation
-async def planning_agent(state: AgentState) -> AgentState:
-    """Creates personalized workout routines and exports to Hevy."""
-
-    # logger.info(f"Planning Agent - Input State: {state}") #Log input state
-    planning_prompt = get_planning_prompt()  # Latest version
-    # Or for specific version: planning_prompt = get_planning_prompt("production") 
-
-    # Format the prompt properly using the template's format method
-    filled_prompt = planning_prompt.format(
-        user_profile=json.dumps(state.get("user_model", {})),
-        research_findings=json.dumps(state.get("working_memory", {}).get("research_findings", {}))
-    )
-    
-    # Invoke LLM with planning prompt and conversation history
-    messages = state["messages"] + [SystemMessage(content=filled_prompt)]
-    response = await llm.ainvoke(messages)
-
-    # logger.info(f"\033[91m PLANNERS RESPONSE: {response} \033[0m")  # Red text in logs
-    
-    
-    try:
-        
-        fitness_plan = state.get("hevy_payloads", {})
-        fitness_plan["content"] = response.content
-        
-        fitness_plan["created_at"] = datetime.now().isoformat()
-        fitness_plan["version"] = fitness_plan.get("version", 0) + 1
-        # logger.info(f'Fitness Plan: {fitness_plan}')
-        #
-        
-        # Return updated state
-        updated_state = {
-            **state,
-            "messages": state["messages"] + [AIMessage(content="PLANNERS OUTPUT:\n"+response.content)],
-            "hevy_payloads": fitness_plan
-        }
-        # logger.info(f"Planning Agent - Output State: {updated_state}")
-        return updated_state
-    except Exception as e:
-        # Handle errors gracefully
-        updated_state = {
-            **state,
-            "messages": state["messages"] + [
-                AIMessage(content=response.content),
-                AIMessage(content=f"I've designed this routine for you, but there was an issue saving it to Hevy: {str(e)}")
-            ]
-        }
-        error_message = f"Error creating routine in Hevy: {str(e)}"
-        # logging.error(f"{error_message} in Planning Agent. Output State: {updated_state}")
-        return updated_state
-
-# Progress analysis agent for workout log analysis
-async def progress_analysis_agent(state: AgentState) -> AgentState:
-    """Analyzes workout logs to track progress and suggest adjustments."""
-    # logger.info(f"Progress Analysis Agent - Input State: {state}") #Log input state
-    analysis_prompt = get_analysis_prompt()
-    
-    # Fetch recent workout logs from Hevy API
-    try:
-        workout_logs = await tool_fetch_workouts(page=1, page_size=10)
-    except Exception as e:
-        workout_logs = {"error": str(e), "message": "Unable to fetch workout logs"}
-    
-
-    filled_prompt = analysis_prompt.format(
-        user_profile = json.dumps(state.get("user_model", {})),
-        fitness_plan = json.dumps(state.get("hevy_payloads", {})),
-        workout_logs = json.dumps(workout_logs)
-    )
-    
-    # Invoke LLM with analysis prompt and conversation history
-    messages = state["messages"] + [SystemMessage(content=filled_prompt)]
-    response = await llm_with_tools.ainvoke(messages)
-    
-    # Extract structured analysis results
-    analysis_results = {
-        "adherence_rate": extract_adherence_rate(response.content),
-        "progress_metrics": extract_progress_metrics(response.content),
-        "identified_issues": extract_issues(response.content),
-        "suggested_adjustments": extract_adjustments(response.content),
-        "analysis_date": datetime.now().isoformat()
-    }
-    
-    # Update working memory with analysis date
-    working_memory = state.get("working_memory", {})
-    working_memory["last_analysis_date"] = datetime.now().isoformat()
-    
-    # Return updated state
-    updated_state = {
-        **state,
-        "messages": state["messages"] + [AIMessage(content=response.content)],
-        "progress_data": state.get("progress_data", {}) | {"latest_analysis": analysis_results},
-        "working_memory": working_memory
-    }
-    # logger.info(f"Progress Analysis Agent - Output State: {updated_state}") #Log input state
-    return updated_state
-
-# Adaptation agent for routine modification
-async def adaptation_agent(state: AgentState) -> AgentState:
-    """Modifies workout routines based on progress and feedback."""
-    # logger.info(f"Adaptation Agent - Input State: {state}") #Log input state
-    adaptation_prompt = get_adaptation_prompt()
-    
-    
-    filled_prompt = adaptation_prompt.format(
-        user_profile = json.dumps(state.get("user_model", {})),
-        fitness_plan = json.dumps(state.get("hevy_payloads", {})),
-        progress_data = json.dumps(state.get("progress_data", {})),
-        suggested_adjustments = json.dumps(state.get("progress_data", {})
-                                                   .get("latest_analysis", {})
-                                                   .get("suggested_adjustments", []))
-    )
-    
-    # Invoke LLM with adaptation prompt and conversation history
-    messages = state["messages"] + [SystemMessage(content=filled_prompt)]
-    response = await llm_with_tools.ainvoke(messages)
-    
-    # Extract routine updates from response
-    routine_updates = extract_routine_updates(response.content)
-    
-    # Update routine in Hevy
-    try:
-        # Get current routine ID
-        routine_id = state.get("hevy_payloads", {}).get("hevy_routine_id")
-        
-        if routine_id:
-            # Convert to appropriate format for Hevy API
-            exercises = []
-            for exercise_data in routine_updates.get("exercises", []):
-                sets = []
-                for set_data in exercise_data.get("sets", []):
-                    sets.append(SetRoutineUpdate(
-                        type=set_data.get("type", "normal"),
-                        weight_kg=set_data.get("weight", 0.0),
-                        reps=set_data.get("reps", 0),
-                        duration_seconds=set_data.get("duration", None),
-                        distance_meters=set_data.get("distance", None)
-                    ))
-                
-                exercises.append(ExerciseRoutineUpdate(
-                    exercise_template_id=exercise_data.get("exercise_id", ""),
-                    exercise_name=exercise_data.get("exercise_name", ""),
-                    exercise_type=exercise_data.get("exercise_type", "strength"),
-                    sets=sets,
-                    notes=exercise_data.get("notes", ""),
-                    rest_seconds=60  # Default rest time
-                ))
-            
-            # Create the update object
-            routine_update = RoutineUpdate(
-                title=routine_updates.get("title", "Updated Routine"),
-                notes=routine_updates.get("notes", "AI-updated routine"),
-                exercises=exercises
-            )
-            
-            # Create the request object
-            update_request = RoutineUpdateRequest(routine=routine_update)
-            
-            # Call the API
-            hevy_result = await tool_update_routine(routine_id, update_request)
-            
-            # Update fitness plan with modifications
-            fitness_plan = state.get("hevy_payloads", {})
-            fitness_plan["content"] = response.content
-            fitness_plan["updated_at"] = datetime.now().isoformat()
-            fitness_plan["version"] = fitness_plan.get("version", 0) + 1
-            
-            # Return updated state
-            updated_state = {
-                **state,
-                "messages": state["messages"] + [AIMessage(content=response.content)],
-                "hevy_payloads": fitness_plan
-            }
-            # logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
-            return updated_state
-        else:
-            # Handle missing routine ID
-            updated_state = {
-                **state,
-                "messages": state["messages"] + [
-                    AIMessage(content=response.content),
-                    AIMessage(content="I've designed these updates for your routine, but I couldn't find your existing routine in Hevy. Would you like me to create a new routine instead?")
-                ]
-            }
-            # logger.info(f"Adaptation Agent - Output State: {updated_state}") #Log input state
-            return updated_state
-    except Exception as e:
-        # Handle errors gracefully
-        error_message = f"Error updating routine in Hevy: {str(e)}"
-    
-        updated_state = {
-            **state,
-            "messages": state["messages"] + [
-                AIMessage(content=response.content),
-                AIMessage(content=f"I've designed these updates for your routine, but there was an issue saving them to Hevy: {str(e)}")
-            ]
-        }
-        # logger.error(f"{error_message} in Adaptation Agent. Output State: {updated_state}") #Log input state
-        return updated_state
-
 # --- Coach agent with ELK Logging Added ---
 async def coach_agent(state: AgentState) -> AgentState:
     """Provides motivation, adherence strategies, and behavioral coaching."""
@@ -1047,16 +779,9 @@ async def plan_research_steps(state: DeepFitnessResearchState, config: Optional[
     user_profile = state['user_profile_str']
     agent_log.debug("Planning research steps.", extra={"topic": topic, "has_user_profile": bool(user_profile)}) # Added log
 
-    prompt = f"""Given the main research topic: '{topic}' for a user with this profile:
-<user_profile>
-{user_profile}
-</user_profile>
+    
+    prompt = get_plan_research_steps_prompt()
 
-Break this down into 3-5 specific, actionable sub-questions relevant to fitness science that can likely be answered using our internal knowledge base (RAG system). Focus on aspects like training principles, exercise selection, progression, nutrition timing, recovery, etc., as relevant to the topic.
-
-Output ONLY a JSON list of strings, where each string is a sub-question. Example:
-["What are the optimal rep ranges for muscle hypertrophy based on recent studies?", "How does protein timing affect muscle protein synthesis post-workout?", "What are common exercise modifications for individuals with lower back pain?"]
-"""
     sub_questions = [] # Initialize
     # --- Logging around LLM call and Parsing ---
     try:
@@ -1147,25 +872,7 @@ async def generate_rag_query_v2(state: DeepFitnessResearchState, config: Optiona
     findings = state['accumulated_findings']
     reflections_str = "\n".join(state.get('reflections', []))
 
-    prompt = f"""You are a research assistant formulating queries for an internal fitness science knowledge base (RAG system accessed via the `retrieve_data` function).
-
-Current Research Sub-Question: "{current_sub_question}"
-Query attempt number {queries_count_this_sub_q} for this sub-question.
-
-Accumulated Findings So Far:
-<findings>
-{findings}
-</findings>
-
-Previous Reflections on Progress:
-<reflections>
-{reflections_str}
-</reflections>
-
-Based on the *current sub-question* and the information gathered or reflected upon so far, formulate the single, most effective query string to retrieve the *next piece* of relevant scientific information from our fitness RAG system. Be specific and targeted. If previous attempts failed to yield useful info, try a different angle.
-
-Output *only* the query string itself, without any explanation or preamble.
-"""
+    prompt = get_generate_rag_query_v2_prompt()
     query_to_run = None
     # --- Logging around LLM call ---
     try:
@@ -1297,24 +1004,7 @@ async def synthesize_rag_results(state: DeepFitnessResearchState, config: Option
         current_idx = state['current_sub_question_idx']
         current_sub_question = state['sub_questions'][current_idx] if state.get('sub_questions') and current_idx < len(state['sub_questions']) else "the current topic"
 
-        prompt = f"""You are a research assistant synthesizing information for a fitness report.
-
-Current Research Sub-Question: "{current_sub_question}"
-
-Existing Accumulated Findings:
-<existing_findings>
-{findings}
-</existing_findings>
-
-Newly Retrieved Information from Knowledge Base (RAG):
-<new_info>
-{rag_results}
-</new_info>
-
-Task: Integrate the key points from the "Newly Retrieved Information" into the "Existing Accumulated Findings". Focus *only* on information directly relevant to the "Current Research Sub-Question". Update the findings concisely and maintain a logical flow. Avoid redundancy. If the new info isn't relevant or adds nothing substantially new, state that briefly within the updated findings.
-
-Output *only* the complete, updated accumulated findings text. Do not include headers like "Updated Findings".
-"""
+        prompt = get_synthesize_rag_results_prompt()
         # --- Logging around LLM call ---
         try:
             agent_log.info("Invoking LLM to synthesize RAG results.", extra={"current_sub_question_idx": current_idx, "query_used": query_used}) # Added log
@@ -1390,39 +1080,7 @@ async def reflect_on_progress_v2(state: DeepFitnessResearchState, config: Option
         "force_next_question": force_next_question
     })
 
-    prompt = f"""You are an expert research assistant evaluating the progress on a specific fitness research sub-question.
-
-Current Sub-Question: "{current_sub_question}"
-Number of queries made for this sub-question: {queries_this_sub_q} (Max recommended: {max_queries_sub_q})
-
-Accumulated Findings Gathered So Far:
-<findings>
-{findings}
-</findings>
-
-Task: Critically evaluate the findings related *specifically* to the current sub-question.
-1.  Assess Sufficiency: Is the sub-question adequately answered based on the findings?
-2.  Identify Gaps: What specific, crucial information related to this sub-question is still missing or unclear?
-3.  Suggest Next Step: Based on the gaps, should we:
-    a) Perform another RAG query for *this* sub-question? (If yes, briefly suggest *what* to query for).
-    b) Conclude this sub-question and move to the next?
-
-{"Note: Max queries for this sub-question reached. You should lean towards concluding unless a major, critical gap remains." if force_next_question else ""}
-
-Format your response clearly, addressing points 1, 2, and 3. Start your response with "CONCLUSION:" followed by either "CONTINUE_SUB_QUESTION" or "SUB_QUESTION_COMPLETE".
-
-Example 1 (Needs More):
-CONCLUSION: CONTINUE_SUB_QUESTION
-Sufficiency: Partially answered...
-Gaps: Need details on...
-Next Step: Perform another RAG query focusing on...
-
-Example 2 (Sufficient):
-CONCLUSION: SUB_QUESTION_COMPLETE
-Sufficiency: Yes, the findings cover the core aspects adequately.
-Gaps: Minor details could be explored, but not critical.
-Next Step: Conclude this sub-question.
-"""
+    prompt = get_reflect_on_progress_v2_prompt()
     reflection_text = "Error during reflection." # Default
     is_complete = True # Default to complete on error
     next_idx = current_idx + 1
@@ -1509,32 +1167,7 @@ async def finalize_research_report(state: DeepFitnessResearchState, config: Opti
     sub_questions = state.get('sub_questions', [])
     agent_log.debug("Preparing final report prompt.", extra={"topic": topic, "num_sub_questions": len(sub_questions), "num_reflections": len(reflections)}) # Added log
 
-    prompt = f"""You are a research assistant compiling a final report based *only* on information gathered from our internal fitness science knowledge base.
-
-Main Research Topic: "{topic}"
-
-Original Research Plan (Sub-questions):
-{json.dumps(sub_questions, indent=2)}
-
-Accumulated Findings (Synthesized from RAG results):
-<findings>
-{findings}
-</findings>
-
-Reflections During Research:
-<reflections>
-{json.dumps(reflections, indent=2)}
-</reflections>
-
-Task: Generate a comprehensive, well-structured research report addressing the main topic.
-- Use *only* the information presented in the "Accumulated Findings". Do not add external knowledge.
-- Structure the report logically, perhaps following the flow of the sub-questions, synthesizing related points.
-- Incorporate insights or limitations mentioned in the "Reflections" where appropriate (e.g., mention if a topic was concluded due to limits or lack of info).
-- Ensure the report is clear, concise, and scientifically grounded based *only* on the provided findings.
-- Start the report directly. Do not include a preamble like "Here is the final report".
-
-Output the final report text.
-"""
+    prompt = get_finalize_research_report_prompt()
     final_report = "Error generating final report." # Default
     # --- Logging around LLM call ---
     try:
@@ -1597,22 +1230,7 @@ async def structured_planning_node(state: StreamlinedRoutineState) -> Streamline
     errors = state.get("errors", [])
     agent_log.debug("Prepared user model and research findings for prompt.", extra={"has_user_model": bool(user_model_str != "{}"), "has_research": bool(research_findings_str != "{}")}) # Added log
 
-    PLANNING_PROMPT_TEMPLATE = """You are an expert personal trainer specializing in evidence-based workout programming.
-Based on the user profile and research findings provided below, create a detailed workout plan.
-
-**Critical Instructions:**
-1.  **Exercise Names:** For `exercise_name` in each exercise, use the MOST SPECIFIC name possible, including the equipment used (e.g., 'Bench Press (Barbell)', 'Squat (Barbell)', 'Lat Pulldown (Cable)', 'Arnold Press (Dumbbell)'). This is crucial for matching with the exercise database. Do NOT use generic names like 'Bench Press' or 'Row' without specifying equipment.
-2.  **Completeness:** Fill in all required fields based on the requested output structure. Provide reasonable defaults for optional fields if appropriate (e.g., rest times = 60s).
-3.  **Multiple Routines:** If the plan involves multiple workout days (e.g., Push/Pull/Legs), create a separate routine object within the `routines` list for each day.
-
-User Profile:
-{user_profile}
-
-Research Findings:
-{research_findings}
-
-Generate the workout plan adhering strictly to the required output structure based on the user profile and research findings.
-"""
+    PLANNING_PROMPT_TEMPLATE = get_structured_planning_prompt()
     prompt = PromptTemplate(
         template=PLANNING_PROMPT_TEMPLATE,
         input_variables=["user_profile", "research_findings"],
@@ -2234,10 +1852,10 @@ async def process_targets_node(state: ProgressAnalysisAdaptationStateV2) -> Dict
     any_target_failed = False # Flag local errors
 
     # Get Prompt Templates Once
-    analysis_prompt_template = get_analysis_v2_template()
-    rag_query_prompt_template = get_targeted_rag_query_template()
-    modification_prompt_template = get_routine_modification_template_v2()
-    reasoning_prompt_template = get_reasoning_generation_template()
+    analysis_prompt_template = get_analysis_v2_prompt()
+    rag_query_prompt_template = get_targeted_rag_query_prompt()
+    modification_prompt_template = get_routine_modification_v2_prompt()
+    reasoning_prompt_template = get_reasoning_generation_prompt()
     analysis_parser = PydanticOutputParser(pydantic_object=AnalysisFindings)
     analysis_format_instructions = analysis_parser.get_format_instructions()
 
@@ -2622,7 +2240,7 @@ async def compile_final_report_node_v2(state: ProgressAnalysisAdaptationStateV2)
     # Generate the final user message using LLM
     final_message = overall_message # Fallback
     try:
-        final_report_prompt_template = get_final_cycle_report_template_v2()
+        final_report_prompt_template = get_final_cycle_report_v2_prompt()
         user_name = user_model.get("name", "")
         agent_log.debug("Generating final report message via LLM.") # Added log
         filled_prompt = final_report_prompt_template.format(
