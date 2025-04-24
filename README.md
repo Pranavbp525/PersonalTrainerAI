@@ -95,7 +95,8 @@ For more detailed documentation on specific components:
 - [**RAG Implementation**](./readme/MLflow.md): Retrieval-augmented generation models
 - [**Deployment Guide**](./readme/deployment.md): Cloud deployment and CI/CD pipeline
 - [**Model Development**](./readme/model_development.md): Agent development and evaluation
-- [**Airflow Integration**](./readme/airflow.md): Workflow orchestration
+- [**Airflow Integration**](./readme/Airflow.md): Workflow orchestration
+- [**Experiment Tracking and Evaluation**](./readme/MLflow.md): Experiment tracking
 - [**User Guide**](./readme/user_guide.md): End-user instructions
 - [**Evaluation Framework**](./readme/evaluation.md): Quality assessment and performance metrics
 - [**Maintenance Guide**](./readme/maintenance.md): System upkeep and troubleshooting
