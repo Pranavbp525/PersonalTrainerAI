@@ -68,6 +68,10 @@ def create_agent_graph(
     user_modeler = AgentFactory.get_agent("user_modeler", llm_provider, model_name)
     coordinator = AgentFactory.get_agent("coordinator")
     coach_agent = AgentFactory.get_agent("coach_agent", llm_provider, model_name)
+    research_agent = AgentFactory.get_agent("research_agent", llm_provider, model_name)
+    planning_agent = AgentFactory.get_agent("planning_agent", llm_provider, model_name)
+    progress_analysis_agent = AgentFactory.get_agent("progress_analysis_agent", llm_provider, model_name)
+    adaptation_agent = AgentFactory.get_agent("adaptation_agent", llm_provider, model_name)
     
     # Create the graph
     workflow = StateGraph(AgentState)
@@ -76,6 +80,10 @@ def create_agent_graph(
     workflow.add_node("user_modeler", user_modeler.process)
     workflow.add_node("coordinator", coordinator.process)
     workflow.add_node("coach_agent", coach_agent.process)
+    workflow.add_node("research_agent", research_agent.process)
+    workflow.add_node("planning_agent", planning_agent.process)
+    workflow.add_node("progress_analysis_agent", progress_analysis_agent.process)
+    workflow.add_node("adaptation_agent", adaptation_agent.process)
     workflow.add_node("end_conversation", lambda state: {**state, "current_agent": "end_conversation"})
     
     # Add edges
@@ -85,13 +93,20 @@ def create_agent_graph(
         {
             "user_modeler": "user_modeler",
             "coach_agent": "coach_agent",
+            "research_agent": "research_agent",
+            "planning_agent": "planning_agent",
+            "progress_analysis_agent": "progress_analysis_agent",
+            "adaptation_agent": "adaptation_agent",
             "end_conversation": "end_conversation",
-            # Add other agent edges as they are implemented
         }
     )
     
     workflow.add_edge("user_modeler", "coordinator")
     workflow.add_edge("coach_agent", "coordinator")
+    workflow.add_edge("research_agent", "coordinator")
+    workflow.add_edge("planning_agent", "coordinator")
+    workflow.add_edge("progress_analysis_agent", "coordinator")
+    workflow.add_edge("adaptation_agent", "coordinator")
     workflow.add_edge("end_conversation", END)
     
     # Set the entry point

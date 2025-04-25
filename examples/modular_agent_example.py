@@ -2,7 +2,7 @@
 Modular Agent Example
 
 This script demonstrates how to use the modular agent architecture
-with different LLM providers.
+with different LLM providers and agent types.
 """
 
 import os
@@ -10,6 +10,7 @@ import asyncio
 from dotenv import load_dotenv
 
 from src.chatbot.agent import process_message
+from src.chatbot.agent.agents import AgentFactory
 
 # Load environment variables from .env file
 load_dotenv()
@@ -48,8 +49,31 @@ async def main():
         base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
         print(f"Using Ollama at {base_url}")
     
+    # Display available agents
+    print("\nAvailable agents:")
+    for i, agent_name in enumerate(AgentFactory.list_agents(), 1):
+        print(f"{i}. {agent_name}")
+    
+    # Choose an agent mode or use the full graph
+    agent_mode = input("\nChoose an agent mode (enter number or 'full' for the complete graph) [default: full]: ").strip().lower() or "full"
+    
     # Initialize state
     state = None
+    
+    # Set the initial agent if a specific one was chosen
+    if agent_mode != "full" and agent_mode.isdigit():
+        agent_idx = int(agent_mode) - 1
+        if 0 <= agent_idx < len(AgentFactory.list_agents()):
+            agent_name = AgentFactory.list_agents()[agent_idx]
+            print(f"\nUsing {agent_name} mode")
+            if state is None:
+                state = {
+                    "messages": [],
+                    "memory": {},
+                    "working_memory": {},
+                    "user_model": {},
+                    "current_agent": agent_name,
+                }
     
     # Main conversation loop
     while True:
@@ -69,6 +93,10 @@ async def main():
             if messages:
                 assistant_message = messages[-1].content
                 print(f"\nAssistant: {assistant_message}")
+                
+                # Print current agent for debugging
+                current_agent = state.get("current_agent", "coordinator")
+                print(f"[Current agent: {current_agent}]")
         except Exception as e:
             print(f"\nError: {e}")
     

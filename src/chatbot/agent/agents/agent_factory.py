@@ -11,6 +11,10 @@ from .base_agent import BaseAgent
 from .user_modeler_agent import UserModelerAgent
 from .coordinator_agent import CoordinatorAgent
 from .coach_agent import CoachAgent
+from .research_agent import ResearchAgent
+from .planning_agent import PlanningAgent
+from .progress_analysis_agent import ProgressAnalysisAgent
+from .adaptation_agent import AdaptationAgent
 
 
 class AgentFactory:
@@ -20,6 +24,10 @@ class AgentFactory:
         "user_modeler": UserModelerAgent,
         "coordinator": CoordinatorAgent,
         "coach_agent": CoachAgent,
+        "research_agent": ResearchAgent,
+        "planning_agent": PlanningAgent,
+        "progress_analysis_agent": ProgressAnalysisAgent,
+        "adaptation_agent": AdaptationAgent,
     }
     
     _instances: Dict[str, BaseAgent] = {}
@@ -49,7 +57,7 @@ class AgentFactory:
             agent_class = cls._agent_classes[agent_name]
             
             # Check if the agent requires an LLM provider
-            if agent_class in [UserModelerAgent, CoachAgent]:
+            if agent_class in [UserModelerAgent, CoachAgent, ResearchAgent, PlanningAgent, ProgressAnalysisAgent, AdaptationAgent]:
                 if llm_provider is None:
                     # Use OpenAI provider by default
                     llm_provider = LLMProviderFactory.get_provider("openai")
